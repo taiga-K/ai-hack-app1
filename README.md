@@ -68,6 +68,10 @@ pnpm run verify   # 型検査・リント・Steiger FSD検査・フォーマッ�
 pnpm run build    # 本番ビルド
 ```
 
+会議コパイロット画面は `/meetings/{meetingId}` です。トップの「セッション開始」から開きます。表示確認だけする場合は「UIプレビュー」を使うと、実音声なしで文字起こしと助言カードを確認できます。
+
+ローカルでバックエンドの WebSocket に接続する場合、フロントは開発ポート（3000）から `ws://localhost:8000/ws/meetings/{id}/audio` へ接続します。別オリジンにするときは `NEXT_PUBLIC_BACKEND_WS_ORIGIN` を設定します。
+
 ### バックエンド (`backend/`)
 
 ```bash

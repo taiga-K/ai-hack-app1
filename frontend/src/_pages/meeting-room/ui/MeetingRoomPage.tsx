@@ -1,0 +1,106 @@
+"use client";
+
+import { toast } from "sonner";
+import { MeetingControls } from "@/features/meeting-control";
+import { CopilotSidebar } from "@/widgets/copilot-sidebar";
+import { Header } from "@/widgets/header";
+import { TranscriptFeed } from "@/widgets/transcript-feed";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Toaster,
+} from "@/shared/ui";
+import { useMeetingRoom } from "../model/use-meeting-room";
+
+export interface MeetingRoomPageProps {
+  meetingId: string;
+  title?: string;
+  preview?: boolean;
+}
+
+export function MeetingRoomPage({
+  meetingId,
+  title,
+  preview = false,
+}: MeetingRoomPageProps) {
+  const meetingTitle = title?.trim() || "業務ヒアリング";
+  const {
+    phase,
+    utterances,
+    adviceItems,
+    chimeEnabled,
+    audio,
+    stats,
+    startCapture,
+    stopCapture,
+    endMeeting,
+    toggleChime,
+  } = useMeetingRoom({ meetingId, preview });
+
+  return (
+    <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <Header
+        title={meetingTitle}
+        badge="自社PM専用"
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              Meet横並び向け
+            </Badge>
+            <Badge variant="secondary">#{meetingId.slice(0, 8)}</Badge>
+          </div>
+        }
+      />
+      <MeetingControls
+        phase={phase}
+        connection={audio}
+        stats={stats}
+        chimeEnabled={chimeEnabled}
+        onToggleChime={toggleChime}
+        onStart={() => {
+          void startCapture();
+        }}
+        onStop={stopCapture}
+        onEndMeeting={endMeeting}
+      />
+      {audio.errorMessage && (
+        <Alert variant="destructive" className="mx-3 mt-2 sm:mx-4">
+          <AlertTitle>キャプチャエラー</AlertTitle>
+          <AlertDescription>{audio.errorMessage}</AlertDescription>
+        </Alert>
+      )}
+      {phase === "ended" && (
+        <Alert className="mx-3 mt-2 sm:mx-4">
+          <AlertTitle>会議を終了しました</AlertTitle>
+          <AlertDescription>
+            音声送信を停止しています。要件定義書プレビューは次の実装範囲です。
+          </AlertDescription>
+        </Alert>
+      )}
+      {preview && phase !== "ended" && (
+        <Alert className="mx-3 mt-2 sm:mx-4">
+          <AlertTitle>UIプレビュー</AlertTitle>
+          <AlertDescription>
+            実音声ではなく表示確認用の発話と助言です。Meetタブ音声＋マイクを接続すると、同じ枠にリアルタイムイベントが流れます。
+          </AlertDescription>
+        </Alert>
+      )}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="min-h-0 min-w-0 flex-1">
+          <TranscriptFeed utterances={utterances} />
+        </div>
+        <div className="max-h-[46%] min-h-[13rem] w-full shrink-0 border-t border-border lg:max-h-none lg:w-80 lg:border-t-0 lg:border-l">
+          <CopilotSidebar
+            adviceItems={adviceItems}
+            onCopied={() => {
+              toast.success("質問文をコピーしました");
+            }}
+          />
+        </div>
+      </div>
+      <Toaster />
+    </div>
+  );
+}

@@ -8,6 +8,8 @@ const steigerConfig = [
       "fsd/typo-in-layer-name": "off",
       // Foundation setup contains initial slices with fewer references than full product
       "fsd/insignificant-slice": "off",
+      // "advice" is uncountable English; pluralize treats it as plural vs meeting/utterance
+      "fsd/inconsistent-naming": "off",
     },
   },
 ];

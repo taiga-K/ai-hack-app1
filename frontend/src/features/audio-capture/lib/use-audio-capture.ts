@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getMeetingAudioWebSocketUrl } from "@/shared/config";
 import { DualAudioCaptureService } from "../lib/audio-capture-service";
 import { AudioWebSocketClient } from "../lib/audio-websocket-client";
 import type { AudioCaptureState, AudioStreamStats } from "../model/types";
@@ -9,12 +10,14 @@ export interface UseAudioCaptureOptions {
   meetingId?: string;
   wsBaseUrl?: string;
   autoConnectWebSocket?: boolean;
+  onMessage?: (event: MessageEvent) => void;
 }
 
 export function useAudioCapture({
   meetingId = "default",
   wsBaseUrl,
   autoConnectWebSocket = true,
+  onMessage,
 }: UseAudioCaptureOptions = {}) {
   const [state, setState] = useState<AudioCaptureState>({
     status: "idle",
@@ -36,12 +39,19 @@ export function useAudioCapture({
 
   const audioServiceRef = useRef<DualAudioCaptureService | null>(null);
   const wsClientRef = useRef<AudioWebSocketClient | null>(null);
+  const onMessageRef = useRef(onMessage);
+  const sessionRef = useRef(0);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   // Initialize service instances
   useEffect(() => {
     audioServiceRef.current = new DualAudioCaptureService(16000);
 
     return () => {
+      sessionRef.current += 1;
       if (audioServiceRef.current) {
         audioServiceRef.current.stop();
       }
@@ -51,7 +61,21 @@ export function useAudioCapture({
     };
   }, []);
 
+  const discardInFlightStart = useCallback(
+    (wsClient?: AudioWebSocketClient | null) => {
+      if (audioServiceRef.current) {
+        audioServiceRef.current.stop();
+      }
+      if (wsClient && wsClientRef.current === wsClient) {
+        wsClient.disconnect();
+        wsClientRef.current = null;
+      }
+    },
+    []
+  );
+
   const stopCapture = useCallback(() => {
+    sessionRef.current += 1;
     if (audioServiceRef.current) {
       audioServiceRef.current.stop();
     }
@@ -72,8 +96,13 @@ export function useAudioCapture({
     }));
   }, []);
 
-  const startCapture = useCallback(async () => {
-    if (!audioServiceRef.current) return;
+  const startCapture = useCallback(async (): Promise<boolean> => {
+    if (!audioServiceRef.current) {
+      return false;
+    }
+
+    const sessionId = ++sessionRef.current;
+    let wsClient: AudioWebSocketClient | null = null;
 
     setState((prev) => ({
       ...prev,
@@ -82,39 +111,70 @@ export function useAudioCapture({
     }));
 
     try {
-      // Connect WebSocket if enabled
       if (autoConnectWebSocket) {
         const resolvedWsUrl =
-          wsBaseUrl ||
-          (typeof window !== "undefined"
-            ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/meetings/${meetingId}/audio`
-            : `ws://localhost:8000/ws/meetings/${meetingId}/audio`);
+          wsBaseUrl || getMeetingAudioWebSocketUrl(meetingId);
 
         setState((prev) => ({ ...prev, wsStatus: "connecting" }));
-        const wsClient = new AudioWebSocketClient(resolvedWsUrl);
+        wsClient = new AudioWebSocketClient(resolvedWsUrl);
         wsClientRef.current = wsClient;
 
         try {
           await wsClient.connect({
             onOpen: () => {
+              if (sessionRef.current !== sessionId) {
+                return;
+              }
               setState((prev) => ({ ...prev, wsStatus: "connected" }));
             },
             onClose: () => {
-              setState((prev) => ({ ...prev, wsStatus: "disconnected" }));
+              if (sessionRef.current !== sessionId) {
+                return;
+              }
+              setState((prev) => ({
+                ...prev,
+                wsStatus: prev.isRecording ? "connecting" : "disconnected",
+              }));
             },
             onError: () => {
+              if (sessionRef.current !== sessionId) {
+                return;
+              }
               setState((prev) => ({ ...prev, wsStatus: "error" }));
+            },
+            onReconnectFailed: () => {
+              if (sessionRef.current !== sessionId) {
+                return;
+              }
+              setState((prev) => ({ ...prev, wsStatus: "error" }));
+            },
+            onMessage: (event) => {
+              if (sessionRef.current !== sessionId) {
+                return;
+              }
+              onMessageRef.current?.(event);
             },
           });
         } catch {
+          if (sessionRef.current !== sessionId) {
+            discardInFlightStart(wsClient);
+            return false;
+          }
           // Allow capture even if backend websocket is not yet connected or failed
           setState((prev) => ({ ...prev, wsStatus: "error" }));
         }
       }
 
-      // Start dual capture
+      if (sessionRef.current !== sessionId) {
+        discardInFlightStart(wsClient);
+        return false;
+      }
+
       await audioServiceRef.current.startCapture({
         onPCMChunk: (chunk: ArrayBuffer) => {
+          if (sessionRef.current !== sessionId) {
+            return;
+          }
           if (wsClientRef.current && wsClientRef.current.isConnected()) {
             const sent = wsClientRef.current.send(chunk);
             if (sent) {
@@ -127,6 +187,9 @@ export function useAudioCapture({
           }
         },
         onVolumeChange: ({ micVolume, tabVolume }) => {
+          if (sessionRef.current !== sessionId) {
+            return;
+          }
           setState((prev) => ({
             ...prev,
             micVolume,
@@ -134,12 +197,17 @@ export function useAudioCapture({
           }));
         },
         onEnded: (source) => {
+          if (sessionRef.current !== sessionId) {
+            return;
+          }
           if (source === "tab") {
-            // If tab sharing ended, stop session
             stopCapture();
           }
         },
         onError: (err) => {
+          if (sessionRef.current !== sessionId) {
+            return;
+          }
           setState((prev) => ({
             ...prev,
             status: "error",
@@ -149,6 +217,11 @@ export function useAudioCapture({
         },
       });
 
+      if (sessionRef.current !== sessionId) {
+        discardInFlightStart(wsClient);
+        return false;
+      }
+
       setState((prev) => ({
         ...prev,
         status: "capturing",
@@ -157,7 +230,12 @@ export function useAudioCapture({
         hasMicStream: true,
         hasTabStream: true,
       }));
+      return true;
     } catch (err: unknown) {
+      if (sessionRef.current !== sessionId) {
+        discardInFlightStart(wsClient);
+        return false;
+      }
       const message =
         err instanceof Error ? err.message : "音声キャプチャに失敗しました";
       setState((prev) => ({
@@ -167,13 +245,64 @@ export function useAudioCapture({
         errorMessage: message,
       }));
       stopCapture();
+      return false;
     }
-  }, [autoConnectWebSocket, meetingId, stopCapture, wsBaseUrl]);
+  }, [
+    autoConnectWebSocket,
+    discardInFlightStart,
+    meetingId,
+    stopCapture,
+    wsBaseUrl,
+  ]);
+
+  const sendJson = useCallback((payload: Record<string, unknown>): boolean => {
+    if (!wsClientRef.current) {
+      return false;
+    }
+    return wsClientRef.current.sendJson(payload);
+  }, []);
+
+  const flushAndDisconnect = useCallback(async (graceMs = 5000) => {
+    sessionRef.current += 1;
+    if (audioServiceRef.current) {
+      audioServiceRef.current.stop();
+    }
+
+    setState((prev) => ({
+      ...prev,
+      isRecording: false,
+      hasMicStream: false,
+      hasTabStream: false,
+      micVolume: 0,
+      tabVolume: 0,
+    }));
+
+    const wsClient = wsClientRef.current;
+    if (wsClient) {
+      wsClient.sendJson({ action: "flush" });
+      wsClient.sendJson({ action: "analyze" });
+      await wsClient.drainAndDisconnect(graceMs);
+      wsClientRef.current = null;
+    }
+
+    setState((prev) => ({
+      ...prev,
+      status: "idle",
+      wsStatus: "disconnected",
+      isRecording: false,
+      hasMicStream: false,
+      hasTabStream: false,
+      micVolume: 0,
+      tabVolume: 0,
+    }));
+  }, []);
 
   return {
     state,
     stats,
     startCapture,
     stopCapture,
+    sendJson,
+    flushAndDisconnect,
   };
 }

@@ -1,7 +1,16 @@
-export { Alert, AlertDescription, AlertTitle } from "./alert";
+export { Alert, AlertAction, AlertDescription, AlertTitle } from "./alert";
 export { AppLayout, type AppLayoutProps } from "./app-layout";
 export { Badge, badgeVariants } from "./badge";
 export { Button, buttonVariants } from "./button";
+export {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "./empty";
+export { Label } from "./label";
 export {
   Card,
   CardAction,
@@ -44,4 +53,5 @@ export { Input } from "./input";
 export { ScrollArea, ScrollBar } from "./scroll-area";
 export { Separator } from "./separator";
 export { Toaster } from "./sonner";
+export { Switch } from "./switch";
 export { ThemeProvider, type ThemeProviderProps } from "./theme-provider";

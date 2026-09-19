@@ -1,1 +1,1 @@
-export type { MeetingSession } from "./model/types";
+export type { MeetingPhase, MeetingSession } from "./model/types";
