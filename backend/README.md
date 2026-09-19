@@ -30,7 +30,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 
 ## エンドポイント
 - `GET /api/v1/health`: システムヘルスチェック
-- `POST /api/v1/analysis/dialogue`: 対話テキストから曖昧・矛盾・無理・未確認事項・専門用語の共通認識不一致を検出してPM向け助言と質問候補を返却
+- `POST /api/v1/analysis/dialogue`: 対話テキストから曖昧・矛盾・無理・未確認事項・専門用語の共通認識不一致を検出してPM向け助言と質問候補を返却（`meeting_id` 最大128文字、`utterances` 最大100件・各2000文字）
 - `POST /api/v1/meetings/{meeting_id}/finalize`: 会議終了時に全発話と検出事項（`unexplained_jargon` 含む）を集約し、Orca Router 経由で構造化 Markdown 要件定義書を生成
 - `GET /api/v1/meetings/{meeting_id}/requirements`: 生成済み要件定義書の取得（JSON）
 - `GET /api/v1/meetings/{meeting_id}/requirements/download`: 要件定義書の Markdown ダウンロード
