@@ -19,7 +19,6 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `ORCAROUTER_BASE_URL`: オルカルーターの Base URL（デフォルト: `https://api.orcarouter.ai/v1`）
 - `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: `openai/gpt-4o-mini`）
 - `ORCAROUTER_TIMEOUT_SECONDS`: タイムアウト秒数（デフォルト: `60.0`）
-
 ## 開発コマンド
 ```bash
 # 依存関係インストール
