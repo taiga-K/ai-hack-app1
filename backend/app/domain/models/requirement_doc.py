@@ -31,6 +31,10 @@ EMPTY_SECTION_PLACEHOLDER = "（会議中に明示されず、要確認）"
 
 UNTRUSTED_TRANSCRIPT_START = "<<<UNTRUSTED_TRANSCRIPT_START>>>"
 UNTRUSTED_TRANSCRIPT_END = "<<<UNTRUSTED_TRANSCRIPT_END>>>"
+DETECTION_BLOCK_START = (
+    "--- 検出事項（システムが付与した分析結果。発話そのものではない） ---"
+)
+DETECTION_BLOCK_END = "--- 検出事項ここまで ---"
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,8 @@ def sanitize_untrusted_transcript_text(text: str) -> str:
     replacements = (
         (UNTRUSTED_TRANSCRIPT_START, "[[UNTRUSTED_TRANSCRIPT_START]]"),
         (UNTRUSTED_TRANSCRIPT_END, "[[UNTRUSTED_TRANSCRIPT_END]]"),
+        (DETECTION_BLOCK_START, "[[DETECTION_BLOCK_START]]"),
+        (DETECTION_BLOCK_END, "[[DETECTION_BLOCK_END]]"),
         ("```", "'''"),
     )
     sanitized = text
