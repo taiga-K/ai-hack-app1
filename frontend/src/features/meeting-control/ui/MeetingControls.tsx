@@ -63,7 +63,8 @@ export function MeetingControls({
   onEndMeeting,
 }: MeetingControlsProps) {
   const [endDialogOpen, setEndDialogOpen] = useState(false);
-  const isEnded = phase === "ended";
+  const isEnded = phase === "ended" || phase === "finalizing";
+  const isFinalizing = phase === "finalizing";
   const isRequestingPermission = connection.status === "requesting_permission";
   const isCapturing = connection.isRecording && !isEnded;
   const endDisabled = isEnded || isRequestingPermission;
@@ -101,9 +102,23 @@ export function MeetingControls({
           active={connection.hasTabStream && isCapturing}
         />
         <Badge
-          variant={isEnded ? "secondary" : isCapturing ? "default" : "outline"}
+          variant={
+            isFinalizing
+              ? "outline"
+              : isEnded
+                ? "secondary"
+                : isCapturing
+                  ? "default"
+                  : "outline"
+          }
         >
-          {isEnded ? "会議終了" : isCapturing ? "録音中" : "待機中"}
+          {isFinalizing
+            ? "要件書生成中"
+            : isEnded
+              ? "会議終了"
+              : isCapturing
+                ? "録音中"
+                : "待機中"}
         </Badge>
         {isCapturing && (
           <span className="text-[11px] text-muted-foreground">
@@ -165,7 +180,7 @@ export function MeetingControls({
             <DialogHeader>
               <DialogTitle>会議を終了しますか？</DialogTitle>
               <DialogDescription>
-                音声キャプチャを停止します。要件定義書プレビューは別タスクで実装します。
+                音声キャプチャを停止し、会話内容から要件定義書を生成します。
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

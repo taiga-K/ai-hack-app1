@@ -18,3 +18,12 @@ export type {
   MeetingWebSocketCallbacks,
   MeetingWebSocketClientOptions,
 } from "./websocket";
+export {
+  BackendHttpError,
+  classifyBackendHttpError,
+  readBackendErrorDetail,
+  requestBlob,
+  requestJson,
+  toUserFacingHttpErrorMessage,
+} from "./http";
+export type { BackendHttpErrorCode } from "./http";

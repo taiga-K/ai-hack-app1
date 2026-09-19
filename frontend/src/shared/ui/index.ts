@@ -52,6 +52,12 @@ export {
 export { Input } from "./input";
 export { ScrollArea, ScrollBar } from "./scroll-area";
 export { Separator } from "./separator";
+export { Skeleton } from "./skeleton";
+export { Spinner } from "./spinner";
 export { Toaster } from "./sonner";
 export { Switch } from "./switch";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./tabs";
+export { Textarea } from "./textarea";
 export { ThemeProvider, type ThemeProviderProps } from "./theme-provider";
+export { Toggle, toggleVariants } from "./toggle";
+export { ToggleGroup, ToggleGroupItem } from "./toggle-group";
