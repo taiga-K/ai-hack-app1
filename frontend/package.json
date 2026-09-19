@@ -9,8 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "architecture": "steiger ./src",
+    "test": "node --experimental-transform-types --test src/**/*.test.ts",
     "format:check": "prettier --check .",
-    "verify": "pnpm typecheck && pnpm lint && pnpm architecture && pnpm format:check"
+    "verify": "pnpm typecheck && pnpm lint && pnpm architecture && pnpm test && pnpm format:check"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

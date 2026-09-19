@@ -1,3 +1,4 @@
+import { AudioCaptureControl } from "@/features/audio-capture";
 import {
   Alert,
   AlertDescription,
@@ -88,20 +89,23 @@ export function HomePage() {
           </div>
           <Separator />
           <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            音声ストリーム
+            音声ストリーム仕様
           </div>
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Ch 0: マイク (自社PM)</span>
-              <Badge variant="secondary" className="text-[10px]">
-                待機中
+              <span>Ch 0 (Left): 自社PM</span>
+              <Badge variant="outline" className="text-[10px]">
+                マイク
               </Badge>
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Ch 1: Meet (相手)</span>
-              <Badge variant="secondary" className="text-[10px]">
-                待機中
+              <span>Ch 1 (Right): 相手</span>
+              <Badge variant="outline" className="text-[10px]">
+                Meet音声
               </Badge>
+            </div>
+            <div className="text-[11px] text-muted-foreground pt-1">
+              ※ 16kHz / 16-bit PCM バイナリで WebSocket 送信
             </div>
           </div>
         </div>
@@ -126,6 +130,9 @@ export function HomePage() {
             を基盤とし、renderプロパティによる合成とNotionライクな落ち着いたグレーパレットを採用しています。
           </AlertDescription>
         </Alert>
+
+        {/* 音声デュアルキャプチャモジュール */}
+        <AudioCaptureControl meetingId="sample-meeting" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
@@ -163,9 +170,12 @@ export function HomePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">デザインシステム検証</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="size-4 text-primary" />
+                デザインシステム稼働中
+              </CardTitle>
               <CardDescription>
-                導入済みプリミティブ（Base UI準拠）
+                Base UI準拠プリミティブ & Notionライク配色
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2 items-center">
@@ -181,9 +191,9 @@ export function HomePage() {
               <Button size="sm" variant="ghost">
                 Ghost
               </Button>
-              <Badge variant="default">Badge</Badge>
+              <Badge variant="default">Active</Badge>
               <Badge variant="secondary">Neutral</Badge>
-              <Badge variant="outline">Outline</Badge>
+              <Badge variant="outline">Stereo 2ch</Badge>
             </CardContent>
           </Card>
         </div>

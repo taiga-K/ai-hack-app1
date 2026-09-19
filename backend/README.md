@@ -5,6 +5,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 ## 技術スタック
 - **言語**: Python 3.12+
 - **フレームワーク**: FastAPI + Uvicorn
+- **AI Gateway**: オルカルーター（Orca Router）経由でのみ LLM 呼び出し
 - **設計**: Clean Architecture (`app/domain`, `app/application`, `app/infrastructure`, `app/presentation`)
 - **パッケージマネージャー**: `uv`
 - **品質・静的解析**:
@@ -12,6 +13,12 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
   - `mypy`: 型検査（strict モード）
   - `import-linter`: クリーンアーキテクチャのレイヤー境界保護
   - `pytest`: 単体・結合テスト
+
+## 環境変数
+- `ORCAROUTER_API_KEY`: オルカルーターの API キー（必須）
+- `ORCAROUTER_BASE_URL`: オルカルーターの Base URL（デフォルト: `https://api.orcarouter.ai/v1`）
+- `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: `openai/gpt-4o-mini`）
+- `ORCAROUTER_TIMEOUT_SECONDS`: タイムアウト秒数（デフォルト: `60.0`）
 
 ## 開発コマンド
 ```bash

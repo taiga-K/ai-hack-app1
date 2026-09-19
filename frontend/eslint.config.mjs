@@ -9,18 +9,18 @@ const eslintConfig = defineConfig([
   prettier,
   {
     rules: {
-      // Disallow dynamic imports inside functions/blocks or inline import types to enforce no-inline-imports rule
+      // Disallow inline imports inside blocks, dynamic imports in functions, and TS import types
       "no-restricted-syntax": [
         "error",
-        {
-          selector: ":function ImportExpression",
-          message:
-            "Inline dynamic imports inside functions/blocks are forbidden. Place imports at top of file unless documented for circular dependencies.",
-        },
         {
           selector: "BlockStatement > ImportDeclaration",
           message:
             "Inline imports inside blocks are forbidden. Move imports to the top of the file.",
+        },
+        {
+          selector: ":function ImportExpression",
+          message:
+            "Inline dynamic imports inside functions/blocks are forbidden. Place imports at top of file unless documented for circular dependencies.",
         },
         {
           selector: "TSImportType",
