@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     orcarouter_default_model: str = "openai/gpt-4o-mini"
     orcarouter_timeout_seconds: float = 60.0
 
+    whisper_model_size: str = "base"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    whisper_language: str = "ja"
+    audio_sample_rate: int = 16000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

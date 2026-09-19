@@ -8,12 +8,22 @@ from app.domain.models.llm import (
     ChatStreamChunk,
     TokenUsage,
 )
+from app.domain.models.transcript import (
+    AudioChannel,
+    AudioChunk,
+    Speaker,
+    Utterance,
+)
 
 __all__ = [
+    "AudioChannel",
+    "AudioChunk",
     "ChatCompletionRequest",
     "ChatCompletionResponse",
     "ChatMessage",
     "ChatRole",
     "ChatStreamChunk",
+    "Speaker",
     "TokenUsage",
+    "Utterance",
 ]
