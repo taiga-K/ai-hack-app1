@@ -20,6 +20,7 @@ class InMemoryMeetingSessionStore:
         self._records: dict[str, MeetingSessionRecord] = {}
         self._live: dict[str, int] = {}
         self._closing: dict[str, int] = {}
+        self._persist_work: dict[str, int] = {}
         self._cond = Condition()
 
     def get(self, meeting_id: str) -> MeetingSessionRecord | None:
@@ -89,32 +90,51 @@ class InMemoryMeetingSessionStore:
                 self._closing[meeting_id] = closing - 1
             self._cond.notify_all()
 
+    def begin_persist_work(self, meeting_id: str) -> None:
+        with self._cond:
+            self._persist_work[meeting_id] = self._persist_work.get(meeting_id, 0) + 1
+            self._cond.notify_all()
+
+    def end_persist_work(self, meeting_id: str) -> None:
+        with self._cond:
+            work = self._persist_work.get(meeting_id, 0)
+            if work > 0:
+                self._persist_work[meeting_id] = work - 1
+            self._cond.notify_all()
+
     def wait_until_persist_settled(
         self,
         meeting_id: str,
         close_grace_seconds: float = 0.5,
-        close_wait_seconds: float = 15.0,
+        persist_wait_seconds: float = 60.0,
     ) -> None:
-        """Wait briefly for disconnect, then until leftover persist finishes."""
-        grace_deadline = monotonic() + max(close_grace_seconds, 0.0)
-        close_deadline = monotonic() + max(close_wait_seconds, 0.0)
+        """Wait for in-flight STT/analysis, then a brief disconnect grace."""
+        persist_deadline = monotonic() + max(persist_wait_seconds, 0.0)
         with self._cond:
             while True:
                 live = self._live.get(meeting_id, 0)
                 closing = self._closing.get(meeting_id, 0)
+                persist = self._persist_work.get(meeting_id, 0)
                 now = monotonic()
-                if closing == 0 and live == 0:
+                if persist == 0 and closing == 0 and live == 0:
                     return
-                if closing > 0:
-                    remaining = close_deadline - now
+                if persist > 0 or closing > 0:
+                    remaining = persist_deadline - now
                     if remaining <= 0:
                         return
                     self._cond.wait(timeout=remaining)
                     continue
-                remaining = grace_deadline - now
-                if remaining <= 0:
-                    return
-                self._cond.wait(timeout=remaining)
+                grace_deadline = now + max(close_grace_seconds, 0.0)
+                while True:
+                    remaining = grace_deadline - monotonic()
+                    if remaining <= 0:
+                        return
+                    self._cond.wait(timeout=remaining)
+                    persist = self._persist_work.get(meeting_id, 0)
+                    closing = self._closing.get(meeting_id, 0)
+                    live = self._live.get(meeting_id, 0)
+                    if persist > 0 or closing > 0 or live == 0:
+                        break
 
     def _ensure_locked(
         self,

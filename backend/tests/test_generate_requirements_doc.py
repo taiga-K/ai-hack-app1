@@ -261,7 +261,7 @@ def test_wait_until_persist_settled_waits_for_disconnect_flush() -> None:
         store.wait_until_persist_settled(
             "meet-close",
             close_grace_seconds=2.0,
-            close_wait_seconds=2.0,
+            persist_wait_seconds=2.0,
         )
         finished_at.append(monotonic())
 
@@ -278,3 +278,29 @@ def test_wait_until_persist_settled_waits_for_disconnect_flush() -> None:
     assert not thread.is_alive()
     assert finished_at
     assert finished_at[0] - started < 1.5
+
+
+def test_wait_until_persist_settled_waits_for_inflight_stt() -> None:
+    store = InMemoryMeetingSessionStore()
+    store.register_live_session("meet-stt")
+    store.begin_persist_work("meet-stt")
+    finished: list[bool] = []
+
+    def waiter() -> None:
+        store.wait_until_persist_settled(
+            "meet-stt",
+            close_grace_seconds=0.05,
+            persist_wait_seconds=2.0,
+        )
+        finished.append(True)
+
+    thread = Thread(target=waiter)
+    thread.start()
+    sleep(0.15)
+    assert thread.is_alive()
+    store.end_persist_work("meet-stt")
+    store.begin_close("meet-stt")
+    store.end_close("meet-stt")
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+    assert finished

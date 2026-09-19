@@ -44,13 +44,21 @@ class MeetingSessionRepository(Protocol):
         """Mark that disconnect flush/persist has finished."""
         ...
 
+    def begin_persist_work(self, meeting_id: str) -> None:
+        """Mark that STT or analysis is writing session state."""
+        ...
+
+    def end_persist_work(self, meeting_id: str) -> None:
+        """Mark that an in-flight persist write has finished."""
+        ...
+
     def wait_until_persist_settled(
         self,
         meeting_id: str,
         close_grace_seconds: float = 0.5,
-        close_wait_seconds: float = 15.0,
+        persist_wait_seconds: float = 60.0,
     ) -> None:
-        """Wait for an in-flight disconnect persist before snapshotting."""
+        """Wait for in-flight STT/analysis/disconnect persist before snapshotting."""
         ...
 
     def update_title(self, meeting_id: str, title: str) -> None:

@@ -136,9 +136,7 @@ class AudioStreamSession:
                 await self.flush()
             elif action == "analyze":
                 if self.analyze_dialogue_use_case is not None and not self._is_closed:
-                    task = asyncio.create_task(self._trigger_analysis(force=True))
-                    self._background_tasks.add(task)
-                    task.add_done_callback(self._background_tasks.discard)
+                    self._schedule_analysis(force=True)
         except json.JSONDecodeError:
             logger.warning("Received invalid non-JSON text message: %s", text)
 
@@ -170,7 +168,22 @@ class AudioStreamSession:
         if buffer_to_process:
             await self._process_stereo_buffer(buffer_to_process)
 
+    def _begin_persist_work(self) -> None:
+        if self.meeting_session_repository is not None:
+            self.meeting_session_repository.begin_persist_work(self.meeting_id)
+
+    def _end_persist_work(self) -> None:
+        if self.meeting_session_repository is not None:
+            self.meeting_session_repository.end_persist_work(self.meeting_id)
+
     async def _process_stereo_buffer(self, stereo_bytes: bytes) -> None:
+        self._begin_persist_work()
+        try:
+            await self._process_stereo_buffer_body(stereo_bytes)
+        finally:
+            self._end_persist_work()
+
+    async def _process_stereo_buffer_body(self, stereo_bytes: bytes) -> None:
         start_ms = self._elapsed_ms
         # Calculate duration of this chunk in ms
         duration_ms = int((len(stereo_bytes) / self.bytes_per_second) * 1000)
@@ -256,11 +269,20 @@ class AudioStreamSession:
                 # Disconnect flush: persist last detections even if the socket is gone.
                 await self._trigger_analysis(force=has_remote_client_speech)
             else:
-                task = asyncio.create_task(
-                    self._trigger_analysis(force=has_remote_client_speech)
-                )
-                self._background_tasks.add(task)
-                task.add_done_callback(self._background_tasks.discard)
+                self._schedule_analysis(force=has_remote_client_speech)
+
+    def _schedule_analysis(self, force: bool) -> None:
+        """Start analysis without a persist-count gap after STT returns."""
+        self._begin_persist_work()
+        task = asyncio.create_task(self._run_scheduled_analysis(force))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _run_scheduled_analysis(self, force: bool) -> None:
+        try:
+            await self._trigger_analysis(force)
+        finally:
+            self._end_persist_work()
 
     async def _trigger_analysis(self, force: bool = False) -> None:
         """Analyze dialogue, persist detections, and broadcast while the socket is open."""
@@ -274,6 +296,16 @@ class AudioStreamSession:
                 self._analysis_pending_force = True
             return
 
+        self._begin_persist_work()
+        try:
+            await self._run_analysis_loop(force)
+        finally:
+            self._end_persist_work()
+
+    async def _run_analysis_loop(self, force: bool) -> None:
+        use_case = self.analyze_dialogue_use_case
+        if use_case is None:
+            return
         async with self._analysis_lock:
             current_force = force
             while True:
@@ -283,7 +315,7 @@ class AudioStreamSession:
                 self._analysis_pending_force = False
 
                 try:
-                    analysis_result = await self.analyze_dialogue_use_case.execute(
+                    analysis_result = await use_case.execute(
                         context=self.dialogue_context,
                         force_analyze=force_to_use,
                     )
