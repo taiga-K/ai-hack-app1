@@ -9,6 +9,11 @@ from app.application.dto import AdviceItemDTO, AnalysisResultDTO
 from app.application.use_cases import AnalyzeDialogueUseCase
 from app.domain.models.analysis import AdvicePriority, IssueCategory
 from app.presentation.deps import get_analyze_dialogue_use_case
+from app.presentation.schemas import (
+    ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH,
+    ANALYZE_DIALOGUE_UTTERANCE_MAX_LENGTH,
+    ANALYZE_DIALOGUE_UTTERANCES_MAX_ITEMS,
+)
 from main import app
 
 client = TestClient(app)
@@ -107,3 +112,30 @@ def test_dialogue_analysis_endpoint_unexplained_jargon() -> None:
         assert "既存システムからデータを取る接続口" in item["suggested_question"]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_dialogue_analysis_rejects_oversized_meeting_id() -> None:
+    payload = {
+        "meeting_id": "m" * (ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH + 1),
+        "utterances": ["短い発話"],
+    }
+    response = client.post("/api/v1/analysis/dialogue", json=payload)
+    assert response.status_code == 422
+
+
+def test_dialogue_analysis_rejects_too_many_utterances() -> None:
+    payload = {
+        "meeting_id": "meet-too-many",
+        "utterances": ["発話"] * (ANALYZE_DIALOGUE_UTTERANCES_MAX_ITEMS + 1),
+    }
+    response = client.post("/api/v1/analysis/dialogue", json=payload)
+    assert response.status_code == 422
+
+
+def test_dialogue_analysis_rejects_oversized_utterance() -> None:
+    payload = {
+        "meeting_id": "meet-long-utterance",
+        "utterances": ["あ" * (ANALYZE_DIALOGUE_UTTERANCE_MAX_LENGTH + 1)],
+    }
+    response = client.post("/api/v1/analysis/dialogue", json=payload)
+    assert response.status_code == 422
