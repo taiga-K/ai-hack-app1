@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     debug: bool = False
     orcarouter_api_key: str = ""
     orcarouter_base_url: str = "https://api.orcarouter.ai/v1"
+    orcarouter_default_model: str = "openai/gpt-4o-mini"
+    orcarouter_timeout_seconds: float = 60.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

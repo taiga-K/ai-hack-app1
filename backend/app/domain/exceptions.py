@@ -1,0 +1,29 @@
+"""Domain exceptions."""
+
+
+class DomainException(Exception):
+    """Base domain exception."""
+
+
+class LLMServiceError(DomainException):
+    """Base exception for LLM service failures."""
+
+
+class LLMConfigurationError(LLMServiceError):
+    """Configuration error for LLM Gateway (e.g. missing API key)."""
+
+
+class LLMAuthenticationError(LLMServiceError):
+    """Authentication failed when communicating with LLM Gateway."""
+
+
+class LLMRateLimitError(LLMServiceError):
+    """Rate limit reached on LLM Gateway."""
+
+
+class LLMTimeoutError(LLMServiceError):
+    """Timeout communicating with LLM Gateway."""
+
+
+class LLMResponseError(LLMServiceError):
+    """Invalid response received from LLM Gateway."""
