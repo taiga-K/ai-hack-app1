@@ -39,7 +39,7 @@ select = [
     "UP",  # pyupgrade
     "PLC0415", # import-outside-top-level (no inline imports)
 ]
-ignore = []
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

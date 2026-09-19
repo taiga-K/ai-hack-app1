@@ -1,5 +1,11 @@
 """Domain models package."""
 
+from app.domain.models.analysis import (
+    AdviceItem,
+    AdvicePriority,
+    AnalysisResult,
+    IssueCategory,
+)
 from app.domain.models.llm import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -8,6 +14,7 @@ from app.domain.models.llm import (
     ChatStreamChunk,
     TokenUsage,
 )
+from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.transcript import (
     AudioChannel,
     AudioChunk,
@@ -16,6 +23,9 @@ from app.domain.models.transcript import (
 )
 
 __all__ = [
+    "AdviceItem",
+    "AdvicePriority",
+    "AnalysisResult",
     "AudioChannel",
     "AudioChunk",
     "ChatCompletionRequest",
@@ -23,6 +33,8 @@ __all__ = [
     "ChatMessage",
     "ChatRole",
     "ChatStreamChunk",
+    "IssueCategory",
+    "MeetingDialogueContext",
     "Speaker",
     "TokenUsage",
     "Utterance",

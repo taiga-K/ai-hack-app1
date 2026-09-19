@@ -25,11 +25,14 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `WHISPER_LANGUAGE`: 文字起こし言語（デフォルト: `ja`）
 - `AUDIO_SAMPLE_RATE`: 音声サンプルレート（デフォルト: `16000`）
 
-## WebSocket エンドポイント
-- `/ws/meetings/{meeting_id}/audio`:
+## エンドポイント
+- `GET /api/v1/health`: システムヘルスチェック
+- `POST /api/v1/analysis/dialogue`: 対話テキストから曖昧・矛盾・無理・未確認事項を検出してPM向け助言と質問候補を返却
+- `WebSocket /ws/meetings/{meeting_id}/audio`:
   - 16-bit 16kHz ステレオPCM（Left: 自社マイク, Right: 相手Meet音声）をストリーミング受信
   - チャンネル物理分離ダイアライゼーション（`local_pm` / `remote_client`）
-  - Silero VAD + faster-whisper による低遅延リアルタイム文字起こし結果を JSON 送信
+  - Silero VAD + faster-whisper による低遅延リアルタイム文字起こし結果を JSON 送信 (`type: "utterance"`)
+  - 会話コンテキスト監視 & オルカルーター経由でのリアルタイム助言イベント送信 (`type: "advice"`)
 
 ## 開発コマンド
 ```bash

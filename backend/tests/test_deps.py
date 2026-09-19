@@ -1,16 +1,20 @@
-"""Integration tests for Orca Router presentation DI wiring."""
+"""Integration tests for presentation DI wiring."""
 
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from app.application.use_cases import TranscribeAudioUseCase
+from app.application.use_cases import (
+    AnalyzeDialogueUseCase,
+    TranscribeAudioUseCase,
+)
 from app.domain.services.llm_service import LLMService
 from app.domain.services.stt_service import STTService
 from app.infrastructure.ai.orca_router_client import OrcaRouterClient
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.infrastructure.stt.whisper_stt import FasterWhisperSTTService
 from app.presentation.deps import (
+    get_analyze_dialogue_use_case,
     get_channel_diarizer,
     get_llm_service,
     get_stt_service,
@@ -63,3 +67,48 @@ def test_get_stt_and_diarizer_dependency_injection() -> None:
     response = client.get("/test-stt-diarizer")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_get_analyze_dialogue_use_case_dependency_injection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify AnalyzeDialogueUseCase dependency injection when key is configured."""
+    monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "test-key")
+    test_app = FastAPI()
+
+    @test_app.get("/test-analyze-di")
+    def sample_analyze_endpoint(
+        use_case: AnalyzeDialogueUseCase | None = Depends(
+            get_analyze_dialogue_use_case
+        ),
+    ) -> dict[str, str]:
+        assert isinstance(use_case, AnalyzeDialogueUseCase)
+        assert isinstance(use_case._llm_service, OrcaRouterClient)
+        return {"status": "ok"}
+
+    client = TestClient(test_app)
+    response = client.get("/test-analyze-di")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_get_analyze_dialogue_use_case_unconfigured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify AnalyzeDialogueUseCase returns None when key is empty."""
+    monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "")
+    test_app = FastAPI()
+
+    @test_app.get("/test-analyze-none")
+    def sample_analyze_endpoint(
+        use_case: AnalyzeDialogueUseCase | None = Depends(
+            get_analyze_dialogue_use_case
+        ),
+    ) -> dict[str, str]:
+        assert use_case is None
+        return {"status": "none"}
+
+    client = TestClient(test_app)
+    response = client.get("/test-analyze-none")
+    assert response.status_code == 200
+    assert response.json() == {"status": "none"}

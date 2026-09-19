@@ -909,8 +909,6 @@ wheels = [
 ]
 
 [[package]]
-=======
->>>>>>> origin/main
 name = "openai"
 version = "3.16.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1266,8 +1264,6 @@ wheels = [
 ]
 
 [[package]]
-=======
->>>>>>> origin/main
 name = "truststore"
 version = "0.10.4"
 source = { registry = "https://pypi.org/simple" }

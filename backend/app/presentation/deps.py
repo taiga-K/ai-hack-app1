@@ -1,12 +1,17 @@
 """FastAPI presentation dependencies for dependency injection."""
 
-from app.application.use_cases import TranscribeAudioUseCase
+import logging
+
+from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.domain.exceptions import LLMConfigurationError
 from app.domain.services.llm_service import LLMService
 from app.domain.services.stt_service import STTService
 from app.infrastructure.ai.orca_router_client import OrcaRouterClient
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.infrastructure.config import settings
 from app.infrastructure.stt.whisper_stt import FasterWhisperSTTService
+
+logger = logging.getLogger(__name__)
 
 # Singleton instances for STT and Diarizer to avoid reloading weights per request
 _stt_service_instance: STTService | None = None
@@ -52,3 +57,22 @@ def get_channel_diarizer() -> ChannelDiarizer:
 def get_transcribe_audio_use_case() -> TranscribeAudioUseCase:
     """Dependency injection provider for TranscribeAudioUseCase."""
     return TranscribeAudioUseCase(stt_service=get_stt_service())
+
+
+def get_analyze_dialogue_use_case() -> AnalyzeDialogueUseCase | None:
+    """Dependency injection provider for AnalyzeDialogueUseCase.
+
+    Returns None gracefully if ORCAROUTER_API_KEY is not configured,
+    allowing audio streaming to function even without LLM credentials.
+    """
+    try:
+        llm = get_llm_service()
+        return AnalyzeDialogueUseCase(
+            llm_service=llm,
+            model=settings.orcarouter_default_model,
+        )
+    except LLMConfigurationError:
+        logger.warning(
+            "ORCAROUTER_API_KEY is not configured; dialogue analysis is disabled."
+        )
+        return None
