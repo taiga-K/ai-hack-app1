@@ -68,9 +68,9 @@ pnpm run verify   # 型検査・リント・Steiger FSD検査・フォーマッ�
 pnpm run build    # 本番ビルド
 ```
 
-会議コパイロット画面は `/meetings/{meetingId}` です。トップの「セッション開始」から開きます。表示確認だけする場合は「UIプレビュー」を使うと、実音声なしで文字起こしと助言カードを確認できます。
+会議コパイロット画面は `/meetings/{meetingId}` です。トップの「セッション開始」から開きます。表示確認だけする場合は「UIプレビュー」を使うと、実音声なしで文字起こしと助言カードを確認できます。会議終了後は `/meetings/{meetingId}/document` で要件定義書のプレビュー・編集・コピー・`.md` ダウンロードができます。UIプレビューから会議終了すると、同じ `demo=1` のまま要件書画面を確認できます。
 
-ローカルでバックエンドの WebSocket に接続する場合、フロントは開発ポート（3000）から `ws://localhost:8000/ws/meetings/{id}/audio` へ接続します。別オリジンにするときは `NEXT_PUBLIC_BACKEND_WS_ORIGIN` を設定します。
+ローカルでバックエンドの WebSocket に接続する場合、フロントは開発ポート（3000）から `ws://localhost:8000/ws/meetings/{id}/audio` へ接続します。別オリジンにするときは `NEXT_PUBLIC_BACKEND_WS_ORIGIN` を設定します。REST（`finalize` / `requirements` / `download`）はブラウザから同源の `/api/v1/*` を呼び、Next.js がバックエンドへリライトします。リライト先を変えるときはサーバー側の `BACKEND_HTTP_ORIGIN` を設定します（既定は `http://localhost:8000`）。`NEXT_PUBLIC_BACKEND_HTTP_ORIGIN` はブラウザの fetch 先には使いません。
 
 ### バックエンド (`backend/`)
 

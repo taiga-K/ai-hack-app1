@@ -4,4 +4,4 @@ export interface MeetingSession {
   createdAt: string;
 }
 
-export type MeetingPhase = "idle" | "live" | "ended";
+export type MeetingPhase = "idle" | "live" | "finalizing" | "ended";
