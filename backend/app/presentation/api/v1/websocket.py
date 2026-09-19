@@ -210,23 +210,6 @@ class AudioStreamSession:
         has_remote_client_speech = False
 
         for u in all_utterances:
-            if self._is_closed:
-                return
-
-            msg = UtteranceMessage(
-                id=u.id,
-                meeting_id=u.meeting_id,
-                speaker=u.speaker,
-                text=u.text,
-                start_ms=u.start_ms,
-                end_ms=u.end_ms,
-                is_final=u.is_final,
-                created_at=u.created_at,
-            )
-            sent = await self._safe_send_text(msg.model_dump_json())
-            if not sent:
-                return
-
             speaker_enum = (
                 Speaker.LOCAL_PM
                 if u.speaker == Speaker.LOCAL_PM.value
@@ -251,20 +234,35 @@ class AudioStreamSession:
                     self.meeting_id, utterance
                 )
 
-        if (
-            all_utterances
-            and self.analyze_dialogue_use_case is not None
-            and not self._is_closed
-        ):
-            task = asyncio.create_task(
-                self._trigger_analysis(force=has_remote_client_speech)
+            if self._is_closed:
+                continue
+
+            msg = UtteranceMessage(
+                id=u.id,
+                meeting_id=u.meeting_id,
+                speaker=u.speaker,
+                text=u.text,
+                start_ms=u.start_ms,
+                end_ms=u.end_ms,
+                is_final=u.is_final,
+                created_at=u.created_at,
             )
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
+            await self._safe_send_text(msg.model_dump_json())
+
+        if all_utterances and self.analyze_dialogue_use_case is not None:
+            if self._is_closed:
+                # Disconnect flush: persist last detections even if the socket is gone.
+                await self._trigger_analysis(force=has_remote_client_speech)
+            else:
+                task = asyncio.create_task(
+                    self._trigger_analysis(force=has_remote_client_speech)
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
     async def _trigger_analysis(self, force: bool = False) -> None:
-        """Execute dialogue analysis and broadcast advice messages with retry queuing."""
-        if self.analyze_dialogue_use_case is None or self._is_closed:
+        """Analyze dialogue, persist detections, and broadcast while the socket is open."""
+        if self.analyze_dialogue_use_case is None:
             return
 
         # If analysis is already running, queue a follow-up retry with accumulated speech
@@ -277,8 +275,6 @@ class AudioStreamSession:
         async with self._analysis_lock:
             current_force = force
             while True:
-                if self._is_closed:
-                    return
                 # Reset pending flags before executing analysis run
                 self._analysis_pending = False
                 force_to_use = current_force or self._analysis_pending_force
@@ -290,13 +286,14 @@ class AudioStreamSession:
                         force_analyze=force_to_use,
                     )
                     for item in analysis_result.advice_items:
-                        if self._is_closed:
-                            return
                         # Deduplicate: do not rebroadcast already sent advice
                         if item.id in self._seen_advice_ids:
                             continue
                         self._seen_advice_ids.add(item.id)
                         self._persist_advice(item)
+
+                        if self._is_closed:
+                            continue
 
                         advice_msg = AdviceMessage(
                             id=item.id,
@@ -309,17 +306,23 @@ class AudioStreamSession:
                             detected_at=item.detected_at,
                             quote=item.quote,
                         )
-                        sent = await self._safe_send_text(advice_msg.model_dump_json())
-                        if not sent:
-                            return
+                        await self._safe_send_text(advice_msg.model_dump_json())
                 except Exception as exc:
                     logger.error("Failed to run dialogue analysis: %s", exc)
 
-                # If new utterances arrived while analysis was in flight, run again
-                if self._analysis_pending and not self._is_closed:
+                # Drain queued speech even after disconnect so finalize sees last detections
+                if self._analysis_pending:
                     current_force = self._analysis_pending_force
                     continue
                 break
+
+    async def close_and_persist(self) -> None:
+        """Stop socket sends, flush leftover audio, and persist last detections."""
+        self.mark_closed()
+        await self.flush()
+        pending = list(self._background_tasks)
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     def _persist_advice(self, item: AdviceItemDTO) -> None:
         """Store a detection so finalize can include it in the requirements context."""
@@ -373,8 +376,7 @@ async def websocket_audio_endpoint(
                 logger.info(
                     "WebSocket disconnect event received for meeting %s", meeting_id
                 )
-                session.mark_closed()
-                await session.flush()
+                await session.close_and_persist()
                 break
 
             if "bytes" in message and message["bytes"] is not None:
@@ -383,12 +385,10 @@ async def websocket_audio_endpoint(
                 await session.handle_message(message["text"])
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for meeting %s", meeting_id)
-        session.mark_closed()
-        await session.flush()
+        await session.close_and_persist()
     except Exception as e:
         logger.error("Error in audio WebSocket session %s: %s", meeting_id, e)
-        session.mark_closed()
         try:
-            await session.flush()
+            await session.close_and_persist()
         except Exception:
             pass

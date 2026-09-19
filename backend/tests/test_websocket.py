@@ -287,14 +287,17 @@ async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -
 
 @pytest.mark.asyncio
 async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
+    store = InMemoryMeetingSessionStore()
     mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        speaker = "local_pm" if chunk.speaker == Speaker.LOCAL_PM else "remote_client"
         return [
             UtteranceDTO(
-                id="utt-flush-1",
+                id=f"utt-flush-{speaker}",
                 meeting_id=meeting_id,
-                speaker="local_pm",
+                speaker=speaker,
                 text="切断前の最後の発話です。",
                 start_ms=chunk.timestamp_ms,
                 end_ms=chunk.timestamp_ms + 500,
@@ -304,10 +307,30 @@ async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
         ]
 
     mock_use_case.execute.side_effect = mock_execute
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-disconnect",
+        advice_items=[
+            AdviceItemDTO(
+                id="adv-flush-last",
+                category=IssueCategory.UNEXPLAINED_JARGON.value,
+                priority=AdvicePriority.HIGH.value,
+                title="切断直前の専門用語",
+                reason="末尾発話の確認が残っている",
+                suggested_question="最後の用語の意味は合っていますか？",
+                detected_at=datetime.now(UTC),
+                quote="切断前の最後の発話です。",
+            )
+        ],
+        analyzed_utterance_count=2,
+    )
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
+    app.dependency_overrides[get_meeting_session_repository] = lambda: store
 
     try:
         client = TestClient(app)
@@ -317,6 +340,18 @@ async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
             ws.send_bytes(short_stereo)
             # Closing the connection triggers disconnect path
             ws.close()
+
+        record = store.get("meet-disconnect")
+        assert record is not None
+        assert record.dialogue.total_utterances == 2
+        assert {u.speaker.value for u in record.dialogue.utterances} == {
+            "local_pm",
+            "remote_client",
+        }
+        assert len(record.advice_items) == 1
+        assert record.advice_items[0].id == "adv-flush-last"
+        assert record.advice_items[0].category == IssueCategory.UNEXPLAINED_JARGON
+        mock_analyze_use_case.execute.assert_awaited()
     finally:
         app.dependency_overrides.clear()
 
