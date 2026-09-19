@@ -16,7 +16,11 @@ from app.application.use_cases.analyze_dialogue import (
 )
 from app.domain.exceptions import LLMServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
-from app.domain.models.llm import ChatCompletionRequest, ChatCompletionResponse, ChatRole
+from app.domain.models.llm import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatRole,
+)
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.transcript import Speaker, Utterance
 from app.domain.services.llm_service import LLMService
@@ -301,7 +305,7 @@ def test_wrap_conversation_log_uses_fixed_boundary() -> None:
 
 
 @pytest.mark.asyncio
-async def test_analyze_dialogue_wraps_untrusted_transcript_in_conversation_log() -> None:
+async def test_analyze_dialogue_bounds_untrusted_transcript() -> None:
     """Verify injection text is sent only as bounded user data, not as system rules."""
     mock_llm = AsyncMock(spec=LLMService)
     mock_llm.chat_completion.return_value = ChatCompletionResponse(
