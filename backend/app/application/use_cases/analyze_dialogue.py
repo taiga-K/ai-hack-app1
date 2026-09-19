@@ -1,8 +1,8 @@
 """Dialogue analysis and realtime advice use case."""
 
+import hashlib
 import json
 import logging
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -23,7 +23,10 @@ ANALYSIS_JSON_SCHEMA: dict[str, Any] = {
         "properties": {
             "items": {
                 "type": "array",
-                "description": "List of detected issues requiring advice or clarification. Empty if no issues.",
+                "description": (
+                    "List of detected issues requiring advice or clarification. "
+                    "Empty if no issues."
+                ),
                 "items": {
                     "type": "object",
                     "properties": {
@@ -35,28 +38,47 @@ ANALYSIS_JSON_SCHEMA: dict[str, Any] = {
                                 "infeasibility",
                                 "missing",
                             ],
-                            "description": "Category of the issue: ambiguity (曖昧), contradiction (矛盾), infeasibility (無理・高リスク), missing (要件漏れ・未確認)",
+                            "description": (
+                                "Category of the issue: ambiguity (曖昧), "
+                                "contradiction (矛盾), infeasibility (無理・高リスク), "
+                                "missing (要件漏れ・未確認)"
+                            ),
                         },
                         "priority": {
                             "type": "string",
                             "enum": ["high", "medium", "low"],
-                            "description": "Urgency and priority of the advice for the PM to ask right now.",
+                            "description": (
+                                "Urgency and priority of the advice for the PM to ask "
+                                "right now."
+                            ),
                         },
                         "title": {
                             "type": "string",
-                            "description": "Short concise summary of the issue in Japanese (e.g., '納期と追加要件の矛盾', '「使いやすいUI」の具体化不足').",
+                            "description": (
+                                "Short concise summary of the issue in Japanese "
+                                "(e.g., '納期と追加要件の矛盾', '「使いやすいUI」の具体化不足')."
+                            ),
                         },
                         "reason": {
                             "type": "string",
-                            "description": "Clear explanation of why this is an issue and potential project risks in Japanese.",
+                            "description": (
+                                "Clear explanation of why this is an issue and potential "
+                                "project risks in Japanese."
+                            ),
                         },
                         "suggested_question": {
                             "type": "string",
-                            "description": "A polite, concrete question in Japanese that the PM should ask the client immediately to resolve the issue.",
+                            "description": (
+                                "A polite, concrete question in Japanese that the PM "
+                                "should ask the client immediately to resolve the issue."
+                            ),
                         },
                         "quote": {
                             "type": "string",
-                            "description": "Relevant snippet or quote from the conversation if applicable.",
+                            "description": (
+                                "Relevant snippet or quote from the conversation if "
+                                "applicable."
+                            ),
                         },
                     },
                     "required": [
@@ -100,6 +122,18 @@ SYSTEM_PROMPT = """あなたは要件定義・クライアント定期業務ヒ�
 """
 
 
+def compute_advice_fingerprint(
+    category: str,
+    title: str,
+    quote: str | None = None,
+) -> str:
+    """Compute a stable fingerprint ID for an advice item to enable deduplication."""
+    norm_title = "".join(title.strip().lower().split())
+    norm_quote = "".join((quote or "").strip().lower().split())
+    raw = f"{category.strip().lower()}:{norm_title}:{norm_quote}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
 class AnalyzeDialogueUseCase:
     """Use case to detect ambiguity, contradiction, infeasibility, and missing requirements."""
 
@@ -127,10 +161,8 @@ class AnalyzeDialogueUseCase:
                 analyzed_utterance_count=0,
             )
 
-        # Optimization: Only analyze when there is sufficient context or client finished speaking
         recent_utterances = context.get_recent_utterances(limit=self._window_size)
         if not force_analyze:
-            # Check if there is any substantial content to analyze
             meaningful_text = " ".join(u.text.strip() for u in recent_utterances)
             if len(meaningful_text) < 10:
                 return AnalysisResultDTO(
@@ -173,7 +205,6 @@ class AnalyzeDialogueUseCase:
                 context.meeting_id,
                 e,
             )
-            # Fail safely without crashing the real-time stream
             return AnalysisResultDTO(
                 meeting_id=context.meeting_id,
                 advice_items=[],
@@ -188,7 +219,6 @@ class AnalyzeDialogueUseCase:
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            # Try to extract JSON if wrapped in markdown code blocks
             stripped = content.strip()
             if stripped.startswith("```json") and stripped.endswith("```"):
                 stripped = stripped[7:-3].strip()
@@ -224,8 +254,14 @@ class AnalyzeDialogueUseCase:
             if not title or not suggested_q:
                 continue
 
+            stable_id = compute_advice_fingerprint(
+                category=cat,
+                title=title,
+                quote=quote,
+            )
+
             advice_dto = AdviceItemDTO(
-                id=str(uuid.uuid4()),
+                id=stable_id,
                 category=cat,
                 priority=prio,
                 title=title,

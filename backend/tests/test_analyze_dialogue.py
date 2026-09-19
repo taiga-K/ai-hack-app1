@@ -6,13 +6,32 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.application.use_cases.analyze_dialogue import AnalyzeDialogueUseCase
+from app.application.use_cases.analyze_dialogue import (
+    AnalyzeDialogueUseCase,
+    compute_advice_fingerprint,
+)
 from app.domain.exceptions import LLMServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
 from app.domain.models.llm import ChatCompletionResponse
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.transcript import Speaker, Utterance
 from app.domain.services.llm_service import LLMService
+
+
+def test_compute_advice_fingerprint_deterministic() -> None:
+    """Verify advice fingerprint is deterministic and whitespace-insensitive."""
+    fp1 = compute_advice_fingerprint(
+        category="ambiguity",
+        title="納期が曖昧",
+        quote="なるべく早めで",
+    )
+    fp2 = compute_advice_fingerprint(
+        category="AMBIGUITY",
+        title="  納期が曖昧  ",
+        quote="なるべく早めで",
+    )
+    assert fp1 == fp2
+    assert len(fp1) == 16
 
 
 @pytest.mark.asyncio
@@ -110,6 +129,7 @@ async def test_analyze_dialogue_detects_issues_successfully() -> None:
     assert item1.title == "「使いやすい画面」の基準が曖昧"
     assert "使いやすい画面とは" in item1.suggested_question
     assert item1.quote == "使いやすい感じで頼むよ"
+    assert len(item1.id) == 16
 
     item2 = result.advice_items[1]
     assert item2.category == IssueCategory.CONTRADICTION.value

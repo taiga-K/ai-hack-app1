@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.application.dto import AdviceItemDTO, AnalysisResultDTO, UtteranceDTO
 from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.domain.exceptions import STTServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
 from app.domain.models.transcript import Speaker
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
@@ -134,5 +135,121 @@ async def test_websocket_advice_broadcast_on_manual_analyze() -> None:
             assert msg["category"] == "ambiguity"
             assert msg["title"] == "要件の曖昧性"
             assert "同時接続ユーザー数" in msg["suggested_question"]
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_advice_deduplication() -> None:
+    """Verify duplicate advice items with same ID are not rebroadcast."""
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+
+    advice_item = AdviceItemDTO(
+        id="stable-adv-id-1",
+        category=IssueCategory.AMBIGUITY.value,
+        priority=AdvicePriority.HIGH.value,
+        title="UIの曖昧性",
+        reason="具体化不足",
+        suggested_question="画面遷移はどうなりますか？",
+        detected_at=datetime.now(UTC),
+        quote="UIをいい感じに",
+    )
+    # Return same advice item twice
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-dedupe",
+        advice_items=[advice_item],
+        analyzed_utterance_count=1,
+    )
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-dedupe/audio") as ws:
+            # First trigger -> receives advice
+            ws.send_text(json.dumps({"action": "analyze"}))
+            msg = ws.receive_json()
+            assert msg["type"] == "advice"
+            assert msg["id"] == "stable-adv-id-1"
+
+            # Ping to verify socket remains healthy
+            ws.send_text(json.dumps({"action": "ping"}))
+            pong = ws.receive_json()
+            assert pong == {"type": "pong"}
+
+            # Second trigger with same advice ID -> should be deduplicated and not sent
+            ws.send_text(json.dumps({"action": "analyze"}))
+            ws.send_text(json.dumps({"action": "ping"}))
+            # Next message must be pong, not duplicated advice
+            next_msg = ws.receive_json()
+            assert next_msg == {"type": "pong"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
+    """Verify STTServiceError or AudioProcessingError does not crash WebSocket."""
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case.execute.side_effect = STTServiceError("Whisper transient failure")
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-stt-err/audio") as ws:
+            stereo_bytes = np.zeros(64000, dtype=np.int16).tobytes()
+            ws.send_bytes(stereo_bytes)
+
+            # WebSocket should remain open and respond to ping
+            ws.send_text(json.dumps({"action": "ping"}))
+            res = ws.receive_json()
+            assert res == {"type": "pong"}
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+
+    async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        return [
+            UtteranceDTO(
+                id="utt-flush-1",
+                meeting_id=meeting_id,
+                speaker="local_pm",
+                text="切断前の最後の発話です。",
+                start_ms=chunk.timestamp_ms,
+                end_ms=chunk.timestamp_ms + 500,
+                is_final=True,
+                created_at=datetime.now(UTC),
+            )
+        ]
+
+    mock_use_case.execute.side_effect = mock_execute
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-disconnect/audio") as ws:
+            # Send less than full buffer to leave data in _buffer
+            short_stereo = np.zeros(16000, dtype=np.int16).tobytes()
+            ws.send_bytes(short_stereo)
+            # Closing the connection triggers disconnect path
+            ws.close()
     finally:
         app.dependency_overrides.clear()
