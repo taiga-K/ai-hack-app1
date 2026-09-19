@@ -21,6 +21,7 @@ def get_llm_service() -> LLMService:
     return OrcaRouterClient(
         api_key=settings.orcarouter_api_key,
         base_url=settings.orcarouter_base_url,
+        default_model=settings.orcarouter_default_model,
         timeout=settings.orcarouter_timeout_seconds,
     )
 

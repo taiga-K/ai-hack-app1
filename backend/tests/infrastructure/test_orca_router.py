@@ -76,6 +76,41 @@ def test_build_payload_basic() -> None:
     assert "response_format" not in payload
 
 
+def test_build_payload_uses_client_default_model_when_request_model_is_none() -> None:
+    """Verify client default model is used when request does not specify a model."""
+    client = OrcaRouterClient(
+        api_key="test-key",
+        default_model="anthropic/claude-3-5-sonnet",
+    )
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Hello")],
+    )
+    payload = client._build_payload(request)
+    assert payload["model"] == "anthropic/claude-3-5-sonnet"
+
+
+def test_build_payload_with_fallback_models_and_default_model() -> None:
+    """Verify fallback models include default model when request.model is None."""
+    client = OrcaRouterClient(
+        api_key="test-key",
+        default_model="openai/gpt-4o-mini",
+    )
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Hi")],
+        fallback_models=["anthropic/claude-3-5-sonnet", "openai/gpt-4o"],
+    )
+    payload = client._build_payload(request)
+    assert payload["model"] == "openai/gpt-4o-mini"
+    assert payload["extra_body"] == {
+        "models": [
+            "openai/gpt-4o-mini",
+            "anthropic/claude-3-5-sonnet",
+            "openai/gpt-4o",
+        ],
+        "route": "fallback",
+    }
+
+
 def test_build_payload_with_fallback_models() -> None:
     """Verify payload generation with Orca Router fallback route."""
     client = OrcaRouterClient(api_key="test-key")

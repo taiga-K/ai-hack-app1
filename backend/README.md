@@ -30,6 +30,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
   - 16-bit 16kHz ステレオPCM（Left: 自社マイク, Right: 相手Meet音声）をストリーミング受信
   - チャンネル物理分離ダイアライゼーション（`local_pm` / `remote_client`）
   - Silero VAD + faster-whisper による低遅延リアルタイム文字起こし結果を JSON 送信
+
 ## 開発コマンド
 ```bash
 # 依存関係インストール
