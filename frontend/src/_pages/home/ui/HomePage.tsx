@@ -1,4 +1,4 @@
-import { AudioCaptureControl } from "@/features/audio-capture";
+import { StartMeetingForm } from "@/features/meeting-control";
 import {
   Alert,
   AlertDescription,
@@ -17,26 +17,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  Input,
   Separator,
   Toaster,
 } from "@/shared/ui";
 import { Header } from "@/widgets/header";
-import {
-  Info,
-  Mic,
-  MoreVertical,
-  Radio,
-  Settings,
-  Sparkles,
-} from "lucide-react";
+import { Info, Radio, Sparkles } from "lucide-react";
 
 export function HomePage() {
   return (
@@ -44,35 +29,10 @@ export function HomePage() {
       header={
         <Header
           actions={
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="gap-1 text-xs">
-                <Radio className="size-3 text-emerald-500 animate-pulse" />
-                Ready
-              </Badge>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button variant="ghost" size="icon-sm">
-                      <MoreVertical className="size-4" />
-                    </Button>
-                  }
-                />
-                <DropdownMenuContent align="end">
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>設定・オプション</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <Settings className="size-4 mr-2" />
-                      環境設定
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Info className="size-4 mr-2" />
-                      バージョン情報
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <Badge variant="outline" className="gap-1 text-xs">
+              <Radio className="size-3 text-primary" />
+              Ready
+            </Badge>
           }
         />
       }
@@ -82,9 +42,9 @@ export function HomePage() {
             セッション概要
           </div>
           <div className="flex flex-col gap-1 text-sm text-sidebar-foreground">
-            <span className="font-medium">業務ヒアリング #1</span>
+            <span className="font-medium">業務ヒアリング</span>
             <span className="text-xs text-muted-foreground">
-              NotionライクUI & Base UI稼働中
+              自社PM専用の会議コパイロット
             </span>
           </div>
           <Separator />
@@ -104,99 +64,62 @@ export function HomePage() {
                 Meet音声
               </Badge>
             </div>
-            <div className="text-[11px] text-muted-foreground pt-1">
-              ※ 16kHz / 16-bit PCM バイナリで WebSocket 送信
-            </div>
           </div>
         </div>
       }
     >
-      <div className="mx-auto max-w-4xl p-8 flex flex-col gap-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             リアルタイム要件定義コパイロット
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Google
-            Meetの会話を自律監視し、曖昧・矛盾・無理を検出して要件定義書をリアルタイム生成します。
+            Meetの会話を自律監視し、曖昧・矛盾・無理・専門用語の取り違えを自社画面だけに助言します。
           </p>
         </div>
 
         <Alert>
-          <Sparkles className="size-4 text-primary" />
-          <AlertTitle>shadcn/ui (Base UI版) デザインシステム稼働中</AlertTitle>
+          <Sparkles />
+          <AlertTitle>自社PM画面のみに助言します</AlertTitle>
           <AlertDescription>
-            Radix UIではなく @base-ui/react
-            を基盤とし、renderプロパティによる合成とNotionライクな落ち着いたグレーパレットを採用しています。
+            相手のMeet画面には何も出しません。会議ルームで文字起こしと横からのピコーン通知を確認できます。
           </AlertDescription>
         </Alert>
 
-        {/* 音声デュアルキャプチャモジュール */}
-        <AudioCaptureControl meetingId="sample-meeting" />
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Mic className="size-4" />
-                クイックスタート
-              </CardTitle>
-              <CardDescription>ヒアリングセッションの開始準備</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <Input placeholder="会議名 (例: 〇〇様 要件ヒアリング第1回)" />
-              <div className="flex gap-2">
-                <Button className="flex-1">
-                  <Mic className="size-4 mr-1.5" />
-                  セッション開始
-                </Button>
-                <Dialog>
-                  <DialogTrigger
-                    render={<Button variant="outline">ヘルプ</Button>}
-                  />
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>コパイロットの使い方</DialogTitle>
-                      <DialogDescription>
-                        自社マイクとGoogle
-                        Meetタブ音声を同時にキャプチャし、リアルタイムに助言と議事録を作成します。
-                      </DialogDescription>
-                    </DialogHeader>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="size-4 text-primary" />
-                デザインシステム稼働中
-              </CardTitle>
-              <CardDescription>
-                Base UI準拠プリミティブ & Notionライク配色
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2 items-center">
-              <Button size="sm" variant="default">
-                Default
-              </Button>
-              <Button size="sm" variant="secondary">
-                Secondary
-              </Button>
-              <Button size="sm" variant="outline">
-                Outline
-              </Button>
-              <Button size="sm" variant="ghost">
-                Ghost
-              </Button>
-              <Badge variant="default">Active</Badge>
-              <Badge variant="secondary">Neutral</Badge>
-              <Badge variant="outline">Stereo 2ch</Badge>
-            </CardContent>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>ヒアリングを開始</CardTitle>
+            <CardDescription>
+              Meetの横に並べて使える会議ルームを開きます
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <StartMeetingForm />
+            <Dialog>
+              <DialogTrigger render={<Button variant="ghost" size="sm" />}>
+                <Info data-icon="inline-start" />
+                接続手順
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Google Meet 横並びの使い方</DialogTitle>
+                  <DialogDescription>
+                    ブラウザウィンドウをMeetの横に置き、キャプチャ開始からタブ音声共有をONにしてください。
+                  </DialogDescription>
+                </DialogHeader>
+                <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
+                  <li>セッション開始で会議ルームを開きます。</li>
+                  <li>
+                    「キャプチャ開始」から Chrome タブ → Meet タブを選びます。
+                  </li>
+                  <li>「タブの音声を共有」をONにして共有します。</li>
+                  <li>マイク許可後、助言は右側にだけ表示されます。</li>
+                </ol>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
       </div>
       <Toaster />
     </AppLayout>

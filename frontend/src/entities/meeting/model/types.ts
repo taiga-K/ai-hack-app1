@@ -3,3 +3,5 @@ export interface MeetingSession {
   title: string;
   createdAt: string;
 }
+
+export type MeetingPhase = "idle" | "live" | "ended";

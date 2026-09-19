@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getMeetingAudioWebSocketUrl } from "@/shared/config";
 import { DualAudioCaptureService } from "../lib/audio-capture-service";
 import { AudioWebSocketClient } from "../lib/audio-websocket-client";
 import type { AudioCaptureState, AudioStreamStats } from "../model/types";
@@ -9,12 +10,14 @@ export interface UseAudioCaptureOptions {
   meetingId?: string;
   wsBaseUrl?: string;
   autoConnectWebSocket?: boolean;
+  onMessage?: (event: MessageEvent) => void;
 }
 
 export function useAudioCapture({
   meetingId = "default",
   wsBaseUrl,
   autoConnectWebSocket = true,
+  onMessage,
 }: UseAudioCaptureOptions = {}) {
   const [state, setState] = useState<AudioCaptureState>({
     status: "idle",
@@ -36,6 +39,11 @@ export function useAudioCapture({
 
   const audioServiceRef = useRef<DualAudioCaptureService | null>(null);
   const wsClientRef = useRef<AudioWebSocketClient | null>(null);
+  const onMessageRef = useRef(onMessage);
+
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   // Initialize service instances
   useEffect(() => {
@@ -85,10 +93,7 @@ export function useAudioCapture({
       // Connect WebSocket if enabled
       if (autoConnectWebSocket) {
         const resolvedWsUrl =
-          wsBaseUrl ||
-          (typeof window !== "undefined"
-            ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/meetings/${meetingId}/audio`
-            : `ws://localhost:8000/ws/meetings/${meetingId}/audio`);
+          wsBaseUrl || getMeetingAudioWebSocketUrl(meetingId);
 
         setState((prev) => ({ ...prev, wsStatus: "connecting" }));
         const wsClient = new AudioWebSocketClient(resolvedWsUrl);
@@ -100,10 +105,16 @@ export function useAudioCapture({
               setState((prev) => ({ ...prev, wsStatus: "connected" }));
             },
             onClose: () => {
-              setState((prev) => ({ ...prev, wsStatus: "disconnected" }));
+              setState((prev) => ({
+                ...prev,
+                wsStatus: prev.isRecording ? "connecting" : "disconnected",
+              }));
             },
             onError: () => {
               setState((prev) => ({ ...prev, wsStatus: "error" }));
+            },
+            onMessage: (event) => {
+              onMessageRef.current?.(event);
             },
           });
         } catch {
@@ -170,10 +181,18 @@ export function useAudioCapture({
     }
   }, [autoConnectWebSocket, meetingId, stopCapture, wsBaseUrl]);
 
+  const sendJson = useCallback((payload: Record<string, unknown>): boolean => {
+    if (!wsClientRef.current) {
+      return false;
+    }
+    return wsClientRef.current.sendJson(payload);
+  }, []);
+
   return {
     state,
     stats,
     startCapture,
     stopCapture,
+    sendJson,
   };
 }
