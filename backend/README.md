@@ -19,7 +19,17 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `ORCAROUTER_BASE_URL`: オルカルーターの Base URL（デフォルト: `https://api.orcarouter.ai/v1`）
 - `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: `openai/gpt-4o-mini`）
 - `ORCAROUTER_TIMEOUT_SECONDS`: タイムアウト秒数（デフォルト: `60.0`）
+- `WHISPER_MODEL_SIZE`: faster-whisper モデルサイズ（デフォルト: `base`）
+- `WHISPER_DEVICE`: 実行デバイス（デフォルト: `cpu`）
+- `WHISPER_COMPUTE_TYPE`: 計算精度（デフォルト: `int8`）
+- `WHISPER_LANGUAGE`: 文字起こし言語（デフォルト: `ja`）
+- `AUDIO_SAMPLE_RATE`: 音声サンプルレート（デフォルト: `16000`）
 
+## WebSocket エンドポイント
+- `/ws/meetings/{meeting_id}/audio`:
+  - 16-bit 16kHz ステレオPCM（Left: 自社マイク, Right: 相手Meet音声）をストリーミング受信
+  - チャンネル物理分離ダイアライゼーション（`local_pm` / `remote_client`）
+  - Silero VAD + faster-whisper による低遅延リアルタイム文字起こし結果を JSON 送信
 ## 開発コマンド
 ```bash
 # 依存関係インストール

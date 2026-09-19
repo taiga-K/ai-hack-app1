@@ -5,6 +5,14 @@ class DomainException(Exception):
     """Base domain exception."""
 
 
+class STTServiceError(DomainException):
+    """Base exception for Speech-to-Text service failures."""
+
+
+class AudioProcessingError(DomainException):
+    """Audio chunk processing error (e.g. invalid PCM format)."""
+
+
 class LLMServiceError(DomainException):
     """Base exception for LLM service failures."""
 

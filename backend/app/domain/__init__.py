@@ -2,6 +2,7 @@
 
 from app.domain.entities import MeetingSession
 from app.domain.exceptions import (
+    AudioProcessingError,
     DomainException,
     LLMAuthenticationError,
     LLMConfigurationError,
@@ -9,6 +10,7 @@ from app.domain.exceptions import (
     LLMResponseError,
     LLMServiceError,
     LLMTimeoutError,
+    STTServiceError,
 )
 from app.domain.models.llm import (
     ChatCompletionRequest,
@@ -18,9 +20,19 @@ from app.domain.models.llm import (
     ChatStreamChunk,
     TokenUsage,
 )
+from app.domain.models.transcript import (
+    AudioChannel,
+    AudioChunk,
+    Speaker,
+    Utterance,
+)
 from app.domain.services.llm_service import LLMService
+from app.domain.services.stt_service import STTService
 
 __all__ = [
+    "AudioChannel",
+    "AudioChunk",
+    "AudioProcessingError",
     "ChatCompletionRequest",
     "ChatCompletionResponse",
     "ChatMessage",
@@ -35,5 +47,9 @@ __all__ = [
     "LLMServiceError",
     "LLMTimeoutError",
     "MeetingSession",
+    "STTService",
+    "STTServiceError",
+    "Speaker",
     "TokenUsage",
+    "Utterance",
 ]
