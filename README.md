@@ -1,6 +1,8 @@
 # AI HACK APP1
 
-業務定期ヒアリングを AI が自律管理し、曖昧・矛盾・無理を検出して解消し、会議終了時点で要件定義書が完成している状態を実現するリアルタイムコパイロット Web アプリケーション。
+業務定期ヒアリングを AI が自律管理し、曖昧・矛盾・無理・専門用語の取り違えを検出して解消し、会議終了時点で要件定義書が完成している状態を実現するリアルタイムコパイロット Web アプリケーション。
+
+相手（クライアント）は通常の Google Meet のまま参加します。使うのは自社側（PM / コンサルタント）のブラウザだけです。初回認証はありません。
 
 ---
 
@@ -12,6 +14,7 @@
 ai-hack-app1/
 ├── frontend/             # Next.js App Router (TypeScript Strict Mode) / FSD
 │   ├── app/              # Next.js ルーティング層（薄い配線）
+│   ├── e2e/              # Playwright 会議フロー E2E
 │   ├── src/
 │   │   ├── _app/         # FSD app レイヤー（グローバル設定・初期化）
 │   │   ├── _pages/       # FSD pages レイヤー（画面単位コンポジション）
@@ -38,48 +41,118 @@ ai-hack-app1/
 
 ## 技術スタック
 
-| 領域 | 採用技術 |
-| :--- | :--- |
-| **ユーザー対応言語** | 日本語（Japanese） |
-| **フロントエンド FW** | Next.js 16 (App Router, React 19) |
-| **フロントエンド設計** | Feature-Sliced Design (FSD) |
-| **フロントエンド言語** | TypeScript (Strict Mode) |
-| **フロントエンド パッケージ管理** | `pnpm` (lockfile 必須) |
-| **フロントエンド検証** | Steiger (FSD構造検証), ESLint, Prettier, `tsc --noEmit` |
-| **バックエンド FW** | FastAPI + Uvicorn |
-| **バックエンド設計** | Clean Architecture |
-| **バックエンド言語** | Python 3.12+ (Go言語の利用は禁止) |
-| **バックエンド パッケージ管理** | `uv` (lockfile 必須) |
-| **バックエンド検証** | `ruff` (lint & format), `mypy` (strict), `import-linter`, `pytest` |
-| **AI Gateway** | オルカルーター（Orca Router / `https://api.orcarouter.ai/v1`）必須 |
-| **CI/CD** | GitHub Actions |
+| 領域                              | 採用技術                                                                            |
+| :-------------------------------- | :---------------------------------------------------------------------------------- |
+| **ユーザー対応言語**              | 日本語（Japanese）                                                                  |
+| **フロントエンド FW**             | Next.js 16 (App Router, React 19)                                                   |
+| **フロントエンド設計**            | Feature-Sliced Design (FSD)                                                         |
+| **フロントエンド言語**            | TypeScript (Strict Mode)                                                            |
+| **フロントエンド パッケージ管理** | `pnpm` (lockfile 必須)                                                              |
+| **フロントエンド検証**            | Steiger (FSD構造検証), ESLint, Prettier, `tsc --noEmit`, Playwright E2E             |
+| **バックエンド FW**               | FastAPI + Uvicorn                                                                   |
+| **バックエンド設計**              | Clean Architecture                                                                  |
+| **バックエンド言語**              | Python 3.12+ (Go言語の利用は禁止)                                                   |
+| **バックエンド パッケージ管理**   | `uv` (lockfile 必須)                                                                |
+| **バックエンド検証**              | `ruff` (lint & format), `mypy` (strict), `import-linter`, `pytest`（結合 E2E 含む） |
+| **AI Gateway**                    | オルカルーター（Orca Router / `https://api.orcarouter.ai/v1`）必須                  |
+| **CI/CD**                         | GitHub Actions                                                                      |
+
+---
+
+## 環境変数
+
+フロントエンドから AI Gateway やプロバイダへ直接通信しません。LLM キーはバックエンドだけが持ちます。
+
+### バックエンド (`backend/.env`)
+
+| 変数                                      | 必須           | 説明                                                                                            |
+| :---------------------------------------- | :------------- | :---------------------------------------------------------------------------------------------- |
+| `ORCAROUTER_API_KEY`                      | 実運用時は必須 | オルカルーター API キー。未設定でも音声ストリームは動きますが、助言と要件書生成は無効になります |
+| `ORCAROUTER_BASE_URL`                     | 任意           | デフォルト `https://api.orcarouter.ai/v1`                                                       |
+| `ORCAROUTER_DEFAULT_MODEL`                | 任意           | リアルタイム助言モデル。デフォルト `openai/gpt-4o-mini`                                         |
+| `ORCAROUTER_REQUIREMENTS_MODEL`           | 任意           | 要件書生成モデル。デフォルト `anthropic/claude-3-5-sonnet`                                      |
+| `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS` | 任意           | カンマ区切りフォールバック。デフォルト `openai/gpt-4o`                                          |
+| `WHISPER_MODEL_SIZE`                      | 任意           | faster-whisper サイズ。デフォルト `base`                                                        |
+| `WHISPER_DEVICE`                          | 任意           | デフォルト `cpu`                                                                                |
+| `AUDIO_SAMPLE_RATE`                       | 任意           | デフォルト `16000`                                                                              |
+
+### フロントエンド
+
+| 変数                            | 必須 | 説明                                                             |
+| :------------------------------ | :--- | :--------------------------------------------------------------- |
+| `BACKEND_HTTP_ORIGIN`           | 任意 | Next.js rewrite 先。デフォルト `http://localhost:8000`           |
+| `NEXT_PUBLIC_BACKEND_WS_ORIGIN` | 任意 | 会議音声 WebSocket の接続先。未設定時は同一ホストの `/ws` を利用 |
+
+`NEXT_PUBLIC_*` に API キーを置かないでください。
 
 ---
 
 ## クイックスタート
+
+### バックエンド (`backend/`)
+
+```bash
+cd backend
+uv sync
+# 実助言・要件書生成を使う場合
+# export ORCAROUTER_API_KEY=...
+uv run uvicorn main:app --reload --port 8000
+```
 
 ### フロントエンド (`frontend/`)
 
 ```bash
 cd frontend
 pnpm install
-pnpm run dev      # 開発サーバー起動 (http://localhost:3000)
-pnpm run verify   # 型検査・リント・Steiger FSD検査・フォーマット確認
-pnpm run build    # 本番ビルド
+pnpm run dev      # http://localhost:3000
 ```
 
-会議コパイロット画面は `/meetings/{meetingId}` です。トップの「セッション開始」から開きます。表示確認だけする場合は「UIプレビュー」を使うと、実音声なしで文字起こしと助言カードを確認できます。会議終了後は `/meetings/{meetingId}/document` で要件定義書のプレビュー・編集・コピー・`.md` ダウンロードができます。UIプレビューから会議終了すると、同じ `demo=1` のまま要件書画面を確認できます。
+---
 
-ローカルでバックエンドの WebSocket に接続する場合、フロントは開発ポート（3000）から `ws://localhost:8000/ws/meetings/{id}/audio` へ接続します。別オリジンにするときは `NEXT_PUBLIC_BACKEND_WS_ORIGIN` を設定します。REST（`finalize` / `requirements` / `download`）はブラウザから同源の `/api/v1/*` を呼び、Next.js がバックエンドへリライトします。リライト先を変えるときはサーバー側の `BACKEND_HTTP_ORIGIN` を設定します（既定は `http://localhost:8000`）。`NEXT_PUBLIC_BACKEND_HTTP_ORIGIN` はブラウザの fetch 先には使いません。
+## デモ手順
 
-### バックエンド (`backend/`)
+### A. 認証なし・音声なしの UI プレビュー（提出デモ最短）
+
+実マイクや Google Meet が無い環境でも、既存の会議〜助言〜終了〜要件書プレビュー／書き出しを通して見せられます。
+
+1. フロントエンドを起動し http://localhost:3000 を開く。
+2. 会議名を入力し **UIプレビュー** を押す（初回ログインは不要）。
+3. 文字起こしフィードと、右側のピコーン助言（曖昧・無理・専門用語）を確認する。
+4. **会議終了** → **終了する** で要件定義書画面へ進む。
+5. Split / プレビュー / 編集を切り替え、**Markdownをコピー** または **.mdをダウンロード** する。
+
+### B. Google Meet 併用の実機シナリオ
+
+1. バックエンドとフロントエンドを起動し、`ORCAROUTER_API_KEY` を設定する。
+2. Chrome で Google Meet を開き、相手は通常どおり参加する。
+3. コパイロットを Meet の横に並べ、ホームで **セッション開始** する。
+4. **キャプチャ開始** → Chrome タブ → Meet タブを選び、**タブの音声を共有** を ON にする。
+5. マイク許可後、曖昧な要望・矛盾・無理な納期・説明なしの専門用語＋「了解です」などを話す。
+6. 自社画面だけに助言カードが出ることを確認する（相手の Meet には出ない）。
+7. **会議終了** で Markdown 要件定義書が生成され、プレビュー・編集・書き出しできる。
+
+画面共有をキャンセルした場合は「キャプチャエラー」が出ます。WebSocket 切断時は再接続を試します。Orca Router 未設定時は助言と要件書生成が無効になり、UI はエラーを表示します。
+
+---
+
+## 検証コマンド
+
+### フロントエンド
+
+```bash
+cd frontend
+pnpm run verify   # 型検査・リント・Steiger・単体テスト・フォーマット
+pnpm run build    # 本番ビルド（E2E の前提）
+pnpm exec playwright install --with-deps chromium
+pnpm run test:e2e # 会議〜助言〜終了〜要件書プレビュー／書き出し
+```
+
+### バックエンド
 
 ```bash
 cd backend
-uv sync           # 依存関係インストール
-uv run uvicorn main:app --reload --port 8000 # 開発サーバー起動 (http://localhost:8000)
-uv run pytest     # テスト実行
-uv run lint-imports # クリーンアーキテクチャ依存方向検査
-uv run mypy app main.py tests # 型検査
-uv run ruff check . # リント検査
+uv run pytest     # 単体・結合。擬似音声 → 助言 → finalize → 要件書ダウンロードを含む
+uv run lint-imports
+uv run mypy app main.py tests
+uv run ruff check .
 ```

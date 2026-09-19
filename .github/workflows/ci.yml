@@ -47,6 +47,12 @@ jobs:
       - name: Build Next.js
         run: pnpm run build
 
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E
+        run: pnpm run test:e2e
+
   backend:
     name: Backend CI
     runs-on: ubuntu-latest

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "architecture": "steiger ./src",
     "test": "node --experimental-transform-types --test src/**/*.test.ts",
+    "test:e2e": "playwright test",
     "format:check": "prettier --check .",
     "verify": "pnpm typecheck && pnpm lint && pnpm architecture && pnpm test && pnpm format:check"
   },
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@feature-sliced/steiger-plugin": "^0.7.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "^20",

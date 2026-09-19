@@ -58,6 +58,7 @@ uv run mypy app main.py tests
 # レイヤー境界検査
 uv run lint-imports
 
-# テスト実行
+# テスト実行（擬似音声ストリーム → 助言 → 要件書生成の結合 E2E を含む）
 uv run pytest
 ```
+
