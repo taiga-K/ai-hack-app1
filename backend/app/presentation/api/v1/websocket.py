@@ -247,7 +247,9 @@ class AudioStreamSession:
             )
             self.dialogue_context.add_utterance(utterance)
             if self.meeting_session_repository is not None:
-                self.meeting_session_repository.add_utterance(self.meeting_id, utterance)
+                self.meeting_session_repository.add_utterance(
+                    self.meeting_id, utterance
+                )
 
         if (
             all_utterances

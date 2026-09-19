@@ -376,8 +376,8 @@ async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize
     )
 
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
-    app.dependency_overrides[get_analyze_dialogue_use_case] = (
-        lambda: mock_analyze_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
     )
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000

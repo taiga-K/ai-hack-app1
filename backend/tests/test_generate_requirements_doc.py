@@ -1,7 +1,7 @@
 """Unit tests for GenerateRequirementsDocUseCase."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC
 from unittest.mock import AsyncMock
 
 import pytest

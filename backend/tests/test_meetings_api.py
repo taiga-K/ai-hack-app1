@@ -28,8 +28,7 @@ def _document_dto(meeting_id: str = "meet-final-1") -> RequirementsDocumentDTO:
         meeting_id=meeting_id,
         title="要件定義書",
         markdown=(
-            "# 要件定義書\n\n"
-            "## 1. プロジェクト/会議概要・背景・ゴール\n\n概要\n"
+            "# 要件定義書\n\n## 1. プロジェクト/会議概要・背景・ゴール\n\n概要\n"
         ),
         sections=[
             RequirementsSectionDTO(
@@ -48,8 +47,8 @@ def _document_dto(meeting_id: str = "meet-final-1") -> RequirementsDocumentDTO:
 def test_finalize_meeting_endpoint() -> None:
     mock_use_case = AsyncMock(spec=GenerateRequirementsDocUseCase)
     mock_use_case.execute.return_value = _document_dto()
-    app.dependency_overrides[get_generate_requirements_doc_use_case] = (
-        lambda: mock_use_case
+    app.dependency_overrides[get_generate_requirements_doc_use_case] = lambda: (
+        mock_use_case
     )
     try:
         response = client.post(
@@ -89,8 +88,8 @@ def test_finalize_meeting_endpoint() -> None:
 def test_finalize_meeting_without_transcript_returns_400() -> None:
     mock_use_case = AsyncMock(spec=GenerateRequirementsDocUseCase)
     mock_use_case.execute.side_effect = MeetingHasNoTranscriptError("no utterances")
-    app.dependency_overrides[get_generate_requirements_doc_use_case] = (
-        lambda: mock_use_case
+    app.dependency_overrides[get_generate_requirements_doc_use_case] = lambda: (
+        mock_use_case
     )
     try:
         response = client.post("/api/v1/meetings/meet-empty/finalize", json={})
@@ -133,8 +132,8 @@ def test_get_requirements_document_not_found() -> None:
         def execute(self, meeting_id: str) -> RequirementsDocumentDTO:
             raise RequirementsDocNotFoundError(f"missing {meeting_id}")
 
-    app.dependency_overrides[get_requirements_doc_use_case] = (
-        lambda: MissingDocUseCase()
+    app.dependency_overrides[get_requirements_doc_use_case] = lambda: (
+        MissingDocUseCase()
     )
     try:
         response = client.get("/api/v1/meetings/unknown/requirements")
