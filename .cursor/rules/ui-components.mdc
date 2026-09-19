@@ -18,17 +18,20 @@ alwaysApply: false
 
 ## Examples
 
-### Good: shadcn/ui コンポーネントを採用
+### Good: shadcn/ui コンポーネント（Base UI 版）を採用
 
 ```tsx
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/shared/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogTrigger,
+} from "@/shared/ui";
 
 export const ActionModal = () => (
   <Dialog>
-    <DialogTrigger asChild>
-      <Button variant="outline">Open</Button>
-    </DialogTrigger>
+    <DialogTrigger render={<Button variant="outline">Open</Button>} />
     <DialogContent>
       <DialogTitle>Action Modal</DialogTitle>
       Modal Content
