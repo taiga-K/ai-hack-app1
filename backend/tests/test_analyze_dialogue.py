@@ -228,3 +228,43 @@ async def test_analyze_dialogue_detects_unexplained_jargon_and_vague_ack() -> No
     assert item.priority == AdvicePriority.HIGH.value
     assert "専門用語『API連携』" in item.title
     assert "御社の既存システムからデータを取る接続口" in item.suggested_question
+
+
+@pytest.mark.asyncio
+async def test_analyze_dialogue_parse_failure_does_not_log_transcript(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify parse failure logs metadata (length) and does not leak raw transcript content."""
+    mock_llm = AsyncMock(spec=LLMService)
+    sensitive_transcript_content = "秘密の極秘プロジェクトの顧客売上情報"
+    invalid_json_with_secret = f"INVALID_JSON_{sensitive_transcript_content}"
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content=invalid_json_with_secret,
+        model="openai/gpt-4o-mini",
+    )
+
+    use_case = AnalyzeDialogueUseCase(llm_service=mock_llm)
+    ctx = MeetingDialogueContext(meeting_id="meet-sec")
+    ctx.add_utterance(
+        Utterance(
+            id="u-1",
+            meeting_id="meet-sec",
+            speaker=Speaker.REMOTE_CLIENT,
+            text="顧客の売上データについて共有します。",
+            start_ms=0,
+            end_ms=2000,
+            is_final=True,
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    with caplog.at_level("WARNING"):
+        result = await use_case.execute(ctx, force_analyze=True)
+
+    assert result.meeting_id == "meet-sec"
+    assert len(result.advice_items) == 0
+
+    # Ensure sensitive content was NOT logged in plaintext
+    assert sensitive_transcript_content not in caplog.text
+    # Ensure safe metadata (length) was logged
+    assert f"length={len(invalid_json_with_secret)}" in caplog.text

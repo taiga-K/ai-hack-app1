@@ -234,8 +234,12 @@ class AnalyzeDialogueUseCase:
                 stripped = stripped[3:-3].strip()
             try:
                 data = json.loads(stripped)
-            except Exception:
-                logger.warning("Failed to parse LLM response JSON: %s", content)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to parse LLM response JSON (length=%d, error=%s)",
+                    len(content),
+                    exc,
+                )
                 return []
 
         raw_items = data.get("items", [])
