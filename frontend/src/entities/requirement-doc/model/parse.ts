@@ -83,21 +83,89 @@ export function parseRequirementDocument(
   };
 }
 
+function normalizeFinalizeSpeakerLabel(label: string): string {
+  const trimmed = label.trim();
+  if (trimmed === "自社PM" || trimmed === "local_pm") {
+    return "local_pm";
+  }
+  if (
+    trimmed === "相手クライアント" ||
+    trimmed === "remote_client" ||
+    trimmed === "クライアント"
+  ) {
+    return "remote_client";
+  }
+  return trimmed;
+}
+
+export function uniqueFinalizeUtteranceLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+
+    const match = /^\[([^\]]+)]\s*(.*)$/.exec(trimmed);
+    const key = match
+      ? `${normalizeFinalizeSpeakerLabel(match[1] ?? "")}:${(match[2] ?? "").trim()}`
+      : trimmed;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(trimmed.slice(0, 2000));
+  }
+
+  return unique;
+}
+
+export function uniqueFinalizeAdviceItems(
+  items: FinalizeAdviceInput[]
+): FinalizeAdviceInput[] {
+  const seenIds = new Set<string>();
+  const seenContent = new Set<string>();
+  const unique: FinalizeAdviceInput[] = [];
+
+  for (const item of items) {
+    if (item.id && seenIds.has(item.id)) {
+      continue;
+    }
+
+    const contentKey = `${item.category}\0${item.title.trim()}\0${item.suggestedQuestion.trim()}`;
+    if (seenContent.has(contentKey)) {
+      continue;
+    }
+
+    if (item.id) {
+      seenIds.add(item.id);
+    }
+    seenContent.add(contentKey);
+    unique.push(item);
+  }
+
+  return unique;
+}
+
 export function toFinalizeRequestBody(
   input: FinalizeRequirementDocumentInput
 ): Record<string, unknown> {
   return {
     title: input.title ?? null,
-    utterances: input.utterances.slice(0, 500),
-    advice_items: input.adviceItems.slice(0, 200).map((item) => ({
-      category: item.category.slice(0, 64),
-      priority: item.priority.slice(0, 16),
-      title: item.title.slice(0, 500),
-      reason: item.reason.slice(0, 2000),
-      suggested_question: item.suggestedQuestion.slice(0, 2000),
-      quote: item.quote === null ? null : item.quote.slice(0, 2000),
-      id: item.id,
-    })),
+    utterances: uniqueFinalizeUtteranceLines(input.utterances).slice(0, 500),
+    advice_items: uniqueFinalizeAdviceItems(input.adviceItems)
+      .slice(0, 200)
+      .map((item) => ({
+        category: item.category.slice(0, 64),
+        priority: item.priority.slice(0, 16),
+        title: item.title.slice(0, 500),
+        reason: item.reason.slice(0, 2000),
+        suggested_question: item.suggestedQuestion.slice(0, 2000),
+        quote: item.quote === null ? null : item.quote.slice(0, 2000),
+        id: item.id,
+      })),
   };
 }
 

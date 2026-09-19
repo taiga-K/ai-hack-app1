@@ -4,6 +4,8 @@ import {
   parseRequirementDocument,
   toFinalizeRequestBody,
   toFinalizeUtteranceLine,
+  uniqueFinalizeAdviceItems,
+  uniqueFinalizeUtteranceLines,
 } from "./parse.ts";
 
 describe("parseRequirementDocument", () => {
@@ -105,5 +107,37 @@ describe("finalize request mapping", () => {
         },
       ],
     });
+  });
+
+  it("drops duplicate utterance lines even when speaker labels differ", () => {
+    assert.deepEqual(
+      uniqueFinalizeUtteranceLines([
+        "[自社PM] 対象範囲は更新申請だけですか？",
+        "[local_pm] 対象範囲は更新申請だけですか？",
+        "[相手クライアント] 了解です",
+      ]),
+      ["[自社PM] 対象範囲は更新申請だけですか？", "[相手クライアント] 了解です"]
+    );
+  });
+
+  it("drops duplicate advice by id or content", () => {
+    const first = {
+      category: "unexplained_jargon",
+      priority: "high",
+      title: "専門用語の取り違え",
+      reason: "曖昧な了解のみ",
+      suggestedQuestion: "接続口という意味で合っていますか？",
+      quote: "API連携",
+      id: "adv-1",
+    };
+
+    assert.deepEqual(
+      uniqueFinalizeAdviceItems([
+        first,
+        { ...first, reason: "同じ検出の再送" },
+        { ...first, id: "adv-2", title: "別件" },
+      ]),
+      [first, { ...first, id: "adv-2", title: "別件" }]
+    );
   });
 });

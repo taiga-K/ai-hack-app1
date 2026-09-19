@@ -3,11 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import type { Advice } from "@/entities/advice";
 import type { MeetingPhase } from "@/entities/meeting";
-import {
-  finalizeRequirementDocument,
-  toFinalizeAdviceInput,
-  toFinalizeUtteranceLine,
-} from "@/entities/requirement-doc";
+import { finalizeRequirementDocument } from "@/entities/requirement-doc";
 import type { Utterance } from "@/entities/utterance";
 import { useAudioCapture } from "@/features/audio-capture";
 import {
@@ -172,22 +168,12 @@ export function useMeetingRoom({
     }
 
     try {
+      // Live transcripts/advice are already persisted over WebSocket.
+      // Seeding them again would mint new hash ids and duplicate the prompt.
       await finalizeRequirementDocument(meetingId, {
         title,
-        utterances: utterancesRef.current
-          .filter((item) => item.text.trim().length > 0)
-          .map((item) => toFinalizeUtteranceLine(item.speaker, item.text)),
-        adviceItems: adviceItemsRef.current.map((item) =>
-          toFinalizeAdviceInput({
-            category: item.category,
-            priority: item.priority,
-            title: item.title,
-            reason: item.reason,
-            suggestedQuestion: item.suggestedQuestion,
-            quote: item.quote,
-            id: item.id,
-          })
-        ),
+        utterances: [],
+        adviceItems: [],
       });
       phaseRef.current = "ended";
       setPhase("ended");

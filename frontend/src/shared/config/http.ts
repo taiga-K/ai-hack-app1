@@ -5,23 +5,16 @@ function trimTrailingSlash(value: string): string {
 }
 
 export function resolveBackendHttpOrigin(): string {
-  const configured = process.env.NEXT_PUBLIC_BACKEND_HTTP_ORIGIN;
-  if (configured && configured.length > 0) {
-    return trimTrailingSlash(configured);
-  }
-
-  if (typeof window === "undefined") {
-    return `http://localhost:${DEFAULT_BACKEND_HTTP_PORT}`;
-  }
-
-  const isLocalDevPort =
-    window.location.port === "3000" || window.location.port === "3001";
-
-  if (isLocalDevPort) {
+  if (typeof window !== "undefined") {
     return "";
   }
 
-  return "";
+  const rewriteOrigin = process.env.BACKEND_HTTP_ORIGIN;
+  if (rewriteOrigin && rewriteOrigin.length > 0) {
+    return trimTrailingSlash(rewriteOrigin);
+  }
+
+  return `http://localhost:${DEFAULT_BACKEND_HTTP_PORT}`;
 }
 
 export function getBackendApiUrl(path: string): string {

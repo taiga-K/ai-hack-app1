@@ -15,6 +15,8 @@ export {
   toFinalizeAdviceInput,
   toFinalizeRequestBody,
   toFinalizeUtteranceLine,
+  uniqueFinalizeAdviceItems,
+  uniqueFinalizeUtteranceLines,
 } from "./model/parse";
 export {
   OPEN_ISSUES_HEADING,
