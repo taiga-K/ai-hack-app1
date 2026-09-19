@@ -48,3 +48,27 @@ class AnalysisResultDTO:
     meeting_id: str
     advice_items: list[AdviceItemDTO] = field(default_factory=list)
     analyzed_utterance_count: int = 0
+
+
+@dataclass(frozen=True)
+class RequirementsSectionDTO:
+    """DTO for one requirements document section."""
+
+    section_id: str
+    heading: str
+    body_markdown: str
+
+
+@dataclass(frozen=True)
+class RequirementsDocumentDTO:
+    """DTO for a generated requirements document."""
+
+    id: str
+    meeting_id: str
+    title: str
+    markdown: str
+    sections: list[RequirementsSectionDTO]
+    created_at: datetime
+    model: str
+    source_utterance_count: int
+    source_detection_count: int

@@ -6,8 +6,16 @@ from typing import Annotated
 from pydantic import BaseModel, Field
 
 ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH = 128
+MEETING_ID_PATH_PATTERN = r"^[A-Za-z0-9_-]{1,128}$"
 ANALYZE_DIALOGUE_UTTERANCES_MAX_ITEMS = 100
 ANALYZE_DIALOGUE_UTTERANCE_MAX_LENGTH = 2000
+FINALIZE_TITLE_MAX_LENGTH = 200
+FINALIZE_UTTERANCES_MAX_ITEMS = 500
+FINALIZE_UTTERANCE_MAX_LENGTH = 2000
+FINALIZE_ADVICE_MAX_ITEMS = 200
+FINALIZE_ADVICE_TITLE_MAX_LENGTH = 500
+FINALIZE_ADVICE_TEXT_MAX_LENGTH = 2000
+FINALIZE_ADVICE_ID_MAX_LENGTH = 128
 
 
 class HealthResponse(BaseModel):
@@ -103,3 +111,90 @@ class AnalyzeDialogueResponse(BaseModel):
     meeting_id: str
     advice_items: list[AdviceItemResponse]
     analyzed_utterance_count: int
+
+
+class FinalizeAdviceInput(BaseModel):
+    """Optional detection seed for meeting finalize."""
+
+    category: str = Field(
+        ...,
+        max_length=64,
+        description=(
+            "Category: 'ambiguity', 'contradiction', 'infeasibility', 'missing', "
+            "'unexplained_jargon'"
+        ),
+    )
+    priority: str = Field(
+        default="medium",
+        max_length=16,
+        description="high / medium / low",
+    )
+    title: str = Field(
+        ...,
+        max_length=FINALIZE_ADVICE_TITLE_MAX_LENGTH,
+        description="Concise issue title",
+    )
+    reason: str = Field(
+        default="",
+        max_length=FINALIZE_ADVICE_TEXT_MAX_LENGTH,
+        description="Why this is an issue",
+    )
+    suggested_question: str = Field(
+        default="",
+        max_length=FINALIZE_ADVICE_TEXT_MAX_LENGTH,
+        description="Follow-up question the PM should confirm",
+    )
+    quote: str | None = Field(
+        default=None,
+        max_length=FINALIZE_ADVICE_TEXT_MAX_LENGTH,
+        description="Related utterance snippet",
+    )
+    id: str | None = Field(
+        default=None,
+        max_length=FINALIZE_ADVICE_ID_MAX_LENGTH,
+        description="Optional stable detection id",
+    )
+
+
+class FinalizeMeetingRequest(BaseModel):
+    """Optional seed payload when finalizing a meeting."""
+
+    title: str | None = Field(
+        default=None,
+        max_length=FINALIZE_TITLE_MAX_LENGTH,
+        description="Meeting / document title",
+    )
+    utterances: list[
+        Annotated[str, Field(max_length=FINALIZE_UTTERANCE_MAX_LENGTH)]
+    ] = Field(
+        default_factory=list,
+        max_length=FINALIZE_UTTERANCES_MAX_ITEMS,
+        description="Optional transcript lines in format '[speaker] text'",
+    )
+    advice_items: list[FinalizeAdviceInput] = Field(
+        default_factory=list,
+        max_length=FINALIZE_ADVICE_MAX_ITEMS,
+        description="Optional detections to include in generation context",
+    )
+
+
+class RequirementsSectionResponse(BaseModel):
+    """One section of the generated requirements document."""
+
+    section_id: str
+    heading: str
+    body_markdown: str
+
+
+class RequirementsDocumentResponse(BaseModel):
+    """Generated requirements document response."""
+
+    id: str
+    meeting_id: str
+    title: str
+    markdown: str
+    sections: list[RequirementsSectionResponse]
+    created_at: datetime
+    model: str
+    source_utterance_count: int
+    source_detection_count: int

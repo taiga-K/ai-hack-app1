@@ -6,17 +6,26 @@ from fastapi.testclient import TestClient
 
 from app.application.use_cases import (
     AnalyzeDialogueUseCase,
+    GenerateRequirementsDocUseCase,
+    GetRequirementsDocUseCase,
     TranscribeAudioUseCase,
 )
 from app.domain.services.llm_service import LLMService
+from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.domain.services.stt_service import STTService
 from app.infrastructure.ai.orca_router_client import OrcaRouterClient
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
+from app.infrastructure.persistence.in_memory_meeting_store import (
+    InMemoryMeetingSessionStore,
+)
 from app.infrastructure.stt.whisper_stt import FasterWhisperSTTService
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
+    get_generate_requirements_doc_use_case,
     get_llm_service,
+    get_meeting_session_repository,
+    get_requirements_doc_use_case,
     get_stt_service,
     get_transcribe_audio_use_case,
 )
@@ -112,3 +121,34 @@ def test_get_analyze_dialogue_use_case_unconfigured(
     response = client.get("/test-analyze-none")
     assert response.status_code == 200
     assert response.json() == {"status": "none"}
+
+
+def test_get_generate_requirements_doc_use_case_dependency_injection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "test-key")
+    monkeypatch.setattr(
+        "app.presentation.deps.settings.orcarouter_requirements_model",
+        "anthropic/claude-3-5-sonnet",
+    )
+    test_app = FastAPI()
+
+    @test_app.get("/test-req-di")
+    def sample_requirements_endpoint(
+        use_case: GenerateRequirementsDocUseCase | None = Depends(
+            get_generate_requirements_doc_use_case
+        ),
+        getter: GetRequirementsDocUseCase = Depends(get_requirements_doc_use_case),
+        store: MeetingSessionRepository = Depends(get_meeting_session_repository),
+    ) -> dict[str, str]:
+        assert isinstance(use_case, GenerateRequirementsDocUseCase)
+        assert isinstance(use_case._llm_service, OrcaRouterClient)
+        assert use_case._model == "anthropic/claude-3-5-sonnet"
+        assert isinstance(getter, GetRequirementsDocUseCase)
+        assert isinstance(store, InMemoryMeetingSessionStore)
+        return {"status": "ok"}
+
+    client = TestClient(test_app)
+    response = client.get("/test-req-di")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}

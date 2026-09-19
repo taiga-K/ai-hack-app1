@@ -15,9 +15,13 @@ from app.domain.exceptions import STTServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
 from app.domain.models.transcript import Speaker
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
+from app.infrastructure.persistence.in_memory_meeting_store import (
+    InMemoryMeetingSessionStore,
+)
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
+    get_meeting_session_repository,
     get_transcribe_audio_use_case,
 )
 from main import app
@@ -283,14 +287,17 @@ async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -
 
 @pytest.mark.asyncio
 async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
+    store = InMemoryMeetingSessionStore()
     mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        speaker = "local_pm" if chunk.speaker == Speaker.LOCAL_PM else "remote_client"
         return [
             UtteranceDTO(
-                id="utt-flush-1",
+                id=f"utt-flush-{speaker}",
                 meeting_id=meeting_id,
-                speaker="local_pm",
+                speaker=speaker,
                 text="切断前の最後の発話です。",
                 start_ms=chunk.timestamp_ms,
                 end_ms=chunk.timestamp_ms + 500,
@@ -300,10 +307,30 @@ async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
         ]
 
     mock_use_case.execute.side_effect = mock_execute
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-disconnect",
+        advice_items=[
+            AdviceItemDTO(
+                id="adv-flush-last",
+                category=IssueCategory.UNEXPLAINED_JARGON.value,
+                priority=AdvicePriority.HIGH.value,
+                title="切断直前の専門用語",
+                reason="末尾発話の確認が残っている",
+                suggested_question="最後の用語の意味は合っていますか？",
+                detected_at=datetime.now(UTC),
+                quote="切断前の最後の発話です。",
+            )
+        ],
+        analyzed_utterance_count=2,
+    )
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
+    app.dependency_overrides[get_meeting_session_repository] = lambda: store
 
     try:
         client = TestClient(app)
@@ -313,5 +340,100 @@ async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
             ws.send_bytes(short_stereo)
             # Closing the connection triggers disconnect path
             ws.close()
+
+        record = store.get("meet-disconnect")
+        assert record is not None
+        assert record.dialogue.total_utterances == 2
+        assert {u.speaker.value for u in record.dialogue.utterances} == {
+            "local_pm",
+            "remote_client",
+        }
+        assert len(record.advice_items) == 1
+        assert record.advice_items[0].id == "adv-flush-last"
+        assert record.advice_items[0].category == IssueCategory.UNEXPLAINED_JARGON
+        mock_analyze_use_case.execute.assert_awaited()
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize() -> (
+    None
+):
+    """Verify live session detections are stored for requirements generation."""
+    store = InMemoryMeetingSessionStore()
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+
+    async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        if chunk.speaker == Speaker.LOCAL_PM:
+            return [
+                UtteranceDTO(
+                    id="utt-persist-pm",
+                    meeting_id=meeting_id,
+                    speaker="local_pm",
+                    text="基幹側のデータはAPIで取れますよね。",
+                    start_ms=chunk.timestamp_ms,
+                    end_ms=chunk.timestamp_ms + 1000,
+                    is_final=True,
+                    created_at=datetime.now(UTC),
+                )
+            ]
+        return [
+            UtteranceDTO(
+                id="utt-persist-cli",
+                meeting_id=meeting_id,
+                speaker="remote_client",
+                text="はい、わかりました。",
+                start_ms=chunk.timestamp_ms,
+                end_ms=chunk.timestamp_ms + 800,
+                is_final=True,
+                created_at=datetime.now(UTC),
+            )
+        ]
+
+    mock_use_case.execute.side_effect = mock_execute
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-persist",
+        advice_items=[
+            AdviceItemDTO(
+                id="adv-persist-jargon",
+                category=IssueCategory.UNEXPLAINED_JARGON.value,
+                priority=AdvicePriority.HIGH.value,
+                title="専門用語『API』の共通認識不足",
+                reason="曖昧な相づちのみ",
+                suggested_question="接続口という意味で合っていますか？",
+                detected_at=datetime.now(UTC),
+                quote="APIで取れますよね / はい、わかりました",
+            )
+        ],
+        analyzed_utterance_count=2,
+    )
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+    app.dependency_overrides[get_meeting_session_repository] = lambda: store
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-persist/audio") as ws:
+            stereo_bytes = np.zeros(64000, dtype=np.int16).tobytes()
+            ws.send_bytes(stereo_bytes)
+            ws.receive_json()
+            ws.receive_json()
+            advice = ws.receive_json()
+            assert advice["type"] == "advice"
+            assert advice["category"] == "unexplained_jargon"
+
+        record = store.get("meet-persist")
+        assert record is not None
+        assert record.dialogue.total_utterances == 2
+        assert len(record.advice_items) == 1
+        assert record.advice_items[0].category == IssueCategory.UNEXPLAINED_JARGON
     finally:
         app.dependency_overrides.clear()

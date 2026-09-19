@@ -35,3 +35,19 @@ class LLMTimeoutError(LLMServiceError):
 
 class LLMResponseError(LLMServiceError):
     """Invalid response received from LLM Gateway."""
+
+
+class MeetingNotFoundError(DomainException):
+    """Meeting session was not found."""
+
+
+class MeetingHasNoTranscriptError(DomainException):
+    """Cannot finalize a meeting without transcribed utterances."""
+
+
+class RequirementsDocNotFoundError(DomainException):
+    """Requirements document has not been generated for the meeting."""
+
+
+class RequirementsDocGenerationError(DomainException):
+    """Failed to generate a valid requirements document."""

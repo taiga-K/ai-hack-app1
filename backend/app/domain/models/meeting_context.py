@@ -16,9 +16,12 @@ class MeetingDialogueContext:
     meeting_id: str
     utterances: list[Utterance] = field(default_factory=list)
 
-    def add_utterance(self, utterance: Utterance) -> None:
-        """Add a newly transcribed utterance to the meeting context."""
+    def add_utterance(self, utterance: Utterance) -> bool:
+        """Add a transcribed utterance, ignoring duplicates by id."""
+        if any(existing.id == utterance.id for existing in self.utterances):
+            return False
         self.utterances.append(utterance)
+        return True
 
     def get_recent_utterances(self, limit: int = 10) -> list[Utterance]:
         """Get the most recent N utterances."""

@@ -15,6 +15,12 @@ from app.domain.models.llm import (
     TokenUsage,
 )
 from app.domain.models.meeting_context import MeetingDialogueContext
+from app.domain.models.meeting_session import MeetingSessionRecord
+from app.domain.models.requirement_doc import (
+    RequirementsDocument,
+    RequirementsSection,
+    RequirementsSectionId,
+)
 from app.domain.models.transcript import (
     AudioChannel,
     AudioChunk,
@@ -35,6 +41,10 @@ __all__ = [
     "ChatStreamChunk",
     "IssueCategory",
     "MeetingDialogueContext",
+    "MeetingSessionRecord",
+    "RequirementsDocument",
+    "RequirementsSection",
+    "RequirementsSectionId",
     "Speaker",
     "TokenUsage",
     "Utterance",
