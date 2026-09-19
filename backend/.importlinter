@@ -1,0 +1,11 @@
+[importlinter]
+root_package = app
+
+[importlinter:contract:clean-architecture-layers]
+name = Clean Architecture Layers Dependency Direction
+type = layers
+layers =
+    app.presentation
+    app.infrastructure
+    app.application
+    app.domain
