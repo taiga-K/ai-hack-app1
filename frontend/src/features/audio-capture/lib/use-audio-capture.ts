@@ -116,13 +116,15 @@ export function useAudioCapture({
       await audioServiceRef.current.startCapture({
         onPCMChunk: (chunk: ArrayBuffer) => {
           if (wsClientRef.current && wsClientRef.current.isConnected()) {
-            wsClientRef.current.send(chunk);
+            const sent = wsClientRef.current.send(chunk);
+            if (sent) {
+              setStats((prev) => ({
+                ...prev,
+                bytesSent: prev.bytesSent + chunk.byteLength,
+                chunksSent: prev.chunksSent + 1,
+              }));
+            }
           }
-          setStats((prev) => ({
-            ...prev,
-            bytesSent: prev.bytesSent + chunk.byteLength,
-            chunksSent: prev.chunksSent + 1,
-          }));
         },
         onVolumeChange: ({ micVolume, tabVolume }) => {
           setState((prev) => ({

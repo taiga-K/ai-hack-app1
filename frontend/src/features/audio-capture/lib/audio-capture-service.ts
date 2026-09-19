@@ -12,6 +12,7 @@ export interface AudioCaptureCallbacks {
 }
 
 export class DualAudioCaptureService {
+  private displayStream: MediaStream | null = null;
   private micStream: MediaStream | null = null;
   private tabStream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -62,6 +63,7 @@ export class DualAudioCaptureService {
         );
       }
 
+      this.displayStream = tabDisplayStream;
       this.tabStream = new MediaStream(tabAudioTracks);
 
       // Listen for tab stream finish (e.g. user clicks "Stop sharing")
@@ -228,6 +230,11 @@ export class DualAudioCaptureService {
     if (this.tabStream) {
       this.tabStream.getTracks().forEach((track) => track.stop());
       this.tabStream = null;
+    }
+
+    if (this.displayStream) {
+      this.displayStream.getTracks().forEach((track) => track.stop());
+      this.displayStream = null;
     }
   }
 
