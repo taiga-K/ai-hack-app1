@@ -64,7 +64,9 @@ export function MeetingControls({
 }: MeetingControlsProps) {
   const [endDialogOpen, setEndDialogOpen] = useState(false);
   const isEnded = phase === "ended";
+  const isRequestingPermission = connection.status === "requesting_permission";
   const isCapturing = connection.isRecording && !isEnded;
+  const endDisabled = isEnded || isRequestingPermission;
 
   function handleConfirmEnd() {
     onEndMeeting();
@@ -139,12 +141,10 @@ export function MeetingControls({
         {!isCapturing ? (
           <Button
             onClick={onStart}
-            disabled={isEnded || connection.status === "requesting_permission"}
+            disabled={isEnded || isRequestingPermission}
           >
             <Share2 data-icon="inline-start" />
-            {connection.status === "requesting_permission"
-              ? "権限取得中..."
-              : "キャプチャ開始"}
+            {isRequestingPermission ? "権限取得中..." : "キャプチャ開始"}
           </Button>
         ) : (
           <Button variant="outline" onClick={onStop}>
@@ -155,8 +155,8 @@ export function MeetingControls({
 
         <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
           <DialogTrigger
-            disabled={isEnded}
-            render={<Button variant="destructive" disabled={isEnded} />}
+            disabled={endDisabled}
+            render={<Button variant="destructive" disabled={endDisabled} />}
           >
             <StopCircle data-icon="inline-start" />
             会議終了

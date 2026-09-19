@@ -9,6 +9,10 @@ import { parseMeetingServerMessage } from "@/shared/api";
 import { playSoftChime } from "@/shared/lib";
 import { createPreviewAdvice, createPreviewUtterances } from "./preview-events";
 
+function isEndedPhase(phase: MeetingPhase): boolean {
+  return phase === "ended";
+}
+
 function upsertUtterance(
   current: Utterance[],
   incoming: Utterance
@@ -37,6 +41,7 @@ export function useMeetingRoom({
   );
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const chimeEnabledRef = useRef(true);
+  const phaseRef = useRef<MeetingPhase>(preview ? "live" : "idle");
   const seenAdviceIdsRef = useRef<Set<string>>(
     new Set(
       preview ? createPreviewAdvice(meetingId).map((item) => item.id) : []
@@ -103,21 +108,28 @@ export function useMeetingRoom({
     });
 
   const handleStart = useCallback(async () => {
-    if (phase === "ended") {
+    if (isEndedPhase(phaseRef.current)) {
       return;
     }
-    await startCapture();
+    const started = await startCapture();
+    if (!started || isEndedPhase(phaseRef.current)) {
+      return;
+    }
+    phaseRef.current = "live";
     setPhase("live");
-  }, [phase, startCapture]);
+  }, [startCapture]);
 
   const handleStop = useCallback(() => {
-    stopCapture();
-    if (phase !== "ended") {
-      setPhase("idle");
+    if (isEndedPhase(phaseRef.current)) {
+      return;
     }
-  }, [phase, stopCapture]);
+    stopCapture();
+    phaseRef.current = "idle";
+    setPhase("idle");
+  }, [stopCapture]);
 
   const handleEndMeeting = useCallback(() => {
+    phaseRef.current = "ended";
     setPhase("ended");
     void flushAndDisconnect();
   }, [flushAndDisconnect]);
