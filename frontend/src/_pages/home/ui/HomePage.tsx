@@ -18,6 +18,7 @@ import {
   DialogTrigger,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -56,16 +57,18 @@ export function HomePage() {
                   }
                 />
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>設定・オプション</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="size-4 mr-2" />
-                    環境設定
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Info className="size-4 mr-2" />
-                    バージョン情報
-                  </DropdownMenuItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>設定・オプション</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <Settings className="size-4 mr-2" />
+                      環境設定
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Info className="size-4 mr-2" />
+                      バージョン情報
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
