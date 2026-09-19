@@ -1,8 +1,13 @@
 """Presentation schemas."""
 
 from datetime import datetime
+from typing import Annotated
 
 from pydantic import BaseModel, Field
+
+ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH = 128
+ANALYZE_DIALOGUE_UTTERANCES_MAX_ITEMS = 100
+ANALYZE_DIALOGUE_UTTERANCE_MAX_LENGTH = 2000
 
 
 class HealthResponse(BaseModel):
@@ -65,9 +70,16 @@ class AdviceMessage(BaseModel):
 class AnalyzeDialogueRequest(BaseModel):
     """Request schema for REST dialogue analysis."""
 
-    meeting_id: str = Field(..., description="Meeting identifier")
-    utterances: list[str] = Field(
+    meeting_id: str = Field(
+        ...,
+        max_length=ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH,
+        description="Meeting identifier",
+    )
+    utterances: list[
+        Annotated[str, Field(max_length=ANALYZE_DIALOGUE_UTTERANCE_MAX_LENGTH)]
+    ] = Field(
         default_factory=list,
+        max_length=ANALYZE_DIALOGUE_UTTERANCES_MAX_ITEMS,
         description="Optional list of transcript lines in format '[speaker] text'",
     )
 
