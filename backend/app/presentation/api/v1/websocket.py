@@ -126,7 +126,10 @@ class AudioStreamSession:
             elif action == "flush":
                 await self.flush()
             elif action == "analyze":
-                await self._trigger_analysis(force=True)
+                if self.analyze_dialogue_use_case is not None and not self._is_closed:
+                    task = asyncio.create_task(self._trigger_analysis(force=True))
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
         except json.JSONDecodeError:
             logger.warning("Received invalid non-JSON text message: %s", text)
 

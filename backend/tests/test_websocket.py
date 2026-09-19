@@ -1,5 +1,6 @@
 """Tests for WebSocket audio streaming endpoint."""
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
@@ -216,6 +217,67 @@ async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
             res = ws.receive_json()
             assert res == {"type": "pong"}
     finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -> None:
+    """Verify manual analyze triggers analysis in background without blocking receive loop."""
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+
+    # Simulate an in-flight LLM call that takes some time or waits for an event
+    llm_started = asyncio.Event()
+    continue_llm = asyncio.Event()
+
+    async def slow_execute(context, force_analyze):  # type: ignore[no-untyped-def]
+        llm_started.set()
+        await continue_llm.wait()
+        return AnalysisResultDTO(
+            meeting_id=context.meeting_id,
+            advice_items=[
+                AdviceItemDTO(
+                    id="adv-async-1",
+                    category=IssueCategory.UNEXPLAINED_JARGON.value,
+                    priority=AdvicePriority.HIGH.value,
+                    title="専門用語の確認",
+                    reason="専門用語の確認不足",
+                    suggested_question="用語の意味の確認です",
+                    detected_at=datetime.now(UTC),
+                    quote="API",
+                )
+            ],
+            analyzed_utterance_count=1,
+        )
+
+    mock_analyze_use_case.execute.side_effect = slow_execute
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-nonblocking/audio") as ws:
+            # Send analyze action
+            ws.send_text(json.dumps({"action": "analyze"}))
+
+            # Ping should immediately succeed even while LLM call is in-flight
+            ws.send_text(json.dumps({"action": "ping"}))
+            pong_msg = ws.receive_json()
+            assert pong_msg == {"type": "pong"}
+
+            # Let LLM complete and verify advice is received
+            continue_llm.set()
+            advice_msg = ws.receive_json()
+            assert advice_msg["type"] == "advice"
+            assert advice_msg["id"] == "adv-async-1"
+    finally:
+        continue_llm.set()
         app.dependency_overrides.clear()
 
 
