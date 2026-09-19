@@ -85,6 +85,14 @@ def test_finalize_meeting_endpoint() -> None:
         app.dependency_overrides.clear()
 
 
+def test_finalize_meeting_rejects_injected_meeting_id_path() -> None:
+    response = client.post(
+        "/api/v1/meetings/meet.id/finalize",
+        json={},
+    )
+    assert response.status_code == 422
+
+
 def test_finalize_meeting_without_transcript_returns_400() -> None:
     mock_use_case = AsyncMock(spec=GenerateRequirementsDocUseCase)
     mock_use_case.execute.side_effect = MeetingHasNoTranscriptError("no utterances")

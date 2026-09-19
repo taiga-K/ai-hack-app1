@@ -1,6 +1,8 @@
 """Meeting finalize and requirements document REST endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.responses import Response
 
 from app.application.dto import RequirementsDocumentDTO
@@ -20,12 +22,23 @@ from app.presentation.deps import (
     get_requirements_doc_use_case,
 )
 from app.presentation.schemas import (
+    ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH,
+    MEETING_ID_PATH_PATTERN,
     FinalizeMeetingRequest,
     RequirementsDocumentResponse,
     RequirementsSectionResponse,
 )
 
 router = APIRouter()
+
+MeetingIdPath = Annotated[
+    str,
+    Path(
+        pattern=MEETING_ID_PATH_PATTERN,
+        max_length=ANALYZE_DIALOGUE_MEETING_ID_MAX_LENGTH,
+        description="Meeting identifier (letters, digits, underscore, hyphen)",
+    ),
+]
 
 
 def _to_response(document: RequirementsDocumentDTO) -> RequirementsDocumentResponse:
@@ -54,7 +67,7 @@ def _to_response(document: RequirementsDocumentDTO) -> RequirementsDocumentRespo
     response_model=RequirementsDocumentResponse,
 )
 async def finalize_meeting(
-    meeting_id: str,
+    meeting_id: MeetingIdPath,
     request: FinalizeMeetingRequest | None = None,
     use_case: GenerateRequirementsDocUseCase | None = Depends(
         get_generate_requirements_doc_use_case
@@ -105,7 +118,7 @@ async def finalize_meeting(
     response_model=RequirementsDocumentResponse,
 )
 def get_requirements_document(
-    meeting_id: str,
+    meeting_id: MeetingIdPath,
     use_case: GetRequirementsDocUseCase = Depends(get_requirements_doc_use_case),
 ) -> RequirementsDocumentResponse:
     """Return the generated requirements document as JSON."""
@@ -118,7 +131,7 @@ def get_requirements_document(
 
 @router.get("/meetings/{meeting_id}/requirements/download")
 def download_requirements_document(
-    meeting_id: str,
+    meeting_id: MeetingIdPath,
     use_case: GetRequirementsDocUseCase = Depends(get_requirements_doc_use_case),
 ) -> Response:
     """Download the generated requirements document as a Markdown file."""
