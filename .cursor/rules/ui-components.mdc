@@ -1,0 +1,45 @@
+---
+description: Prioritize shadcn/ui components when implementing UI
+globs:
+  - "**/*.tsx"
+alwaysApply: false
+---
+
+# UI Components: shadcn/ui by Default
+
+本システムでは、UI コンポーネントの実装に **shadcn/ui** を標準採用する。
+
+## Rules
+
+1. **デフォルトは常に shadcn/ui**
+   - UI 実装時は要件に合致する shadcn/ui コンポーネントを最優先で探索・採用する。
+2. **独自コンポーネントの作成制限**
+   - shadcn/ui で要件を満たせない場合のみ、新規の独自コンポーネント作成を許可する。
+
+## Examples
+
+### Good: shadcn/ui コンポーネントを採用
+
+```tsx
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+
+export const ActionModal = () => (
+  <Dialog>
+    <DialogTrigger asChild>
+      <Button variant="outline">Open</Button>
+    </DialogTrigger>
+    <DialogContent>Modal Content</DialogContent>
+  </Dialog>
+);
+```
+
+### Bad: 車輪の再発明による自作コンポーネント
+
+```tsx
+// shadcn/ui に同等コンポーネントが存在するのに独自実装する
+export const CustomModal = ({ isOpen, children }: Props) => {
+  if (!isOpen) return null;
+  return <div className="fixed inset-0 bg-black/50">{children}</div>;
+};
+```
