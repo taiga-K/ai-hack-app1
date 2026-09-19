@@ -35,7 +35,7 @@ class ChatCompletionRequest:
     """Request payload for chat completion."""
 
     messages: list[ChatMessage]
-    model: str = "openai/gpt-4o-mini"
+    model: str | None = None
     fallback_models: list[str] = field(default_factory=list)
     temperature: float = 0.7
     max_tokens: int | None = None
