@@ -1,6 +1,7 @@
 """Dialogue analysis and realtime advice use case."""
 
 import hashlib
+import html
 import json
 import logging
 from datetime import UTC, datetime
@@ -136,9 +137,21 @@ SYSTEM_PROMPT = """【未信頼データ規則】
 """
 
 
+def sanitize_conversation_log_text(transcript_text: str) -> str:
+    """Neutralize boundary tags so a one-shot replace cannot rebuild them."""
+    sanitized = transcript_text
+    while True:
+        next_text = sanitized.replace(CONVERSATION_LOG_CLOSE_TAG, "")
+        next_text = next_text.replace(CONVERSATION_LOG_OPEN_TAG, "")
+        if next_text == sanitized:
+            break
+        sanitized = next_text
+    return html.escape(sanitized, quote=False)
+
+
 def wrap_conversation_log(transcript_text: str) -> str:
     """Wrap transcript in a fixed boundary so log text cannot close the prompt region."""
-    sanitized = transcript_text.replace(CONVERSATION_LOG_CLOSE_TAG, "")
+    sanitized = sanitize_conversation_log_text(transcript_text)
     return f"{CONVERSATION_LOG_OPEN_TAG}\n{sanitized}\n{CONVERSATION_LOG_CLOSE_TAG}"
 
 
