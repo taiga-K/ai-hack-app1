@@ -1,14 +1,30 @@
 import type { SpeakerId } from "@/shared/api";
 
-export function getSpeakerLabel(speaker: SpeakerId): string {
+export type SpeakerSide = "ours" | "theirs";
+
+export function getSpeakerSide(speaker: SpeakerId): SpeakerSide {
   switch (speaker) {
     case "local_pm":
-      return "自社PM";
+      return "ours";
     case "remote_client":
-      return "クライアント";
+      return "theirs";
     default: {
       const _exhaustiveCheck: never = speaker;
       throw new Error(`Unhandled speaker: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+export function getSpeakerLabel(speaker: SpeakerId): string {
+  const side = getSpeakerSide(speaker);
+  switch (side) {
+    case "ours":
+      return "こちら";
+    case "theirs":
+      return "むこう";
+    default: {
+      const _exhaustiveCheck: never = side;
+      throw new Error(`Unhandled speaker side: ${_exhaustiveCheck}`);
     }
   }
 }

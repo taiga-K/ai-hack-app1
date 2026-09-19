@@ -1,4 +1,9 @@
-export { formatUtteranceClock, getSpeakerLabel } from "./model/labels";
+export {
+  formatUtteranceClock,
+  getSpeakerLabel,
+  getSpeakerSide,
+} from "./model/labels";
+export type { SpeakerSide } from "./model/labels";
 export type { Utterance } from "./model/types";
-export { UtteranceBubble } from "./ui/UtteranceBubble";
-export type { UtteranceBubbleProps } from "./ui/UtteranceBubble";
+export { UtteranceLogLine } from "./ui/UtteranceLogLine";
+export type { UtteranceLogLineProps } from "./ui/UtteranceLogLine";

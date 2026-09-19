@@ -26,7 +26,7 @@ const markdownComponents: Components = {
         className={cn(
           className,
           isOpenIssues &&
-            "rounded-md border border-border bg-accent px-2 py-1.5 text-accent-foreground"
+            "rounded-full bg-secondary px-3 py-1 text-secondary-foreground"
         )}
         {...props}
       >

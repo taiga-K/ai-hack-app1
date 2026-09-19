@@ -1,127 +1,36 @@
 import { StartMeetingForm } from "@/features/meeting-control";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  AppLayout,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  Separator,
-  Toaster,
-} from "@/shared/ui";
-import { Header } from "@/widgets/header";
-import { Info, Radio, Sparkles } from "lucide-react";
+import { Toaster } from "@/shared/ui";
 
 export function HomePage() {
   return (
-    <AppLayout
-      header={
-        <Header
-          actions={
-            <Badge variant="outline" className="gap-1 text-xs">
-              <Radio className="size-3 text-primary" />
-              Ready
-            </Badge>
-          }
-        />
-      }
-      sidebar={
-        <div className="flex flex-col gap-4 text-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            セッション概要
-          </div>
-          <div className="flex flex-col gap-1 text-sm text-sidebar-foreground">
-            <span className="font-medium">業務ヒアリング</span>
-            <span className="text-xs text-muted-foreground">
-              自社PM専用の会議コパイロット
-            </span>
-          </div>
-          <Separator />
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            音声ストリーム仕様
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Ch 0 (Left): 自社PM</span>
-              <Badge variant="outline" className="text-[10px]">
-                マイク
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Ch 1 (Right): 相手</span>
-              <Badge variant="outline" className="text-[10px]">
-                Meet音声
-              </Badge>
-            </div>
-          </div>
-        </div>
-      }
-    >
-      <div className="mx-auto flex max-w-4xl flex-col gap-6 p-8">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            リアルタイム要件定義コパイロット
+    <div className="relative isolate min-h-dvh overflow-hidden bg-background">
+      <span
+        aria-hidden
+        className="motion-safe:animate-cute-blob pointer-events-none absolute -top-16 -left-10 size-56 rounded-full bg-secondary/80"
+      />
+      <span
+        aria-hidden
+        className="motion-safe:animate-cute-blob pointer-events-none absolute top-24 -right-8 size-40 rounded-full bg-accent/70 [animation-delay:1.2s]"
+      />
+      <span
+        aria-hidden
+        className="motion-safe:animate-cute-bob pointer-events-none absolute bottom-16 left-1/4 size-16 rounded-full bg-ours/25"
+      />
+      <main className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-8 px-6 py-16">
+        <div className="motion-safe:animate-cute-pop flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">会議のまとめ</p>
+          <h1 className="font-heading text-3xl leading-tight font-medium tracking-tight">
+            会議がおわると、
+            <br />
+            まとめが出来てます
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Google
-            Meetの会話を自律監視し、曖昧・矛盾・無理・専門用語の取り違えを自社画面だけに助言します。
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            話しながら、聞きそびれやあいまいなところを教えてくれます。相手の画面には出ません。
           </p>
         </div>
-
-        <Alert>
-          <Sparkles />
-          <AlertTitle>自社PM画面のみに助言します</AlertTitle>
-          <AlertDescription>
-            相手のMeet画面には何も出しません。会議ルームで文字起こしと横からのピコーン通知を確認できます。
-          </AlertDescription>
-        </Alert>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>ヒアリングを開始</CardTitle>
-            <CardDescription>
-              Meetの横に並べて使える会議ルームを開きます
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <StartMeetingForm />
-            <Dialog>
-              <DialogTrigger render={<Button variant="ghost" size="sm" />}>
-                <Info data-icon="inline-start" />
-                接続手順
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Google Meet 横並びの使い方</DialogTitle>
-                  <DialogDescription>
-                    ブラウザウィンドウをMeetの横に置き、キャプチャ開始からタブ音声共有をONにしてください。
-                  </DialogDescription>
-                </DialogHeader>
-                <ol className="flex list-decimal flex-col gap-2 pl-5 text-sm text-muted-foreground">
-                  <li>セッション開始で会議ルームを開きます。</li>
-                  <li>
-                    「キャプチャ開始」から Chrome タブ → Meet タブを選びます。
-                  </li>
-                  <li>「タブの音声を共有」をONにして共有します。</li>
-                  <li>マイク許可後、助言は右側にだけ表示されます。</li>
-                </ol>
-              </DialogContent>
-            </Dialog>
-          </CardContent>
-        </Card>
-      </div>
+        <StartMeetingForm />
+      </main>
       <Toaster />
-    </AppLayout>
+    </div>
   );
 }

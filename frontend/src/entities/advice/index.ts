@@ -5,5 +5,5 @@ export {
 } from "./model/labels";
 export type { AdviceCategoryPresentation } from "./model/labels";
 export type { Advice } from "./model/types";
-export { AdviceCard } from "./ui/AdviceCard";
-export type { AdviceCardProps } from "./ui/AdviceCard";
+export { AdviceWhisper } from "./ui/AdviceWhisper";
+export type { AdviceWhisperProps } from "./ui/AdviceWhisper";

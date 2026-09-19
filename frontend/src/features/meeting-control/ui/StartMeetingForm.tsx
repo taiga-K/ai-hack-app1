@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mic, PanelsTopLeft } from "lucide-react";
 import { Button, Input } from "@/shared/ui";
 
-const DEFAULT_TITLE = "業務ヒアリング";
+const DEFAULT_TITLE = "今日の会議";
 
 export function StartMeetingForm() {
   const router = useRouter();
@@ -24,7 +23,7 @@ export function StartMeetingForm() {
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         router.push(buildMeetingPath(false));
@@ -34,20 +33,20 @@ export function StartMeetingForm() {
         name="title"
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        placeholder="会議名 (例: 〇〇様 要件ヒアリング第1回)"
+        placeholder="今日の会議のなまえ"
+        aria-label="今日の会議のなまえ"
       />
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" className="flex-1">
-          <Mic data-icon="inline-start" />
-          セッション開始
+      <div className="flex flex-wrap gap-3">
+        <Button type="submit" size="lg" className="flex-1">
+          はじめる
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
+          size="lg"
           onClick={() => router.push(buildMeetingPath(true))}
         >
-          <PanelsTopLeft data-icon="inline-start" />
-          UIプレビュー
+          おためし
         </Button>
       </div>
     </form>
