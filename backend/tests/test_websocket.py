@@ -81,3 +81,39 @@ async def test_websocket_audio_streaming() -> None:
             assert msg2["meeting_id"] == "meet-test"
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+
+    async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        return [
+            UtteranceDTO(
+                id="utt-flush-1",
+                meeting_id=meeting_id,
+                speaker="local_pm",
+                text="切断前の最後の発話です。",
+                start_ms=chunk.timestamp_ms,
+                end_ms=chunk.timestamp_ms + 500,
+                is_final=True,
+                created_at=datetime.now(UTC),
+            )
+        ]
+
+    mock_use_case.execute.side_effect = mock_execute
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-disconnect/audio") as ws:
+            # Send less than full buffer to leave data in _buffer
+            short_stereo = np.zeros(16000, dtype=np.int16).tobytes()
+            ws.send_bytes(short_stereo)
+            # Closing the connection triggers disconnect path
+            ws.close()
+    finally:
+        app.dependency_overrides.clear()

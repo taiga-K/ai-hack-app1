@@ -1,6 +1,7 @@
 """faster-whisper and Silero VAD based Speech-to-Text adapter."""
 
 import asyncio
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -34,19 +35,24 @@ class FasterWhisperSTTService(STTService):
         self._initial_prompt = initial_prompt
         self._executor = executor
         self._model: WhisperModel | None = None
+        self._model_lock = threading.Lock()
         if not lazy_load:
             self._get_model()
 
     def _get_model(self) -> WhisperModel:
         if self._model is None:
-            try:
-                self._model = WhisperModel(
-                    self._model_size,
-                    device=self._device,
-                    compute_type=self._compute_type,
-                )
-            except Exception as e:
-                raise STTServiceError(f"Failed to initialize WhisperModel: {e}") from e
+            with self._model_lock:
+                if self._model is None:
+                    try:
+                        self._model = WhisperModel(
+                            self._model_size,
+                            device=self._device,
+                            compute_type=self._compute_type,
+                        )
+                    except Exception as e:
+                        raise STTServiceError(
+                            f"Failed to initialize WhisperModel: {e}"
+                        ) from e
         return self._model
 
     def _transcribe_sync(

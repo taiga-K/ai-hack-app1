@@ -1,5 +1,6 @@
 """Unit tests for FasterWhisperSTTService."""
 
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -51,3 +52,21 @@ async def test_faster_whisper_transcribe_mocked() -> None:
         assert u.start_ms == 1500  # 1000 + 500
         assert u.end_ms == 3000  # 1000 + 2000
         assert u.is_final is True
+
+
+def test_faster_whisper_lazy_load_thread_safety() -> None:
+    service = FasterWhisperSTTService(lazy_load=True)
+    assert service._model is None
+
+    mock_model_instance = MagicMock()
+    with patch(
+        "app.infrastructure.stt.whisper_stt.WhisperModel",
+        return_value=mock_model_instance,
+    ) as mock_cls:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(service._get_model) for _ in range(10)]
+            models = [f.result() for f in futures]
+
+        assert len(models) == 10
+        assert all(m is mock_model_instance for m in models)
+        mock_cls.assert_called_once()

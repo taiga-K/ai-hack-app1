@@ -44,9 +44,16 @@ class AudioStreamSession:
         self._buffer = bytearray()
         self._elapsed_ms = 0
         self._lock = asyncio.Lock()
+        self._is_closed = False
+
+    def mark_closed(self) -> None:
+        """Mark session as disconnected to prevent sends on closed socket."""
+        self._is_closed = True
 
     async def handle_message(self, message: Any) -> None:
         """Process an incoming WebSocket message (binary PCM or JSON control)."""
+        if self._is_closed:
+            return
         if isinstance(message, bytes):
             await self._handle_audio_bytes(message)
         elif isinstance(message, str):
@@ -114,6 +121,9 @@ class AudioStreamSession:
             key=lambda u: u.start_ms,
         )
 
+        if self._is_closed:
+            return
+
         for u in all_utterances:
             msg = UtteranceMessage(
                 id=u.id,
@@ -125,7 +135,16 @@ class AudioStreamSession:
                 is_final=u.is_final,
                 created_at=u.created_at,
             )
-            await self.websocket.send_text(msg.model_dump_json())
+            try:
+                await self.websocket.send_text(msg.model_dump_json())
+            except Exception as e:
+                logger.info(
+                    "Failed to send utterance message on socket for meeting %s: %s",
+                    self.meeting_id,
+                    e,
+                )
+                self.mark_closed()
+                break
 
 
 @router.websocket("/ws/meetings/{meeting_id}/audio")
@@ -149,15 +168,26 @@ async def websocket_audio_endpoint(
     try:
         while True:
             message = await websocket.receive()
+            msg_type = message.get("type")
+            if msg_type == "websocket.disconnect":
+                logger.info(
+                    "WebSocket disconnect event received for meeting %s", meeting_id
+                )
+                session.mark_closed()
+                await session.flush()
+                break
+
             if "bytes" in message and message["bytes"] is not None:
                 await session.handle_message(message["bytes"])
             elif "text" in message and message["text"] is not None:
                 await session.handle_message(message["text"])
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for meeting %s", meeting_id)
+        session.mark_closed()
         await session.flush()
     except Exception as e:
         logger.error("Error in audio WebSocket session %s: %s", meeting_id, e)
+        session.mark_closed()
         try:
             await session.flush()
         except Exception:
