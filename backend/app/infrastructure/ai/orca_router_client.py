@@ -35,6 +35,7 @@ class OrcaRouterClient(LLMService):
         self,
         api_key: str,
         base_url: str = "https://api.orcarouter.ai/v1",
+        default_model: str = "openai/gpt-4o-mini",
         timeout: float = 60.0,
         client: AsyncOpenAI | None = None,
     ) -> None:
@@ -44,6 +45,7 @@ class OrcaRouterClient(LLMService):
             )
         self._api_key = api_key
         self._base_url = base_url
+        self._default_model = default_model
         self._timeout = timeout
         self._client = client or AsyncOpenAI(
             api_key=self._api_key,
@@ -53,11 +55,12 @@ class OrcaRouterClient(LLMService):
 
     def _build_payload(self, request: ChatCompletionRequest) -> dict[str, Any]:
         """Convert domain request into OpenAI chat completion parameters."""
+        selected_model = request.model or self._default_model
         messages: list[dict[str, str]] = [
             {"role": msg.role.value, "content": msg.content} for msg in request.messages
         ]
         payload: dict[str, Any] = {
-            "model": request.model,
+            "model": selected_model,
             "messages": messages,
             "temperature": request.temperature,
         }
@@ -68,8 +71,8 @@ class OrcaRouterClient(LLMService):
         if request.fallback_models:
             # According to Orca Router docs:
             # extra_body={"models": [primary, fallback1, ...], "route": "fallback"}
-            all_models = [request.model] + [
-                m for m in request.fallback_models if m != request.model
+            all_models = [selected_model] + [
+                m for m in request.fallback_models if m != selected_model
             ]
             payload["extra_body"] = {
                 "models": all_models,
@@ -127,9 +130,10 @@ class OrcaRouterClient(LLMService):
                 total_tokens=response.usage.total_tokens,
             )
 
+        expected_model = payload["model"]
         return ChatCompletionResponse(
             content=content,
-            model=response.model or request.model,
+            model=response.model or expected_model,
             usage=usage,
             finish_reason=finish_reason,
         )

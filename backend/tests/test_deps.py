@@ -12,6 +12,10 @@ from app.presentation.deps import get_llm_service
 def test_get_llm_service_dependency_injection(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verify FastAPI Depends resolves get_llm_service and returns LLMService."""
     monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "test-key")
+    monkeypatch.setattr(
+        "app.presentation.deps.settings.orcarouter_default_model",
+        "custom/test-model",
+    )
 
     test_app = FastAPI()
 
@@ -21,6 +25,7 @@ def test_get_llm_service_dependency_injection(monkeypatch: pytest.MonkeyPatch) -
     ) -> dict[str, str]:
         assert isinstance(service, OrcaRouterClient)
         assert isinstance(service, LLMService)
+        assert service._default_model == "custom/test-model"
         return {"status": "ok"}
 
     client = TestClient(test_app)
