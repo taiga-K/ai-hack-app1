@@ -91,3 +91,60 @@ class AnalyzeDialogueResponse(BaseModel):
     meeting_id: str
     advice_items: list[AdviceItemResponse]
     analyzed_utterance_count: int
+
+
+class FinalizeAdviceInput(BaseModel):
+    """Optional detection seed for meeting finalize."""
+
+    category: str = Field(
+        ...,
+        description=(
+            "Category: 'ambiguity', 'contradiction', 'infeasibility', 'missing', "
+            "'unexplained_jargon'"
+        ),
+    )
+    priority: str = Field(default="medium", description="high / medium / low")
+    title: str = Field(..., description="Concise issue title")
+    reason: str = Field(default="", description="Why this is an issue")
+    suggested_question: str = Field(
+        default="",
+        description="Follow-up question the PM should confirm",
+    )
+    quote: str | None = Field(default=None, description="Related utterance snippet")
+    id: str | None = Field(default=None, description="Optional stable detection id")
+
+
+class FinalizeMeetingRequest(BaseModel):
+    """Optional seed payload when finalizing a meeting."""
+
+    title: str | None = Field(default=None, description="Meeting / document title")
+    utterances: list[str] = Field(
+        default_factory=list,
+        description="Optional transcript lines in format '[speaker] text'",
+    )
+    advice_items: list[FinalizeAdviceInput] = Field(
+        default_factory=list,
+        description="Optional detections to include in generation context",
+    )
+
+
+class RequirementsSectionResponse(BaseModel):
+    """One section of the generated requirements document."""
+
+    section_id: str
+    heading: str
+    body_markdown: str
+
+
+class RequirementsDocumentResponse(BaseModel):
+    """Generated requirements document response."""
+
+    id: str
+    meeting_id: str
+    title: str
+    markdown: str
+    sections: list[RequirementsSectionResponse]
+    created_at: datetime
+    model: str
+    source_utterance_count: int
+    source_detection_count: int

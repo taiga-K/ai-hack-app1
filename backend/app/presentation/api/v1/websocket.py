@@ -7,15 +7,18 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from app.application.dto import UtteranceDTO
+from app.application.dto import AdviceItemDTO, UtteranceDTO
 from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.application.use_cases.generate_requirements_doc import parse_seed_advice_item
 from app.domain.exceptions import AudioProcessingError, STTServiceError
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.transcript import Speaker, Utterance
+from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
+    get_meeting_session_repository,
     get_transcribe_audio_use_case,
 )
 from app.presentation.schemas import AdviceMessage, UtteranceMessage
@@ -37,6 +40,7 @@ class AudioStreamSession:
         diarizer: ChannelDiarizer,
         transcribe_use_case: TranscribeAudioUseCase,
         analyze_dialogue_use_case: AnalyzeDialogueUseCase | None = None,
+        meeting_session_repository: MeetingSessionRepository | None = None,
         chunk_interval_sec: float = CHUNK_INTERVAL_SECONDS,
     ) -> None:
         self.meeting_id = meeting_id
@@ -60,6 +64,9 @@ class AudioStreamSession:
 
         # In-memory dialogue context for this meeting session
         self.dialogue_context = MeetingDialogueContext(meeting_id=meeting_id)
+        self.meeting_session_repository = meeting_session_repository
+        if self.meeting_session_repository is not None:
+            self.meeting_session_repository.get_or_create(meeting_id)
         self._analysis_lock = asyncio.Lock()
         self._analysis_pending = False
         self._analysis_pending_force = False
@@ -228,18 +235,19 @@ class AudioStreamSession:
             if speaker_enum == Speaker.REMOTE_CLIENT:
                 has_remote_client_speech = True
 
-            self.dialogue_context.add_utterance(
-                Utterance(
-                    id=u.id,
-                    meeting_id=u.meeting_id,
-                    speaker=speaker_enum,
-                    text=u.text,
-                    start_ms=u.start_ms,
-                    end_ms=u.end_ms,
-                    is_final=u.is_final,
-                    created_at=u.created_at,
-                )
+            utterance = Utterance(
+                id=u.id,
+                meeting_id=u.meeting_id,
+                speaker=speaker_enum,
+                text=u.text,
+                start_ms=u.start_ms,
+                end_ms=u.end_ms,
+                is_final=u.is_final,
+                created_at=u.created_at,
             )
+            self.dialogue_context.add_utterance(utterance)
+            if self.meeting_session_repository is not None:
+                self.meeting_session_repository.add_utterance(self.meeting_id, utterance)
 
         if (
             all_utterances
@@ -286,6 +294,7 @@ class AudioStreamSession:
                         if item.id in self._seen_advice_ids:
                             continue
                         self._seen_advice_ids.add(item.id)
+                        self._persist_advice(item)
 
                         advice_msg = AdviceMessage(
                             id=item.id,
@@ -310,6 +319,23 @@ class AudioStreamSession:
                     continue
                 break
 
+    def _persist_advice(self, item: AdviceItemDTO) -> None:
+        """Store a detection so finalize can include it in the requirements context."""
+        if self.meeting_session_repository is None:
+            return
+        self.meeting_session_repository.add_advice(
+            self.meeting_id,
+            parse_seed_advice_item(
+                category=item.category,
+                title=item.title,
+                reason=item.reason,
+                suggested_question=item.suggested_question,
+                priority=item.priority,
+                quote=item.quote,
+                advice_id=item.id,
+            ),
+        )
+
 
 @router.websocket("/ws/meetings/{meeting_id}/audio")
 async def websocket_audio_endpoint(
@@ -322,6 +348,9 @@ async def websocket_audio_endpoint(
     analyze_dialogue_use_case: AnalyzeDialogueUseCase | None = Depends(
         get_analyze_dialogue_use_case
     ),
+    meeting_session_repository: MeetingSessionRepository = Depends(
+        get_meeting_session_repository
+    ),
 ) -> None:
     """WebSocket endpoint to receive 2ch stereo PCM audio and stream transcription and advice."""
     await websocket.accept()
@@ -331,6 +360,7 @@ async def websocket_audio_endpoint(
         diarizer=diarizer,
         transcribe_use_case=transcribe_use_case,
         analyze_dialogue_use_case=analyze_dialogue_use_case,
+        meeting_session_repository=meeting_session_repository,
     )
 
     try:

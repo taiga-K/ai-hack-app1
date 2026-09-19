@@ -2,13 +2,22 @@
 
 import logging
 
-from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.application.use_cases import (
+    AnalyzeDialogueUseCase,
+    GenerateRequirementsDocUseCase,
+    GetRequirementsDocUseCase,
+    TranscribeAudioUseCase,
+)
 from app.domain.exceptions import LLMConfigurationError
 from app.domain.services.llm_service import LLMService
+from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.domain.services.stt_service import STTService
 from app.infrastructure.ai.orca_router_client import OrcaRouterClient
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.infrastructure.config import settings
+from app.infrastructure.persistence.in_memory_meeting_store import (
+    InMemoryMeetingSessionStore,
+)
 from app.infrastructure.stt.whisper_stt import FasterWhisperSTTService
 
 logger = logging.getLogger(__name__)
@@ -16,6 +25,19 @@ logger = logging.getLogger(__name__)
 # Singleton instances for STT and Diarizer to avoid reloading weights per request
 _stt_service_instance: STTService | None = None
 _channel_diarizer_instance: ChannelDiarizer | None = None
+_meeting_session_store: InMemoryMeetingSessionStore | None = None
+
+
+def _split_fallback_models(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def get_meeting_session_repository() -> MeetingSessionRepository:
+    """Dependency injection provider for session-scoped meeting persistence."""
+    global _meeting_session_store
+    if _meeting_session_store is None:
+        _meeting_session_store = InMemoryMeetingSessionStore()
+    return _meeting_session_store
 
 
 def get_llm_service() -> LLMService:
@@ -76,3 +98,39 @@ def get_analyze_dialogue_use_case() -> AnalyzeDialogueUseCase | None:
             "ORCAROUTER_API_KEY is not configured; dialogue analysis is disabled."
         )
         return None
+
+
+def get_requirements_llm_service() -> LLMService:
+    """LLM client dedicated to requirements-doc generation (longer timeout)."""
+    return OrcaRouterClient(
+        api_key=settings.orcarouter_api_key,
+        base_url=settings.orcarouter_base_url,
+        default_model=settings.orcarouter_requirements_model,
+        timeout=settings.orcarouter_requirements_timeout_seconds,
+    )
+
+
+def get_generate_requirements_doc_use_case() -> GenerateRequirementsDocUseCase | None:
+    """Dependency injection provider for GenerateRequirementsDocUseCase."""
+    try:
+        llm = get_requirements_llm_service()
+        return GenerateRequirementsDocUseCase(
+            llm_service=llm,
+            meeting_session_repository=get_meeting_session_repository(),
+            model=settings.orcarouter_requirements_model,
+            fallback_models=_split_fallback_models(
+                settings.orcarouter_requirements_fallback_models
+            ),
+        )
+    except LLMConfigurationError:
+        logger.warning(
+            "ORCAROUTER_API_KEY is not configured; requirements generation is disabled."
+        )
+        return None
+
+
+def get_requirements_doc_use_case() -> GetRequirementsDocUseCase:
+    """Dependency injection provider for GetRequirementsDocUseCase."""
+    return GetRequirementsDocUseCase(
+        meeting_session_repository=get_meeting_session_repository(),
+    )

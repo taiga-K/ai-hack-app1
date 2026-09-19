@@ -10,6 +10,10 @@ from app.domain.exceptions import (
     LLMResponseError,
     LLMServiceError,
     LLMTimeoutError,
+    MeetingHasNoTranscriptError,
+    MeetingNotFoundError,
+    RequirementsDocGenerationError,
+    RequirementsDocNotFoundError,
     STTServiceError,
 )
 from app.domain.models.analysis import (
@@ -27,6 +31,12 @@ from app.domain.models.llm import (
     TokenUsage,
 )
 from app.domain.models.meeting_context import MeetingDialogueContext
+from app.domain.models.meeting_session import MeetingSessionRecord
+from app.domain.models.requirement_doc import (
+    RequirementsDocument,
+    RequirementsSection,
+    RequirementsSectionId,
+)
 from app.domain.models.transcript import (
     AudioChannel,
     AudioChunk,
@@ -34,6 +44,7 @@ from app.domain.models.transcript import (
     Utterance,
 )
 from app.domain.services.llm_service import LLMService
+from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.domain.services.stt_service import STTService
 
 __all__ = [
@@ -58,7 +69,16 @@ __all__ = [
     "LLMServiceError",
     "LLMTimeoutError",
     "MeetingDialogueContext",
+    "MeetingHasNoTranscriptError",
+    "MeetingNotFoundError",
     "MeetingSession",
+    "MeetingSessionRecord",
+    "MeetingSessionRepository",
+    "RequirementsDocGenerationError",
+    "RequirementsDocNotFoundError",
+    "RequirementsDocument",
+    "RequirementsSection",
+    "RequirementsSectionId",
     "STTService",
     "STTServiceError",
     "Speaker",

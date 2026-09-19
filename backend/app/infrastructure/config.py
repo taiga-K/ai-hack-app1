@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     orcarouter_base_url: str = "https://api.orcarouter.ai/v1"
     orcarouter_default_model: str = "openai/gpt-4o-mini"
     orcarouter_timeout_seconds: float = 60.0
+    orcarouter_requirements_model: str = "anthropic/claude-3-5-sonnet"
+    orcarouter_requirements_fallback_models: str = "openai/gpt-4o"
+    orcarouter_requirements_timeout_seconds: float = 120.0
 
     whisper_model_size: str = "base"
     whisper_device: str = "cpu"
