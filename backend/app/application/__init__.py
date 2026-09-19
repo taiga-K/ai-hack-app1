@@ -1,9 +1,21 @@
 """Application layer exports."""
 
-from app.application.dto import HealthStatusDTO, UtteranceDTO
-from app.application.use_cases import GetHealthStatusUseCase, TranscribeAudioUseCase
+from app.application.dto import (
+    AdviceItemDTO,
+    AnalysisResultDTO,
+    HealthStatusDTO,
+    UtteranceDTO,
+)
+from app.application.use_cases import (
+    AnalyzeDialogueUseCase,
+    GetHealthStatusUseCase,
+    TranscribeAudioUseCase,
+)
 
 __all__ = [
+    "AdviceItemDTO",
+    "AnalysisResultDTO",
+    "AnalyzeDialogueUseCase",
     "GetHealthStatusUseCase",
     "HealthStatusDTO",
     "TranscribeAudioUseCase",

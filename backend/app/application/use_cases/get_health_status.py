@@ -1,4 +1,4 @@
-"""Application use cases."""
+"""Health check use case."""
 
 from datetime import UTC, datetime
 

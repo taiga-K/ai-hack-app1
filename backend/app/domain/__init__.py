@@ -12,6 +12,12 @@ from app.domain.exceptions import (
     LLMTimeoutError,
     STTServiceError,
 )
+from app.domain.models.analysis import (
+    AdviceItem,
+    AdvicePriority,
+    AnalysisResult,
+    IssueCategory,
+)
 from app.domain.models.llm import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -20,6 +26,7 @@ from app.domain.models.llm import (
     ChatStreamChunk,
     TokenUsage,
 )
+from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.transcript import (
     AudioChannel,
     AudioChunk,
@@ -30,6 +37,9 @@ from app.domain.services.llm_service import LLMService
 from app.domain.services.stt_service import STTService
 
 __all__ = [
+    "AdviceItem",
+    "AdvicePriority",
+    "AnalysisResult",
     "AudioChannel",
     "AudioChunk",
     "AudioProcessingError",
@@ -39,6 +49,7 @@ __all__ = [
     "ChatRole",
     "ChatStreamChunk",
     "DomainException",
+    "IssueCategory",
     "LLMAuthenticationError",
     "LLMConfigurationError",
     "LLMRateLimitError",
@@ -46,6 +57,7 @@ __all__ = [
     "LLMService",
     "LLMServiceError",
     "LLMTimeoutError",
+    "MeetingDialogueContext",
     "MeetingSession",
     "STTService",
     "STTServiceError",
