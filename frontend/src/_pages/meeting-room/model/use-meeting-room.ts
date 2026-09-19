@@ -96,12 +96,11 @@ export function useMeetingRoom({
     }
   }, []);
 
-  const { state, stats, startCapture, stopCapture, sendJson } = useAudioCapture(
-    {
+  const { state, stats, startCapture, stopCapture, flushAndDisconnect } =
+    useAudioCapture({
       meetingId,
       onMessage: handleServerMessage,
-    }
-  );
+    });
 
   const handleStart = useCallback(async () => {
     if (phase === "ended") {
@@ -119,11 +118,9 @@ export function useMeetingRoom({
   }, [phase, stopCapture]);
 
   const handleEndMeeting = useCallback(() => {
-    sendJson({ action: "flush" });
-    sendJson({ action: "analyze" });
-    stopCapture();
     setPhase("ended");
-  }, [sendJson, stopCapture]);
+    void flushAndDisconnect();
+  }, [flushAndDisconnect]);
 
   const handleToggleChime = useCallback((enabled: boolean) => {
     chimeEnabledRef.current = enabled;

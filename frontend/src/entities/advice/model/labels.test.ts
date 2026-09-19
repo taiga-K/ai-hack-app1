@@ -10,6 +10,10 @@ describe("advice labels", () => {
     const presentation = getAdviceCategoryPresentation("unexplained_jargon");
     assert.equal(presentation.badge, "❓ 専門用語の確認");
     assert.equal(presentation.label, "専門用語の確認");
+    assert.notEqual(
+      presentation.badge,
+      getAdviceCategoryPresentation("ambiguity").badge
+    );
   });
 
   it("covers every known category and priority", () => {

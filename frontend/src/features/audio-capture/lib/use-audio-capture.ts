@@ -113,6 +113,9 @@ export function useAudioCapture({
             onError: () => {
               setState((prev) => ({ ...prev, wsStatus: "error" }));
             },
+            onReconnectFailed: () => {
+              setState((prev) => ({ ...prev, wsStatus: "error" }));
+            },
             onMessage: (event) => {
               onMessageRef.current?.(event);
             },
@@ -188,11 +191,46 @@ export function useAudioCapture({
     return wsClientRef.current.sendJson(payload);
   }, []);
 
+  const flushAndDisconnect = useCallback(async (graceMs = 5000) => {
+    if (audioServiceRef.current) {
+      audioServiceRef.current.stop();
+    }
+
+    setState((prev) => ({
+      ...prev,
+      isRecording: false,
+      hasMicStream: false,
+      hasTabStream: false,
+      micVolume: 0,
+      tabVolume: 0,
+    }));
+
+    const wsClient = wsClientRef.current;
+    if (wsClient) {
+      wsClient.sendJson({ action: "flush" });
+      wsClient.sendJson({ action: "analyze" });
+      await wsClient.drainAndDisconnect(graceMs);
+      wsClientRef.current = null;
+    }
+
+    setState((prev) => ({
+      ...prev,
+      status: "idle",
+      wsStatus: "disconnected",
+      isRecording: false,
+      hasMicStream: false,
+      hasTabStream: false,
+      micVolume: 0,
+      tabVolume: 0,
+    }));
+  }, []);
+
   return {
     state,
     stats,
     startCapture,
     stopCapture,
     sendJson,
+    flushAndDisconnect,
   };
 }

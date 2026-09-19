@@ -3,14 +3,18 @@ export interface MeetingWebSocketCallbacks {
   onClose?: (event: CloseEvent) => void;
   onError?: (event: Event) => void;
   onMessage?: (event: MessageEvent) => void;
+  onReconnectFailed?: () => void;
 }
 
 export interface MeetingWebSocketClientOptions {
   autoReconnect?: boolean;
   maxReconnectAttempts?: number;
   reconnectBaseDelayMs?: number;
+  reconnectJitterMs?: number;
   pingIntervalMs?: number;
 }
+
+const DEFAULT_DRAIN_GRACE_MS = 5000;
 
 export class MeetingWebSocketClient {
   private ws: WebSocket | null = null;
@@ -18,24 +22,29 @@ export class MeetingWebSocketClient {
   private readonly autoReconnect: boolean;
   private readonly maxReconnectAttempts: number;
   private readonly reconnectBaseDelayMs: number;
+  private readonly reconnectJitterMs: number;
   private readonly pingIntervalMs: number;
   private reconnectAttempt = 0;
   private manualClose = false;
   private callbacks: MeetingWebSocketCallbacks = {};
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private openingPromise: Promise<void> | null = null;
+  private socketGeneration = 0;
 
   constructor(url: string, options: MeetingWebSocketClientOptions = {}) {
     this.url = url;
     this.autoReconnect = options.autoReconnect ?? true;
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 5;
     this.reconnectBaseDelayMs = options.reconnectBaseDelayMs ?? 800;
+    this.reconnectJitterMs = options.reconnectJitterMs ?? 200;
     this.pingIntervalMs = options.pingIntervalMs ?? 20000;
   }
 
   connect(callbacks: MeetingWebSocketCallbacks): Promise<void> {
     this.callbacks = callbacks;
     this.manualClose = false;
+    this.reconnectAttempt = 0;
     return this.openSocket();
   }
 
@@ -58,47 +67,89 @@ export class MeetingWebSocketClient {
   disconnect(): void {
     this.manualClose = true;
     this.clearTimers();
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.onmessage = null;
-      this.ws.onopen = null;
-      this.ws.close();
-      this.ws = null;
+    this.openingPromise = null;
+    this.detachAndCloseSocket();
+  }
+
+  async drainAndDisconnect(
+    graceMs: number = DEFAULT_DRAIN_GRACE_MS
+  ): Promise<void> {
+    this.manualClose = true;
+    this.clearReconnectTimer();
+    if (graceMs > 0 && this.isConnected()) {
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, graceMs);
+      });
     }
+    this.disconnect();
   }
 
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
-  private openSocket(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        resolve();
-        return;
-      }
+  private detachAndCloseSocket(): void {
+    const socket = this.ws;
+    this.ws = null;
+    if (!socket) {
+      return;
+    }
+    socket.onclose = null;
+    socket.onerror = null;
+    socket.onmessage = null;
+    socket.onopen = null;
+    if (
+      socket.readyState === WebSocket.CONNECTING ||
+      socket.readyState === WebSocket.OPEN
+    ) {
+      socket.close();
+    }
+  }
 
+  private openSocket(): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      return Promise.resolve();
+    }
+    if (this.openingPromise) {
+      return this.openingPromise;
+    }
+
+    this.openingPromise = new Promise((resolve, reject) => {
       try {
+        this.detachAndCloseSocket();
+        const generation = ++this.socketGeneration;
         const socket = new WebSocket(this.url);
         socket.binaryType = "arraybuffer";
         this.ws = socket;
 
         socket.onopen = () => {
+          if (generation !== this.socketGeneration) {
+            return;
+          }
           this.reconnectAttempt = 0;
+          this.openingPromise = null;
           this.startPing();
           this.callbacks.onOpen?.();
           resolve();
         };
 
         socket.onclose = (event) => {
+          if (generation !== this.socketGeneration) {
+            return;
+          }
           this.stopPing();
+          if (this.ws === socket) {
+            this.ws = null;
+          }
+          this.openingPromise = null;
           this.callbacks.onClose?.(event);
-          this.ws = null;
           this.scheduleReconnect();
         };
 
         socket.onerror = (event) => {
+          if (generation !== this.socketGeneration) {
+            return;
+          }
           this.callbacks.onError?.(event);
           if (socket.readyState !== WebSocket.OPEN) {
             reject(new Error("WebSocket接続に失敗しました"));
@@ -106,29 +157,49 @@ export class MeetingWebSocketClient {
         };
 
         socket.onmessage = (event) => {
+          if (generation !== this.socketGeneration) {
+            return;
+          }
           this.callbacks.onMessage?.(event);
         };
       } catch (error) {
+        this.openingPromise = null;
         reject(error);
       }
     });
+
+    return this.openingPromise;
   }
 
   private scheduleReconnect(): void {
     if (this.manualClose || !this.autoReconnect) {
       return;
     }
+    if (this.reconnectTimer !== null) {
+      return;
+    }
+    if (
+      this.openingPromise !== null ||
+      (this.ws !== null && this.ws.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
     if (this.reconnectAttempt >= this.maxReconnectAttempts) {
+      this.callbacks.onReconnectFailed?.();
       return;
     }
 
+    const jitter =
+      this.reconnectJitterMs > 0
+        ? Math.floor(Math.random() * this.reconnectJitterMs)
+        : 0;
     const delay =
-      this.reconnectBaseDelayMs * 2 ** this.reconnectAttempt +
-      Math.floor(Math.random() * 200);
+      this.reconnectBaseDelayMs * 2 ** this.reconnectAttempt + jitter;
     this.reconnectAttempt += 1;
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       void this.openSocket().catch(() => {
-        this.scheduleReconnect();
+        // The matching onclose is the single reconnect scheduler.
       });
     }, delay);
   }
@@ -147,11 +218,15 @@ export class MeetingWebSocketClient {
     }
   }
 
-  private clearTimers(): void {
-    this.stopPing();
+  private clearReconnectTimer(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+  }
+
+  private clearTimers(): void {
+    this.stopPing();
+    this.clearReconnectTimer();
   }
 }

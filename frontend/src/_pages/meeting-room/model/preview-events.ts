@@ -57,7 +57,7 @@ export function createPreviewAdvice(meetingId: string): Advice[] {
       reason:
         "「API連携」「リアルタイム同期」を未定義のまま、相手が「了解です」と相づちしています。",
       suggestedQuestion:
-        "API連携とおっしゃった範囲は、既存システムの参照のみでしょうか。書き込みや認証方式も含みますか？",
+        "『API連携でリアルタイム同期』は、今ある画面を見るだけですか？ お客様のデータをこちらから書き換えるところまで含みますか？",
       detectedAt: "2026-09-19T00:00:24.000Z",
       quote: "API連携でリアルタイムに同期できれば",
     },
