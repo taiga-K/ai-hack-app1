@@ -43,6 +43,7 @@ def test_meeting_dialogue_context() -> None:
     ctx.add_utterance(u1)
     ctx.add_utterance(u2)
 
+    ctx.add_utterance(u1)
     assert ctx.total_utterances == 2
     assert len(ctx.get_recent_utterances(1)) == 1
     assert ctx.get_recent_utterances(1)[0].id == "u-2"

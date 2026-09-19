@@ -1,5 +1,7 @@
 """Generate a structured Markdown requirements document from a meeting session."""
 
+import asyncio
+import hashlib
 import json
 import logging
 import uuid
@@ -7,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.application.dto import RequirementsDocumentDTO, RequirementsSectionDTO
+from app.application.use_cases.analyze_dialogue import compute_advice_fingerprint
 from app.domain.exceptions import (
     MeetingHasNoTranscriptError,
     RequirementsDocGenerationError,
@@ -178,6 +181,7 @@ class GenerateRequirementsDocUseCase:
         extra_advice_items: list[AdviceItem] | None = None,
     ) -> RequirementsDocumentDTO:
         """Finalize a meeting and persist the generated Markdown document."""
+        await asyncio.to_thread(self._repository.wait_until_persist_settled, meeting_id)
         self._repository.get_or_create(meeting_id, title=title)
         if title and title.strip():
             self._repository.update_title(meeting_id, title.strip())
@@ -372,8 +376,11 @@ def parse_seed_utterance_line(
         speaker = Speaker.REMOTE_CLIENT
         text = line.split("]", 1)[-1].strip()
 
+    stable_id = hashlib.sha256(
+        f"{meeting_id}:{index}:{speaker.value}:{text}".encode()
+    ).hexdigest()[:16]
     return Utterance(
-        id=str(uuid.uuid4()),
+        id=stable_id,
         meeting_id=meeting_id,
         speaker=speaker,
         text=text,
@@ -403,8 +410,13 @@ def parse_seed_advice_item(
     except ValueError:
         priority_enum = AdvicePriority.MEDIUM
 
+    stable_id = advice_id or compute_advice_fingerprint(
+        category=category_enum.value,
+        title=title,
+        quote=quote,
+    )
     return AdviceItem(
-        id=advice_id or str(uuid.uuid4()),
+        id=stable_id,
         category=category_enum,
         priority=priority_enum,
         title=title,

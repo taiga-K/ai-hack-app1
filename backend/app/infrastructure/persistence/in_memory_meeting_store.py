@@ -2,7 +2,8 @@
 
 from copy import deepcopy
 from datetime import UTC, datetime
-from threading import Lock
+from threading import Condition
+from time import monotonic
 
 from app.domain.exceptions import MeetingNotFoundError
 from app.domain.models.analysis import AdviceItem
@@ -17,10 +18,12 @@ class InMemoryMeetingSessionStore:
 
     def __init__(self) -> None:
         self._records: dict[str, MeetingSessionRecord] = {}
-        self._lock = Lock()
+        self._live: dict[str, int] = {}
+        self._closing: dict[str, int] = {}
+        self._cond = Condition()
 
     def get(self, meeting_id: str) -> MeetingSessionRecord | None:
-        with self._lock:
+        with self._cond:
             record = self._records.get(meeting_id)
             if record is None:
                 return None
@@ -31,22 +34,22 @@ class InMemoryMeetingSessionStore:
         meeting_id: str,
         title: str | None = None,
     ) -> MeetingSessionRecord:
-        with self._lock:
+        with self._cond:
             record = self._ensure_locked(meeting_id, title)
             return deepcopy(record)
 
     def add_utterance(self, meeting_id: str, utterance: Utterance) -> None:
-        with self._lock:
+        with self._cond:
             record = self._ensure_locked(meeting_id, None)
             record.dialogue.add_utterance(utterance)
 
     def add_advice(self, meeting_id: str, item: AdviceItem) -> None:
-        with self._lock:
+        with self._cond:
             record = self._ensure_locked(meeting_id, None)
             record.add_advice(item)
 
     def update_title(self, meeting_id: str, title: str) -> None:
-        with self._lock:
+        with self._cond:
             record = self._ensure_locked(meeting_id, title)
             if title.strip():
                 record.title = title.strip()
@@ -56,7 +59,7 @@ class InMemoryMeetingSessionStore:
         meeting_id: str,
         document: RequirementsDocument,
     ) -> MeetingSessionRecord:
-        with self._lock:
+        with self._cond:
             record = self._records.get(meeting_id)
             if record is None:
                 raise MeetingNotFoundError(f"Meeting not found: {meeting_id}")
@@ -65,6 +68,53 @@ class InMemoryMeetingSessionStore:
             if document.title.strip():
                 record.title = document.title.strip()
             return deepcopy(record)
+
+    def register_live_session(self, meeting_id: str) -> None:
+        with self._cond:
+            self._live[meeting_id] = self._live.get(meeting_id, 0) + 1
+            self._cond.notify_all()
+
+    def begin_close(self, meeting_id: str) -> None:
+        with self._cond:
+            live = self._live.get(meeting_id, 0)
+            if live > 0:
+                self._live[meeting_id] = live - 1
+            self._closing[meeting_id] = self._closing.get(meeting_id, 0) + 1
+            self._cond.notify_all()
+
+    def end_close(self, meeting_id: str) -> None:
+        with self._cond:
+            closing = self._closing.get(meeting_id, 0)
+            if closing > 0:
+                self._closing[meeting_id] = closing - 1
+            self._cond.notify_all()
+
+    def wait_until_persist_settled(
+        self,
+        meeting_id: str,
+        close_grace_seconds: float = 0.5,
+        close_wait_seconds: float = 15.0,
+    ) -> None:
+        """Wait briefly for disconnect, then until leftover persist finishes."""
+        grace_deadline = monotonic() + max(close_grace_seconds, 0.0)
+        close_deadline = monotonic() + max(close_wait_seconds, 0.0)
+        with self._cond:
+            while True:
+                live = self._live.get(meeting_id, 0)
+                closing = self._closing.get(meeting_id, 0)
+                now = monotonic()
+                if closing == 0 and live == 0:
+                    return
+                if closing > 0:
+                    remaining = close_deadline - now
+                    if remaining <= 0:
+                        return
+                    self._cond.wait(timeout=remaining)
+                    continue
+                remaining = grace_deadline - now
+                if remaining <= 0:
+                    return
+                self._cond.wait(timeout=remaining)
 
     def _ensure_locked(
         self,

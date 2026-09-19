@@ -2,6 +2,8 @@
 
 import json
 from datetime import UTC
+from threading import Thread
+from time import monotonic, sleep
 from unittest.mock import AsyncMock
 
 import pytest
@@ -203,3 +205,76 @@ def test_parse_seed_utterance_line_speakers() -> None:
     assert pm.text == "こんにちは"
     assert client.speaker == Speaker.REMOTE_CLIENT
     assert client.created_at.tzinfo == UTC
+    again = parse_seed_utterance_line("m1", "[自社PM] こんにちは", 0)
+    assert again.id == pm.id
+
+
+@pytest.mark.asyncio
+async def test_generate_requirements_doc_retry_does_not_duplicate_seeds() -> None:
+    store = InMemoryMeetingSessionStore()
+    mock_llm = AsyncMock(spec=LLMService)
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content=json.dumps(_valid_llm_payload()),
+        model="anthropic/claude-3-5-sonnet",
+    )
+    use_case = GenerateRequirementsDocUseCase(
+        llm_service=mock_llm,
+        meeting_session_repository=store,
+    )
+    meeting_id = "meet-retry"
+    jargon = parse_seed_advice_item(
+        category=IssueCategory.UNEXPLAINED_JARGON.value,
+        title="専門用語『API』の共通認識不足",
+        reason="曖昧な相づちのみ",
+        suggested_question="接続口という意味で合っていますか？",
+        priority="high",
+        quote="APIで取れますよね / はい、わかりました",
+    )
+
+    first = await use_case.execute(
+        meeting_id=meeting_id,
+        extra_utterances=_sample_utterances(meeting_id),
+        extra_advice_items=[jargon],
+    )
+    second = await use_case.execute(
+        meeting_id=meeting_id,
+        extra_utterances=_sample_utterances(meeting_id),
+        extra_advice_items=[jargon],
+    )
+
+    record = store.get(meeting_id)
+    assert record is not None
+    assert record.dialogue.total_utterances == 3
+    assert len(record.advice_items) == 1
+    assert first.source_utterance_count == 3
+    assert second.source_utterance_count == 3
+    assert first.source_detection_count == 1
+    assert second.source_detection_count == 1
+
+
+def test_wait_until_persist_settled_waits_for_disconnect_flush() -> None:
+    store = InMemoryMeetingSessionStore()
+    store.register_live_session("meet-close")
+    finished_at: list[float] = []
+
+    def waiter() -> None:
+        store.wait_until_persist_settled(
+            "meet-close",
+            close_grace_seconds=2.0,
+            close_wait_seconds=2.0,
+        )
+        finished_at.append(monotonic())
+
+    thread = Thread(target=waiter)
+    started = monotonic()
+    thread.start()
+    sleep(0.05)
+    assert thread.is_alive()
+    store.begin_close("meet-close")
+    sleep(0.05)
+    assert thread.is_alive()
+    store.end_close("meet-close")
+    thread.join(timeout=2.0)
+    assert not thread.is_alive()
+    assert finished_at
+    assert finished_at[0] - started < 1.5
