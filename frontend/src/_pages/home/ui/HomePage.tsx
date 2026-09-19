@@ -1,5 +1,8 @@
 import { AudioCaptureControl } from "@/features/audio-capture";
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   AppLayout,
   Badge,
   Button,
@@ -16,6 +19,7 @@ import {
   DialogTrigger,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -54,16 +58,18 @@ export function HomePage() {
                   }
                 />
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>設定・オプション</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Settings className="size-4 mr-2" />
-                    環境設定
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Info className="size-4 mr-2" />
-                    バージョン情報
-                  </DropdownMenuItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>設定・オプション</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <Settings className="size-4 mr-2" />
+                      環境設定
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Info className="size-4 mr-2" />
+                      バージョン情報
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -115,6 +121,15 @@ export function HomePage() {
             Meetの会話を自律監視し、曖昧・矛盾・無理を検出して要件定義書をリアルタイム生成します。
           </p>
         </div>
+
+        <Alert>
+          <Sparkles className="size-4 text-primary" />
+          <AlertTitle>shadcn/ui (Base UI版) デザインシステム稼働中</AlertTitle>
+          <AlertDescription>
+            Radix UIではなく @base-ui/react
+            を基盤とし、renderプロパティによる合成とNotionライクな落ち着いたグレーパレットを採用しています。
+          </AlertDescription>
+        </Alert>
 
         {/* 音声デュアルキャプチャモジュール */}
         <AudioCaptureControl meetingId="sample-meeting" />
