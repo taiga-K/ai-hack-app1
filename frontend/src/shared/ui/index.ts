@@ -44,3 +44,4 @@ export { Input } from "./input";
 export { ScrollArea, ScrollBar } from "./scroll-area";
 export { Separator } from "./separator";
 export { Toaster } from "./sonner";
+export { ThemeProvider, type ThemeProviderProps } from "./theme-provider";
