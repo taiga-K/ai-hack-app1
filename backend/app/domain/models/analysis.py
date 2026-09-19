@@ -12,6 +12,7 @@ class IssueCategory(StrEnum):
     CONTRADICTION = "contradiction"  # 前後の発言や前提との矛盾
     INFEASIBILITY = "infeasibility"  # 納期・工数・技術的な無理/高リスク
     MISSING_REQUIREMENT = "missing"  # 聞き忘れ・未確認事項
+    UNEXPLAINED_JARGON = "unexplained_jargon"  # 専門用語・業界用語の未説明および曖昧な相づちによる共通認識の不一致リスク
 
 
 class AdvicePriority(StrEnum):

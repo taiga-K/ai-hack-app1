@@ -76,3 +76,20 @@ def test_advice_item_creation() -> None:
     )
     assert len(result.advice_items) == 1
     assert result.analyzed_utterance_count == 2
+
+
+def test_advice_item_unexplained_jargon_category() -> None:
+    """Verify UNEXPLAINED_JARGON category works in domain model."""
+    jargon_item = AdviceItem(
+        id="adv-jargon-1",
+        category=IssueCategory.UNEXPLAINED_JARGON,
+        priority=AdvicePriority.HIGH,
+        title="専門用語『API』の共通認識不足",
+        reason="専門用語の説明がなく、相手が曖昧な了解で聞き流しているため、後から認識齟齬が発生するリスクがあります。",
+        suggested_question="『API』は、御社の既存システムからデータを取る接続口、という理解で合っていますか？",
+        detected_at=datetime.now(UTC),
+        quote="APIで連携すれば大丈夫です",
+    )
+    assert jargon_item.category == IssueCategory.UNEXPLAINED_JARGON
+    assert jargon_item.category.value == "unexplained_jargon"
+    assert "既存システムからデータを取る接続口" in jargon_item.suggested_question

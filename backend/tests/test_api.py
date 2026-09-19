@@ -68,3 +68,42 @@ def test_dialogue_analysis_endpoint() -> None:
         assert "納期の調整" in item["suggested_question"]
     finally:
         app.dependency_overrides.clear()
+
+
+def test_dialogue_analysis_endpoint_unexplained_jargon() -> None:
+    mock_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+    advice_item = AdviceItemDTO(
+        id="adv-jargon-api-1",
+        category=IssueCategory.UNEXPLAINED_JARGON.value,
+        priority=AdvicePriority.HIGH.value,
+        title="専門用語『API』の共通認識不足",
+        reason="専門用語の説明がなく、相手が曖昧な了解で聞き流しています。",
+        suggested_question="『API』は、御社の既存システムからデータを取る接続口、という理解で合っていますか？",
+        detected_at=datetime.now(UTC),
+        quote="API連携でいけますよね / 了解です",
+    )
+    mock_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-rest-jargon",
+        advice_items=[advice_item],
+        analyzed_utterance_count=2,
+    )
+
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: mock_use_case
+
+    try:
+        payload = {
+            "meeting_id": "meet-rest-jargon",
+            "utterances": [
+                "[自社PM] API連携でいけますよね",
+                "[相手クライアント] 了解です",
+            ],
+        }
+        response = client.post("/api/v1/analysis/dialogue", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["advice_items"]) == 1
+        item = data["advice_items"][0]
+        assert item["category"] == "unexplained_jargon"
+        assert "既存システムからデータを取る接続口" in item["suggested_question"]
+    finally:
+        app.dependency_overrides.clear()

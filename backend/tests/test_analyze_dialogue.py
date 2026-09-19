@@ -163,3 +163,68 @@ async def test_analyze_dialogue_handles_llm_error_gracefully() -> None:
     assert result.meeting_id == "meet-err"
     assert len(result.advice_items) == 0
     assert result.analyzed_utterance_count == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_dialogue_detects_unexplained_jargon_and_vague_ack() -> None:
+    """Verify detection of unexplained jargon followed by vague acknowledgment."""
+    mock_llm = AsyncMock(spec=LLMService)
+    llm_payload = {
+        "items": [
+            {
+                "category": "unexplained_jargon",
+                "priority": "high",
+                "title": "専門用語『API連携』の共通認識不足",
+                "reason": (
+                    "クライアントが『はい、わかりました』と曖昧に相づちを打っており、"
+                    "APIの具体的な連携範囲や前提条件の認識が揃っていないリスクがあります。"
+                ),
+                "suggested_question": (
+                    "『API』は、御社の既存システムからデータを取る接続口、"
+                    "という理解で合っていますか？"
+                ),
+                "quote": "データはAPIで取れますよね / はい、わかりました",
+            }
+        ]
+    }
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content=json.dumps(llm_payload),
+        model="openai/gpt-4o-mini",
+    )
+
+    use_case = AnalyzeDialogueUseCase(llm_service=mock_llm)
+    ctx = MeetingDialogueContext(meeting_id="meet-jargon")
+    ctx.add_utterance(
+        Utterance(
+            id="u-1",
+            meeting_id="meet-jargon",
+            speaker=Speaker.LOCAL_PM,
+            text="基幹側のデータはAPIで取れますよね。",
+            start_ms=0,
+            end_ms=2000,
+            is_final=True,
+            created_at=datetime.now(UTC),
+        )
+    )
+    ctx.add_utterance(
+        Utterance(
+            id="u-2",
+            meeting_id="meet-jargon",
+            speaker=Speaker.REMOTE_CLIENT,
+            text="はい、わかりました。",
+            start_ms=2500,
+            end_ms=3500,
+            is_final=True,
+            created_at=datetime.now(UTC),
+        )
+    )
+
+    result = await use_case.execute(ctx, force_analyze=True)
+
+    assert result.meeting_id == "meet-jargon"
+    assert len(result.advice_items) == 1
+    item = result.advice_items[0]
+    assert item.category == IssueCategory.UNEXPLAINED_JARGON.value
+    assert item.priority == AdvicePriority.HIGH.value
+    assert "専門用語『API連携』" in item.title
+    assert "御社の既存システムからデータを取る接続口" in item.suggested_question

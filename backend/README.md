@@ -27,7 +27,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 
 ## エンドポイント
 - `GET /api/v1/health`: システムヘルスチェック
-- `POST /api/v1/analysis/dialogue`: 対話テキストから曖昧・矛盾・無理・未確認事項を検出してPM向け助言と質問候補を返却
+- `POST /api/v1/analysis/dialogue`: 対話テキストから曖昧・矛盾・無理・未確認事項・専門用語の共通認識不一致を検出してPM向け助言と質問候補を返却
 - `WebSocket /ws/meetings/{meeting_id}/audio`:
   - 16-bit 16kHz ステレオPCM（Left: 自社マイク, Right: 相手Meet音声）をストリーミング受信
   - チャンネル物理分離ダイアライゼーション（`local_pm` / `remote_client`）

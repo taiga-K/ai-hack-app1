@@ -38,7 +38,10 @@ class AdviceMessage(BaseModel):
     meeting_id: str = Field(..., description="Meeting identifier")
     category: str = Field(
         ...,
-        description="Category: 'ambiguity', 'contradiction', 'infeasibility', 'missing'",
+        description=(
+            "Category: 'ambiguity', 'contradiction', 'infeasibility', 'missing', "
+            "'unexplained_jargon'"
+        ),
     )
     priority: str = Field(
         ...,
