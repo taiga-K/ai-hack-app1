@@ -112,6 +112,24 @@ def test_build_stt_service_openai() -> None:
     assert isinstance(service, OpenAIRealtimeWhisperSTTService)
 
 
+def test_build_stt_service_rejects_ws_stt_url() -> None:
+    settings = Settings(
+        stt_provider="openai",
+        openai_api_key="sk-test",
+        openai_stt_url="ws://api.openai.com/v1/realtime",
+    )
+    with pytest.raises(STTConfigurationError, match="wss://"):
+        build_stt_service(settings)
+    with pytest.raises(STTConfigurationError, match="wss://"):
+        settings.openai_stt_wss_url()
+
+
+def test_settings_rejects_non_wss_stt_url() -> None:
+    settings = Settings(openai_stt_url="https://api.openai.com/v1/realtime")
+    with pytest.raises(STTConfigurationError, match="wss://"):
+        settings.openai_stt_wss_url()
+
+
 def test_build_stt_service_azure_fails_closed() -> None:
     settings = Settings(stt_provider="azure", openai_api_key="sk-test")
     with pytest.raises(STTConfigurationError, match="STT_PROVIDER=azure"):

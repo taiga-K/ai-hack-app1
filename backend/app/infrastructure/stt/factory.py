@@ -15,7 +15,7 @@ def build_stt_service(settings: Settings) -> STTService:
         return OpenAIRealtimeWhisperSTTService(
             api_key=settings.openai_api_key,
             model=settings.openai_stt_model,
-            url=settings.openai_stt_url,
+            url=settings.openai_stt_wss_url(),
             language=settings.openai_stt_language,
             timeout_seconds=settings.openai_stt_timeout_seconds,
         )

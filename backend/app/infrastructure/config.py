@@ -2,6 +2,18 @@
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.exceptions import STTConfigurationError
+
+
+def require_wss_openai_stt_url(url: str) -> str:
+    """Reject any OPENAI_STT_URL that is not a TLS WebSocket endpoint."""
+    normalized = url.strip()
+    if not normalized.startswith("wss://"):
+        raise STTConfigurationError(
+            f"OPENAI_STT_URL must use the wss:// scheme, got: {url!r}"
+        )
+    return normalized
+
 
 class Settings(BaseSettings):
     """Application configuration."""
@@ -30,6 +42,10 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def openai_stt_wss_url(self) -> str:
+        """Return OPENAI_STT_URL only when it uses wss://."""
+        return require_wss_openai_stt_url(self.openai_stt_url)
 
 
 settings = Settings()
