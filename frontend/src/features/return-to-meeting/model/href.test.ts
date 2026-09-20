@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildDocumentHref, buildMeetingHref } from "./href.ts";
+import {
+  buildDocumentHref,
+  buildMeetingHref,
+  replaceEndedMeetingUrl,
+} from "./href.ts";
 import type { BackTarget } from "./types.ts";
 
 const target: BackTarget = {
@@ -36,6 +40,29 @@ describe("buildMeetingHref", () => {
     assert.equal(
       buildMeetingHref({ ...target, hasCompletedSummary: true }),
       "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&summary=1"
+    );
+  });
+});
+
+describe("replaceEndedMeetingUrl", () => {
+  it("rewrites the current history entry with summary=1", () => {
+    const calls: Array<[unknown, string, string]> = [];
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        history: {
+          state: { idx: 1 },
+          replaceState(state: unknown, title: string, url: string) {
+            calls.push([state, title, url]);
+          },
+        },
+      },
+    });
+
+    replaceEndedMeetingUrl({ ...target, preview: true });
+    assert.equal(
+      calls[0]?.[2],
+      "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1&summary=1"
     );
   });
 });

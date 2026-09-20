@@ -26,6 +26,16 @@ async function confirmEndMeeting(page: Page): Promise<void> {
   await page.getByRole("button", { name: "はい、おわる" }).click();
 }
 
+async function stubMissingRequirements(page: Page): Promise<void> {
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements document not found" }),
+    });
+  });
+}
+
 test("ホームからおためしで発話と助言を確認できる", async ({ page }) => {
   await startUiPreview(page, "E2Eプレビュー会議");
 
@@ -164,6 +174,7 @@ test("生成中に戻るとフロアで完了を待ち同じまとめを開け�
 });
 
 test("実会議開始では初回認証なしで空の会議ルームが開く", async ({ page }) => {
+  await stubMissingRequirements(page);
   await page.goto("/");
   await page.getByPlaceholder(/なまえ/).fill("実会議スモーク");
   await page.getByRole("button", { name: "はじめる" }).click();
@@ -181,6 +192,7 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
 });
 
 test("画面共有を拒否すると聞けなかったことを表示する", async ({ page }) => {
+  await stubMissingRequirements(page);
   await page.addInitScript(() => {
     class ImmediateFailWebSocket {
       static readonly CONNECTING = 0;
@@ -389,5 +401,165 @@ test("未生成のまとめ画面は空状態を出す", async ({ page }) => {
   await expect(page).toHaveURL(/\/meetings\/e2e-missing-doc\?title=/);
   await expect(page).not.toHaveURL(/summary=1/);
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
+});
+
+const REAL_MEMO = "実会議の残ったメモです。";
+const REAL_WHISPER = "実会議の残ったささやき";
+
+async function seedRealMeetingFloor(
+  page: Page,
+  meetingId: string,
+  title: string,
+  options?: { rememberSummary?: boolean }
+): Promise<void> {
+  const rememberSummary = options?.rememberSummary ?? true;
+  await page.addInitScript(
+    ({ meetingId: id, title: meetingTitle, rememberSummary: remember }) => {
+      const snapshot = {
+        ended: true,
+        utterances: [
+          {
+            id: "utt-real-1",
+            meetingId: id,
+            speaker: "local_pm",
+            text: "実会議の残ったメモです。",
+            startMs: 1000,
+            endMs: 4000,
+            isFinal: true,
+            createdAt: "2026-09-20T00:00:01.000Z",
+          },
+        ],
+        adviceItems: [
+          {
+            id: "adv-real-1",
+            meetingId: id,
+            category: "unexplained_jargon",
+            priority: "high",
+            title: "実会議の残ったささやき",
+            reason: "用語が未定義のまま進んでいます。",
+            suggestedQuestion: "その言葉は何を指しますか？",
+            detectedAt: "2026-09-20T00:00:02.000Z",
+            quote: "API連携",
+          },
+        ],
+      };
+      const snapKey = `return-to-meeting:floor-snapshot:${id}`;
+      const sumKey = `return-to-meeting:completed-summary:${id}`;
+      const href = `/meetings/${id}/document?title=${encodeURIComponent(meetingTitle)}`;
+      const raw = JSON.stringify(snapshot);
+      sessionStorage.setItem(snapKey, raw);
+      localStorage.setItem(snapKey, raw);
+      if (remember) {
+        sessionStorage.setItem(sumKey, href);
+        localStorage.setItem(sumKey, href);
+      }
+    },
+    { meetingId, title, rememberSummary }
+  );
+}
+
+async function stubReadyRequirements(
+  page: Page,
+  meetingId: string,
+  title: string
+): Promise<void> {
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(requirementDocumentPayload(meetingId, title)),
+    });
+  });
+}
+
+test("実会議のまとめから戻るとメモとささやきが残る", async ({ page }) => {
+  await seedRealMeetingFloor(page, "e2e-real-floor", "実会議フロア");
+  await stubReadyRequirements(page, "e2e-real-floor", "実会議フロア");
+
+  await page.goto("/meetings/e2e-real-floor/document?title=実会議フロア");
+  await expect(
+    page.getByText("遅延したまとめです。", { exact: true })
+  ).toBeVisible();
+  await page.getByRole("link", { name: "戻る" }).click();
+
+  await expect(page).toHaveURL(/\/meetings\/e2e-real-floor\?/);
+  await expect(page).toHaveURL(/summary=1/);
+  await expect(page).not.toHaveURL(/demo=1/);
+  await expect(page).not.toHaveURL(/\/document/);
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
+  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
+    0
+  );
+});
+
+test("実会議を summary なしで開き直してもメモと終了が残る", async ({
+  page,
+}) => {
+  await seedRealMeetingFloor(page, "e2e-real-reload", "実会議再読込");
+  await stubReadyRequirements(page, "e2e-real-reload", "実会議再読込");
+
+  await page.goto("/meetings/e2e-real-reload?title=実会議再読込");
+  await expect(page).not.toHaveURL(/summary=1/);
+  await expect(page).not.toHaveURL(/demo=1/);
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
+  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
+    0
+  );
+  await expect(page.getByText("ききはじめるを押すと")).toHaveCount(0);
+});
+
+test("おためしでまとめが自動で開いたあとブラウザ戻るでも終わったまま", async ({
+  page,
+}) => {
+  await startUiPreview(page, "E2Eブラウザ戻り");
+  await confirmEndMeeting(page);
+  await expect(page).toHaveURL(/\/meetings\/.+\/document\?.*demo=1/);
+  await expect(page.getByText("あとで確認すること")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/meetings\/[^/]+\?/);
+  await expect(page).toHaveURL(/summary=1/);
+  await expect(page).not.toHaveURL(/\/document/);
+  await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
+    0
+  );
+});
+
+test("読込のあと空のまとめから戻ると会議は続く", async ({ page }) => {
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 600);
+    });
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements document not found" }),
+    });
+  });
+
+  await page.goto("/meetings/e2e-empty-after-load/document?title=空まとめ");
+  await expect(page.getByRole("link", { name: "戻る" })).toBeVisible();
+  await expect(page.getByText("まとめは、まだ出来ていません")).toBeVisible();
+  await page.getByRole("link", { name: "戻る" }).click();
+  await expect(page).toHaveURL(/\/meetings\/e2e-empty-after-load\?title=/);
+  await expect(page).not.toHaveURL(/summary=1/);
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
 });

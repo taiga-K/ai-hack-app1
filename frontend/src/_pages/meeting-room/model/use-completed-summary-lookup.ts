@@ -27,6 +27,8 @@ export function useCompletedSummaryLookup(
     completedSummaryHint,
     rememberedHref,
     hintedHref,
+    unverifiedLiveMeeting:
+      !target.preview && !completedSummaryHint && rememberedHref === null,
   });
   const [fetched, setFetched] = useState<CompletedSummaryLookup | null>(null);
 

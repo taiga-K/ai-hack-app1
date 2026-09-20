@@ -28,3 +28,14 @@ export function buildDocumentHref(target: BackTarget): string {
 export function readCompletedSummaryQuery(value: string | undefined): boolean {
   return value === "1";
 }
+
+export function replaceEndedMeetingUrl(target: BackTarget): void {
+  if (typeof window === "undefined" || typeof window.history === "undefined") {
+    return;
+  }
+  const href = buildMeetingHref({
+    ...target,
+    hasCompletedSummary: true,
+  });
+  window.history.replaceState(window.history.state, "", href);
+}

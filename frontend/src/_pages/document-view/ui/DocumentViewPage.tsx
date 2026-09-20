@@ -7,8 +7,8 @@ import {
   BackToMeeting,
   buildDocumentHref,
   buildMeetingHref,
-  rememberCompletedSummary,
   shouldHintCompletedSummaryOnBack,
+  syncCompletedSummaryMemory,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { Header } from "@/widgets/header";
@@ -53,19 +53,21 @@ export function DocumentViewPage({
   const meetingHref = buildMeetingHref(backTarget);
 
   useEffect(() => {
-    if (!shouldHintCompletedSummaryOnBack(status)) {
-      return;
-    }
-    const rememberedTarget: BackTarget = {
-      kind: "meeting",
-      meetingId,
-      title: meetingTitle,
-      preview,
-      hasCompletedSummary: true,
-    };
-    rememberCompletedSummary(
-      rememberedTarget,
-      buildDocumentHref(rememberedTarget)
+    syncCompletedSummaryMemory(
+      status,
+      {
+        kind: "meeting",
+        meetingId,
+        title: meetingTitle,
+        preview,
+      },
+      buildDocumentHref({
+        kind: "meeting",
+        meetingId,
+        title: meetingTitle,
+        preview,
+        hasCompletedSummary: true,
+      })
     );
   }, [meetingId, meetingTitle, preview, status]);
 

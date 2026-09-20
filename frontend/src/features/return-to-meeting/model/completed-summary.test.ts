@@ -8,6 +8,7 @@ import {
   mergeCompletedSummaryLookup,
   resolveImmediateCompletedSummary,
   shouldHintCompletedSummaryOnBack,
+  syncCompletedSummaryMemory,
 } from "./completed-summary.ts";
 import { readCompletedSummaryQuery } from "./href.ts";
 import type { CompletedSummaryLookup } from "./types.ts";
@@ -111,6 +112,18 @@ describe("resolveImmediateCompletedSummary", () => {
       { status: "missing" }
     );
   });
+
+  it("starts checking when a live remount still needs verification", () => {
+    assert.deepEqual(
+      resolveImmediateCompletedSummary({
+        completedSummaryHint: false,
+        rememberedHref: null,
+        hintedHref: documentHref,
+        unverifiedLiveMeeting: true,
+      }),
+      { status: "checking" }
+    );
+  });
 });
 
 describe("mergeCompletedSummaryLookup", () => {
@@ -126,7 +139,14 @@ describe("mergeCompletedSummaryLookup", () => {
     );
   });
 
-  it("does not lock a live meeting when the background fetch fails", () => {
+  it("does not resurrect live controls when a check fails", () => {
+    assert.deepEqual(
+      mergeCompletedSummaryLookup({ status: "checking" }, { status: "error" }),
+      { status: "error" }
+    );
+  });
+
+  it("does not lock a meeting already known to be missing", () => {
     assert.deepEqual(
       mergeCompletedSummaryLookup({ status: "missing" }, { status: "error" }),
       { status: "missing" }
@@ -190,6 +210,77 @@ describe("isMeetingAlreadyOver", () => {
         phase: "live",
       }),
       true
+    );
+  });
+});
+
+describe("syncCompletedSummaryMemory", () => {
+  function installMemoryStorages(): void {
+    function makeStorage(): Storage {
+      const store = new Map<string, string>();
+      return {
+        get length() {
+          return store.size;
+        },
+        clear() {
+          store.clear();
+        },
+        getItem(key: string) {
+          return store.get(key) ?? null;
+        },
+        key(index: number) {
+          return Array.from(store.keys())[index] ?? null;
+        },
+        removeItem(key: string) {
+          store.delete(key);
+        },
+        setItem(key: string, value: string) {
+          store.set(key, value);
+        },
+      };
+    }
+
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: makeStorage(),
+    });
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: makeStorage(),
+    });
+  }
+
+  const target = {
+    kind: "meeting" as const,
+    meetingId: "meet-1",
+    title: "今日の会議",
+    preview: false,
+  };
+
+  it("persists only a ready document and clears an empty one", () => {
+    installMemoryStorages();
+    const key = "return-to-meeting:completed-summary:meet-1";
+
+    syncCompletedSummaryMemory("loading", target, documentHref);
+    assert.equal(globalThis.sessionStorage.getItem(key), null);
+
+    syncCompletedSummaryMemory("ready", target, documentHref);
+    assert.equal(globalThis.sessionStorage.getItem(key), documentHref);
+    assert.equal(globalThis.localStorage.getItem(key), documentHref);
+
+    syncCompletedSummaryMemory("empty", target, documentHref);
+    assert.equal(globalThis.sessionStorage.getItem(key), null);
+    assert.equal(globalThis.localStorage.getItem(key), null);
+  });
+
+  it("does not treat an error as a completed summary", () => {
+    installMemoryStorages();
+    syncCompletedSummaryMemory("error", target, documentHref);
+    assert.equal(
+      globalThis.sessionStorage.getItem(
+        "return-to-meeting:completed-summary:meet-1"
+      ),
+      null
     );
   });
 });

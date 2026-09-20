@@ -13,7 +13,9 @@ import {
   decideAfterFinalize,
   decideAfterReadyPause,
   isMeetingAlreadyOver,
+  readRememberedCompletedSummary,
   rememberCompletedSummary,
+  replaceEndedMeetingUrl,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -85,7 +87,9 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
-    alreadyEnded: completedSummary.status === "found",
+    alreadyEnded:
+      readRememberedCompletedSummary(meetingId) !== null ||
+      completedSummary.status === "error",
   });
 
   async function handleEndMeeting() {
@@ -109,6 +113,11 @@ export function MeetingRoomPage({
       { ...backTarget, preview: result.preview, hasCompletedSummary: true },
       nextDocumentHref
     );
+    replaceEndedMeetingUrl({
+      ...backTarget,
+      preview: result.preview,
+      hasCompletedSummary: true,
+    });
 
     const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
     switch (afterFinalize) {

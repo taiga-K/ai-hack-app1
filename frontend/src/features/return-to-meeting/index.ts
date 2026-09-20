@@ -8,6 +8,7 @@ export {
   rememberCompletedSummary,
   resolveImmediateCompletedSummary,
   shouldHintCompletedSummaryOnBack,
+  syncCompletedSummaryMemory,
 } from "./model/completed-summary";
 export type { DocumentBackStatus } from "./model/completed-summary";
 export { decideAfterFinalize, decideAfterReadyPause } from "./model/after-end";
@@ -16,6 +17,7 @@ export {
   buildMeetingHref,
   COMPLETED_SUMMARY_QUERY,
   readCompletedSummaryQuery,
+  replaceEndedMeetingUrl,
 } from "./model/href";
 export type {
   AfterEndScreen,
