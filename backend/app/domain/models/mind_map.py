@@ -296,7 +296,6 @@ def _append_detail(detail: str, piece: str) -> str:
 def _parent_first_operations(
     operations: list[MindMapOperation],
 ) -> list[MindMapOperation]:
-    """Put same-batch parents before their children, then non-add operations."""
     adds = [op for op in operations if isinstance(op, AddNodeOperation)]
     others = [op for op in operations if not isinstance(op, AddNodeOperation)]
     pending = {op.node.id: op for op in adds}
