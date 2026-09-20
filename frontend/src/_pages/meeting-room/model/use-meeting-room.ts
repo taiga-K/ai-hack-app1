@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Advice } from "@/entities/advice";
 import type { MeetingPhase } from "@/entities/meeting";
 import {
+  applyAdviceResolve,
+  type AdviceResolveAction,
+} from "@/features/resolve-advice";
+import {
   applyMindMapEvent,
   createEmptyMindMap,
   type MindMapSnapshot,
@@ -71,7 +75,8 @@ function restoreFloor(
   const adviceItems = preview
     ? createPreviewAdvice(meetingId)
     : (snapshot?.adviceItems ?? []);
-  return { ended, utterances, adviceItems };
+  const laterAdviceItems = preview ? [] : (snapshot?.laterAdviceItems ?? []);
+  return { ended, utterances, adviceItems, laterAdviceItems };
 }
 
 export function useMeetingRoom({
@@ -89,6 +94,7 @@ export function useMeetingRoom({
   const [adviceItems, setAdviceItems] = useState<Advice[]>(() =>
     preview ? createPreviewAdvice(meetingId) : []
   );
+  const [laterAdviceItems, setLaterAdviceItems] = useState<Advice[]>([]);
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [mindMap, setMindMap] = useState<MindMapSnapshot>(() =>
@@ -98,6 +104,7 @@ export function useMeetingRoom({
   const phaseRef = useRef<MeetingPhase>(initialPhase(preview, false));
   const utterancesRef = useRef<Utterance[]>(utterances);
   const adviceItemsRef = useRef<Advice[]>(adviceItems);
+  const laterAdviceItemsRef = useRef<Advice[]>(laterAdviceItems);
   const seenAdviceIdsRef = useRef<Set<string>>(
     new Set(adviceItems.map((item) => item.id))
   );
@@ -113,11 +120,14 @@ export function useMeetingRoom({
       }
       utterancesRef.current = restored.utterances;
       adviceItemsRef.current = restored.adviceItems;
-      seenAdviceIdsRef.current = new Set(
-        restored.adviceItems.map((item) => item.id)
-      );
+      laterAdviceItemsRef.current = restored.laterAdviceItems;
+      seenAdviceIdsRef.current = new Set([
+        ...restored.adviceItems.map((item) => item.id),
+        ...restored.laterAdviceItems.map((item) => item.id),
+      ]);
       setUtterances(restored.utterances);
       setAdviceItems(restored.adviceItems);
+      setLaterAdviceItems(restored.laterAdviceItems);
     });
     return () => {
       window.cancelAnimationFrame(frame);
@@ -130,6 +140,7 @@ export function useMeetingRoom({
         ended,
         utterances: utterancesRef.current,
         adviceItems: adviceItemsRef.current,
+        laterAdviceItems: laterAdviceItemsRef.current,
       });
     },
     [meetingId]
@@ -302,6 +313,25 @@ export function useMeetingRoom({
     }
   }, [flushAndDisconnect, meetingId, persistFloor, preview, title]);
 
+  const resolveAdvice = useCallback(
+    (id: string, action: AdviceResolveAction) => {
+      const next = applyAdviceResolve(
+        {
+          current: adviceItemsRef.current,
+          later: laterAdviceItemsRef.current,
+        },
+        id,
+        action
+      );
+      adviceItemsRef.current = next.current;
+      laterAdviceItemsRef.current = next.later;
+      setAdviceItems(next.current);
+      setLaterAdviceItems(next.later);
+      persistFloor(isTerminalPhase(phaseRef.current));
+    },
+    [persistFloor]
+  );
+
   const handleToggleChime = useCallback((enabled: boolean) => {
     chimeEnabledRef.current = enabled;
     setChimeEnabled(enabled);
@@ -323,6 +353,8 @@ export function useMeetingRoom({
     phase,
     utterances,
     adviceItems,
+    laterAdviceItems,
+    resolveAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,

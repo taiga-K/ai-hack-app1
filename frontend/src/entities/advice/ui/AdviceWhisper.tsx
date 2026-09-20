@@ -1,9 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
-import { useState } from "react";
-import { copyTextToClipboard } from "@/shared/lib";
-import { Button } from "@/shared/ui";
+import type { ReactNode } from "react";
 import { getAdviceCategoryPresentation } from "../model/labels";
 import type { Advice } from "../model/types";
 
@@ -11,29 +8,16 @@ export interface AdviceWhisperProps {
   advice: Advice;
   appearDelayMs?: number;
   enterMotion?: boolean;
-  onCopied?: (question: string) => void;
+  actions?: ReactNode;
 }
 
 export function AdviceWhisper({
   advice,
   appearDelayMs = 0,
   enterMotion = false,
-  onCopied,
+  actions,
 }: AdviceWhisperProps) {
-  const [copied, setCopied] = useState(false);
   const category = getAdviceCategoryPresentation(advice.category);
-
-  async function handleCopy() {
-    const ok = await copyTextToClipboard(advice.suggestedQuestion);
-    if (!ok) {
-      return;
-    }
-    setCopied(true);
-    onCopied?.(advice.suggestedQuestion);
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 1600);
-  }
 
   return (
     <article
@@ -44,23 +28,22 @@ export function AdviceWhisper({
           : undefined
       }
     >
-      <p className="text-xs font-medium text-ours">{category.badge}</p>
-      <p className="mt-2 text-base leading-relaxed font-medium text-foreground">
+      <p className="text-base leading-relaxed font-medium text-foreground">
         {advice.suggestedQuestion}
       </p>
-      <p className="mt-2 text-sm text-foreground">{advice.title}</p>
-      <p className="mt-1 text-sm leading-relaxed text-foreground">
-        {advice.reason}
-      </p>
-      <Button
-        className="mt-2"
-        size="sm"
-        variant="outline"
-        onClick={() => void handleCopy()}
-      >
-        {copied ? <Check data-icon="inline-start" /> : null}
-        {copied ? "コピーしました" : "コピー"}
-      </Button>
+      {actions}
+      <details className="mt-2">
+        <summary className="cursor-pointer text-sm text-muted-foreground">
+          くわしく
+        </summary>
+        <div className="mt-2 flex flex-col gap-1">
+          <p className="text-xs font-medium text-ours">{category.badge}</p>
+          <p className="text-sm text-foreground">{advice.title}</p>
+          <p className="text-sm leading-relaxed text-foreground">
+            {advice.reason}
+          </p>
+        </div>
+      </details>
     </article>
   );
 }

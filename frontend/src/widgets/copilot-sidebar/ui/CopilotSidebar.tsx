@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { AdviceWhisper, type Advice } from "@/entities/advice";
+import {
+  AdviceResolveActions,
+  type AdviceResolveAction,
+} from "@/features/resolve-advice";
 import { ScrollArea } from "@/shared/ui";
 
 export interface CopilotSidebarProps {
   adviceItems: Advice[];
-  onCopied?: (question: string) => void;
+  laterAdviceItems?: Advice[];
+  onResolve?: (id: string, action: AdviceResolveAction) => void;
 }
 
 interface WhisperMotion {
@@ -39,14 +44,62 @@ function mergeNewWhisperMotion(
   return changed ? next : current;
 }
 
-export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
-  const [motionById, setMotionById] = useState(() =>
-    createInitialMotion(adviceItems)
+function AdviceList({
+  adviceItems,
+  later,
+  motionById,
+  onResolve,
+}: {
+  adviceItems: Advice[];
+  later: boolean;
+  motionById: ReadonlyMap<string, WhisperMotion>;
+  onResolve?: (id: string, action: AdviceResolveAction) => void;
+}) {
+  return (
+    <>
+      {adviceItems.map((item, index) => {
+        const motion = motionById.get(item.id) ?? {
+          enter: true,
+          delayMs: index * 140,
+        };
+        return (
+          <AdviceWhisper
+            key={item.id}
+            advice={item}
+            appearDelayMs={motion.delayMs}
+            enterMotion={motion.enter}
+            actions={
+              onResolve ? (
+                <AdviceResolveActions
+                  later={later}
+                  onResolve={(action) => onResolve(item.id, action)}
+                />
+              ) : null
+            }
+          />
+        );
+      })}
+    </>
   );
-  const resolvedMotion = mergeNewWhisperMotion(motionById, adviceItems);
+}
+
+export function CopilotSidebar({
+  adviceItems,
+  laterAdviceItems = [],
+  onResolve,
+}: CopilotSidebarProps) {
+  const [motionById, setMotionById] = useState(() =>
+    createInitialMotion([...adviceItems, ...laterAdviceItems])
+  );
+  const resolvedMotion = mergeNewWhisperMotion(motionById, [
+    ...adviceItems,
+    ...laterAdviceItems,
+  ]);
   if (resolvedMotion !== motionById) {
     setMotionById(resolvedMotion);
   }
+
+  const empty = adviceItems.length === 0 && laterAdviceItems.length === 0;
 
   return (
     <aside
@@ -60,26 +113,34 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
           aria-live="polite"
           aria-relevant="additions"
         >
-          {adviceItems.length === 0 ? (
+          {empty ? (
             <p className="text-sm text-muted-foreground">
               いまは、アドバイスがありません
             </p>
           ) : (
-            adviceItems.map((item, index) => {
-              const motion = resolvedMotion.get(item.id) ?? {
-                enter: true,
-                delayMs: index * 140,
-              };
-              return (
-                <AdviceWhisper
-                  key={item.id}
-                  advice={item}
-                  appearDelayMs={motion.delayMs}
-                  enterMotion={motion.enter}
-                  onCopied={onCopied}
-                />
-              );
-            })
+            <>
+              <AdviceList
+                adviceItems={adviceItems}
+                later={false}
+                motionById={resolvedMotion}
+                onResolve={onResolve}
+              />
+              {laterAdviceItems.length > 0 ? (
+                <section aria-label="あとで聞く">
+                  <h3 className="pb-3 text-sm font-medium text-muted-foreground">
+                    あとで聞く
+                  </h3>
+                  <div className="flex flex-col gap-5">
+                    <AdviceList
+                      adviceItems={laterAdviceItems}
+                      later
+                      motionById={resolvedMotion}
+                      onResolve={onResolve}
+                    />
+                  </div>
+                </section>
+              ) : null}
+            </>
           )}
         </div>
       </ScrollArea>

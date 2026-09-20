@@ -69,6 +69,7 @@ const snapshot = {
       quote: "API連携",
     },
   ],
+  laterAdviceItems: [],
 };
 
 describe("meeting floor snapshot", () => {
@@ -117,6 +118,38 @@ describe("meeting floor snapshot", () => {
     const restored = readMeetingFloorSnapshot("meet-1");
     assert.equal(restored?.ended, false);
     assert.equal(restored?.utterances[0]?.text, "実会議の残ったメモです。");
+  });
+
+  it("treats missing later advice as an empty pile", () => {
+    const restored = parseMeetingFloorSnapshot(
+      JSON.stringify({
+        ended: false,
+        utterances: snapshot.utterances,
+        adviceItems: snapshot.adviceItems,
+      })
+    );
+    assert.deepEqual(restored?.laterAdviceItems, []);
+  });
+
+  it("restores later advice without dropping it", () => {
+    installMemoryStorages();
+    const laterItem = {
+      ...snapshot.adviceItems[0],
+      id: "adv-later-1",
+      suggestedQuestion: "あとで聞く質問です。",
+    };
+    writeMeetingFloorSnapshot("meet-1", {
+      ...snapshot,
+      adviceItems: [],
+      laterAdviceItems: [laterItem],
+    });
+    const restored = readMeetingFloorSnapshot("meet-1");
+    assert.equal(restored?.adviceItems.length, 0);
+    assert.equal(restored?.laterAdviceItems[0]?.id, "adv-later-1");
+    assert.equal(
+      restored?.laterAdviceItems[0]?.suggestedQuestion,
+      "あとで聞く質問です。"
+    );
   });
 
   it("ignores broken JSON", () => {

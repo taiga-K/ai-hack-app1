@@ -7,6 +7,7 @@ import type { Advice } from "@/entities/advice";
 import type { MindMapSnapshot } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
 import { MeetingControls } from "@/features/meeting-control";
+import type { AdviceResolveAction } from "@/features/resolve-advice";
 import {
   BackToMeeting,
   buildDocumentHref,
@@ -100,6 +101,8 @@ export function MeetingRoomPage({
     phase,
     utterances,
     adviceItems,
+    laterAdviceItems,
+    resolveAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,
@@ -239,7 +242,11 @@ export function MeetingRoomPage({
             <div className="flex h-full min-h-0 flex-col gap-3">
               <MeetingFloor {...floorProps} side="ours" />
               <div className="min-h-0 flex-1">
-                <CopilotSidebar adviceItems={adviceItems} />
+                <CopilotSidebar
+                  adviceItems={adviceItems}
+                  laterAdviceItems={laterAdviceItems}
+                  onResolve={resolveAdvice}
+                />
               </div>
             </div>
           </ResizablePanel>
@@ -308,7 +315,13 @@ export function MeetingRoomPage({
               role="tabpanel"
               className="min-h-0 flex-1 overflow-hidden"
             >
-              {renderMobileSidePane(mobilePane, utterances, adviceItems)}
+              {renderMobileSidePane(
+                mobilePane,
+                utterances,
+                adviceItems,
+                laterAdviceItems,
+                resolveAdvice
+              )}
             </div>
           ) : (
             <div id="meeting-mobile-pane" role="tabpanel" className="sr-only">
@@ -483,13 +496,21 @@ function MobilePaneButton({
 function renderMobileSidePane(
   pane: MobileSidePane,
   utterances: Utterance[],
-  adviceItems: Advice[]
+  adviceItems: Advice[],
+  laterAdviceItems: Advice[],
+  onResolve: (id: string, action: AdviceResolveAction) => void
 ) {
   switch (pane) {
     case "notes":
       return <TranscriptFeed utterances={utterances} />;
     case "whispers":
-      return <CopilotSidebar adviceItems={adviceItems} />;
+      return (
+        <CopilotSidebar
+          adviceItems={adviceItems}
+          laterAdviceItems={laterAdviceItems}
+          onResolve={onResolve}
+        />
+      );
     default: {
       const _exhaustiveCheck: never = pane;
       throw new Error(`Unhandled mobile pane: ${_exhaustiveCheck}`);

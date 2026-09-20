@@ -82,6 +82,9 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | Live URL | `/meetings/<uuid>?title=...` and **not** `demo=1` |
 | Ours / theirs | `getByRole("region", { name: "こちら" })` / `むこう` |
 | Whispers | `getByRole("complementary", { name: "こちらのアドバイス" })` |
+| Advice actions | `聞けた` / `あとで` / `不要` (copy is gone) |
+| Advice details | `くわしく` (`<details>`, default closed) |
+| Later pile | `getByRole("region", { name: "あとで聞く" })` |
 | Map / memos tabs | `getByRole("tab", { name: "話の地図" })` / `会議のメモ` |
 | Splitter | `getByRole("separator", { name: "左右の幅を変える" })` |
 | Capture | `ききはじめる` / `きくのをやめる` / `おためしちゅう` |
