@@ -41,7 +41,6 @@ import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   didMindMapPaneWidthChange,
-  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitMindMapCamera,
@@ -347,10 +346,11 @@ function MindMapFlow({
     });
   }, [layout.edges, layout.nodes, stacked]);
   const hasNodes = layout.nodes.length > 0;
-  const nodeSignature = mindMapGrowthSignature(
-    snapshot.revision,
-    snapshot.nodes.map((node) => node.id)
-  );
+  // Visible set, not just snapshot growth: opening a branch must bring its
+  // children into view, and a fold gives the room back.
+  const nodeSignature = `${String(snapshot.revision)}:${layout.nodes
+    .map((node) => node.id)
+    .join(",")}`;
   const keepInView =
     selectedId === null
       ? null
@@ -414,6 +414,8 @@ function MindMapFlow({
       previous.width,
       visible.width
     );
+    const heightChanged =
+      previous.height > 0 && Math.abs(previous.height - visible.height) > 2;
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
@@ -424,7 +426,7 @@ function MindMapFlow({
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged: widthChanged,
+      sizeChanged: widthChanged || heightChanged,
       nodesChanged,
       userTookCamera,
     });
@@ -441,6 +443,8 @@ function MindMapFlow({
       }
       return;
     }
+    // Splitter drags arrive as a burst, so they wait; the branch detail
+    // opening below the map only changes the height and refits at once.
     const deferResize = shouldDeferMindMapResizeFit({
       sizeChanged: widthChanged,
       isFirstLayout,
