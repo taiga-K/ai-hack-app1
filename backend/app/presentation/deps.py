@@ -19,7 +19,7 @@ from app.infrastructure.config import settings
 from app.infrastructure.persistence.in_memory_meeting_store import (
     InMemoryMeetingSessionStore,
 )
-from app.infrastructure.stt.whisper_stt import FasterWhisperSTTService
+from app.infrastructure.stt.factory import build_stt_service
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +58,7 @@ def get_stt_service() -> STTService:
     """Dependency injection provider for STTService."""
     global _stt_service_instance
     if _stt_service_instance is None:
-        _stt_service_instance = FasterWhisperSTTService(
-            model_size=settings.whisper_model_size,
-            device=settings.whisper_device,
-            compute_type=settings.whisper_compute_type,
-            language=settings.whisper_language,
-        )
+        _stt_service_instance = build_stt_service(settings)
     return _stt_service_instance
 
 

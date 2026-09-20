@@ -17,10 +17,12 @@ class Settings(BaseSettings):
     orcarouter_requirements_fallback_models: str = "z-ai/glm-5.3-flash-free"
     orcarouter_requirements_timeout_seconds: float = 120.0
 
-    whisper_model_size: str = "base"
-    whisper_device: str = "cpu"
-    whisper_compute_type: str = "int8"
-    whisper_language: str = "ja"
+    stt_provider: str = "openai"
+    openai_api_key: str = ""
+    openai_stt_model: str = "gpt-realtime-whisper"
+    openai_stt_url: str = "wss://api.openai.com/v1/realtime"
+    openai_stt_language: str = "ja"
+    openai_stt_timeout_seconds: float = 30.0
     audio_sample_rate: int = 16000
 
     model_config = SettingsConfigDict(

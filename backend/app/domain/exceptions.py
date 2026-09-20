@@ -9,6 +9,10 @@ class STTServiceError(DomainException):
     """Base exception for Speech-to-Text service failures."""
 
 
+class STTConfigurationError(STTServiceError):
+    """Configuration error for STT (missing key or unimplemented provider)."""
+
+
 class AudioProcessingError(DomainException):
     """Audio chunk processing error (e.g. invalid PCM format)."""
 

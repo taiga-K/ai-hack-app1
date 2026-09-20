@@ -14,6 +14,7 @@ from app.domain.exceptions import (
     MeetingNotFoundError,
     RequirementsDocGenerationError,
     RequirementsDocNotFoundError,
+    STTConfigurationError,
     STTServiceError,
 )
 from app.domain.models.analysis import (
@@ -79,6 +80,7 @@ __all__ = [
     "RequirementsDocument",
     "RequirementsSection",
     "RequirementsSectionId",
+    "STTConfigurationError",
     "STTService",
     "STTServiceError",
     "Speaker",

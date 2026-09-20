@@ -9,7 +9,8 @@ from app.domain.models.transcript import Speaker, Utterance
 class STTService(Protocol):
     """Clean Architecture abstract domain port for STT.
 
-    Any implementation (e.g. faster-whisper) must adhere to this protocol.
+    Any implementation (e.g. OpenAI Realtime Whisper, Azure Speech) must
+    adhere to this protocol.
     Domain/Application layers depend exclusively on this interface.
     """
 
