@@ -60,6 +60,19 @@ export function didMindMapPaneWidthChange(
   return previousWidth > 0 && Math.abs(previousWidth - nextWidth) > 2;
 }
 
+/** Memo/advice on a phone shrinks the peek a lot; BranchDetail does not. */
+export const MIND_MAP_HEIGHT_REFIT_PX = 200;
+
+export function didMindMapPaneHeightRefit(
+  previousHeight: number,
+  nextHeight: number
+): boolean {
+  return (
+    previousHeight > 0 &&
+    Math.abs(previousHeight - nextHeight) > MIND_MAP_HEIGHT_REFIT_PX
+  );
+}
+
 export function shouldCommitMindMapCameraMemory(input: {
   fitRan: boolean;
   nodesInitialized: boolean;
