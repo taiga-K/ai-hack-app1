@@ -15,9 +15,7 @@ def _load_settings_class() -> type[BaseSettings]:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     settings_cls = module.Settings
-    if not isinstance(settings_cls, type) or not issubclass(
-        settings_cls, BaseSettings
-    ):
+    if not isinstance(settings_cls, type) or not issubclass(settings_cls, BaseSettings):
         raise TypeError("Settings must be a BaseSettings subclass")
     return settings_cls
 
