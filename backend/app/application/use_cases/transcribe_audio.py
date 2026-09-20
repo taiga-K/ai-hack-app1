@@ -21,9 +21,11 @@ class TranscriptStream:
         )
         return [_to_dto(utterance) for utterance in utterances]
 
-    async def commit(self) -> list[UtteranceDTO]:
+    async def commit(self, *, wait: bool = False) -> list[UtteranceDTO]:
         """Finish the current turn without closing the provider session."""
-        return [_to_dto(utterance) for utterance in await self._session.commit()]
+        return [
+            _to_dto(utterance) for utterance in await self._session.commit(wait=wait)
+        ]
 
     async def close(self) -> list[UtteranceDTO]:
         """Commit the open turn and close the provider session."""

@@ -44,7 +44,7 @@ def bind_stream_to_execute(mock_use_case: AsyncMock) -> AsyncMock:
             async def append(self, audio_chunk: object) -> object:
                 return await mock_use_case.execute(audio_chunk, meeting_id)
 
-            async def commit(self) -> list[object]:
+            async def commit(self, *, wait: bool = False) -> list[object]:
                 return []
 
             async def close(self) -> list[object]:

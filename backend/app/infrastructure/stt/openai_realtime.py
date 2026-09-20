@@ -214,7 +214,8 @@ class PersistentOpenAIRealtimeSession:
         self._partials: dict[str, str] = {}
         self._has_uncommitted_audio = False
         self._commits_in_flight = 0
-        self._committed_windows: list[tuple[int, int]] = []
+        self._pending_windows: list[tuple[int, int]] = []
+        self._windows_by_item: dict[str, tuple[int, int]] = {}
         self._turn_committed = asyncio.Event()
         self._closed = False
         self._send_lock = asyncio.Lock()
@@ -249,10 +250,10 @@ class PersistentOpenAIRealtimeSession:
             await self._commit_open_turn(wait=False)
         return self._drain()
 
-    async def commit(self) -> list[Utterance]:
+    async def commit(self, *, wait: bool = False) -> list[Utterance]:
         if self._closed:
             return self._drain()
-        await self._commit_open_turn(wait=False)
+        await self._commit_open_turn(wait=wait)
         return self._drain()
 
     async def close(self) -> list[Utterance]:
@@ -273,13 +274,23 @@ class PersistentOpenAIRealtimeSession:
         if websocket is None:
             return
         if self._has_uncommitted_audio:
+            window = (self._item_start_ms, self._elapsed_ms)
             self._turn_tracker.reset()
             self._turn_committed.clear()
-            async with self._send_lock:
-                await websocket.send(json.dumps({"type": "input_audio_buffer.commit"}))
-            self._committed_windows.append((self._item_start_ms, self._elapsed_ms))
+            self._pending_windows.append(window)
             self._has_uncommitted_audio = False
             self._commits_in_flight += 1
+            try:
+                async with self._send_lock:
+                    await websocket.send(
+                        json.dumps({"type": "input_audio_buffer.commit"})
+                    )
+            except (OSError, WebSocketException):
+                if self._pending_windows:
+                    self._pending_windows.pop()
+                self._commits_in_flight = max(0, self._commits_in_flight - 1)
+                self._has_uncommitted_audio = True
+                raise
         if not wait:
             return
         while self._commits_in_flight > 0:
@@ -355,6 +366,10 @@ class PersistentOpenAIRealtimeSession:
         item_id = event.get("item_id")
         if not isinstance(item_id, str) or not item_id:
             item_id = str(uuid.uuid4())
+        if event_type == "input_audio_buffer.committed":
+            if self._pending_windows:
+                self._windows_by_item[item_id] = self._pending_windows.pop(0)
+            return
         if event_type == "conversation.item.input_audio_transcription.delta":
             delta = event.get("delta")
             if not isinstance(delta, str) or not delta:
@@ -363,13 +378,15 @@ class PersistentOpenAIRealtimeSession:
             self._partials[item_id] = text
             self._pending.append(self._utterance(item_id, text, is_final=False))
             return
+        if event_type == "conversation.item.input_audio_transcription.failed":
+            self._partials.pop(item_id, None)
+            self._finish_committed_item(item_id)
+            return
         completed = transcript_from_completed_event(event)
         if completed is None:
             return
         self._partials.pop(item_id, None)
-        window = self._committed_windows.pop(0) if self._committed_windows else None
-        self._commits_in_flight = max(0, self._commits_in_flight - 1)
-        self._turn_committed.set()
+        window = self._finish_committed_item(item_id)
         if not completed:
             return
         start_ms, end_ms = window or (self._item_start_ms, self._elapsed_ms)
@@ -382,6 +399,14 @@ class PersistentOpenAIRealtimeSession:
                 is_final=True,
             )
         )
+
+    def _finish_committed_item(self, item_id: str) -> tuple[int, int] | None:
+        window = self._windows_by_item.pop(item_id, None)
+        if window is None and self._pending_windows:
+            window = self._pending_windows.pop(0)
+        self._commits_in_flight = max(0, self._commits_in_flight - 1)
+        self._turn_committed.set()
+        return window
 
     def _utterance(
         self,
@@ -445,7 +470,7 @@ class _BufferedTransportSession:
         self._buffer.extend(audio_data)
         return []
 
-    async def commit(self) -> list[Utterance]:
+    async def commit(self, *, wait: bool = False) -> list[Utterance]:
         return []
 
     async def close(self) -> list[Utterance]:

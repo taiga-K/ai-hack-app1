@@ -302,7 +302,7 @@ def test_completed_event_keeps_next_turn_audio() -> None:
     session._has_uncommitted_audio = True
     session._item_start_ms = 900
     session._elapsed_ms = 1600
-    session._committed_windows.append((0, 800))
+    session._windows_by_item["item-1"] = (0, 800)
     session._commits_in_flight = 1
     session._handle_event(
         {
@@ -317,6 +317,22 @@ def test_completed_event_keeps_next_turn_audio() -> None:
     assert session._pending[0].start_ms == 0
     assert session._pending[0].end_ms == 800
     assert session._pending[0].is_final is True
+    session._pending_windows.append((1600, 2400))
+    session._commits_in_flight = 1
+    session._handle_event(
+        {
+            "type": "input_audio_buffer.committed",
+            "item_id": "item-2",
+        }
+    )
+    session._handle_event(
+        {
+            "type": "conversation.item.input_audio_transcription.failed",
+            "item_id": "item-2",
+        }
+    )
+    assert session._commits_in_flight == 0
+    assert "item-2" not in session._windows_by_item
 
 
 @pytest.mark.asyncio

@@ -13,7 +13,7 @@ class STTSession(Protocol):
         """Stream more PCM. Return newly available transcripts."""
         ...
 
-    async def commit(self) -> list[Utterance]:
+    async def commit(self, *, wait: bool = False) -> list[Utterance]:
         """Finish the current turn. Keep the provider session open."""
         ...
 

@@ -187,7 +187,7 @@ class AudioStreamSession:
             buffer_to_process = buffer_to_process[:-remainder]
         if buffer_to_process:
             await self._process_stereo_buffer(buffer_to_process)
-        await self._finalize_transcript_streams(close_streams=False)
+        await self._finalize_transcript_streams(close_streams=False, wait=True)
 
     def _stream_for(self, speaker: Speaker) -> TranscriptStream:
         if speaker == Speaker.LOCAL_PM:
@@ -206,7 +206,9 @@ class AudioStreamSession:
             )
         return self._remote_stream
 
-    async def _finalize_transcript_streams(self, *, close_streams: bool) -> None:
+    async def _finalize_transcript_streams(
+        self, *, close_streams: bool, wait: bool = False
+    ) -> None:
         streams = [self._local_stream, self._remote_stream]
         if close_streams:
             self._local_stream = None
@@ -215,7 +217,7 @@ class AudioStreamSession:
         if not open_streams:
             return
         operations = [
-            stream.close() if close_streams else stream.commit()
+            stream.close() if close_streams else stream.commit(wait=wait)
             for stream in open_streams
         ]
         results = await asyncio.gather(*operations, return_exceptions=True)
@@ -235,9 +237,26 @@ class AudioStreamSession:
 
     def _drop_stream(self, speaker: Speaker) -> None:
         if speaker == Speaker.LOCAL_PM:
+            stream = self._local_stream
             self._local_stream = None
+        else:
+            stream = self._remote_stream
+            self._remote_stream = None
+        if stream is None:
             return
-        self._remote_stream = None
+        task = asyncio.create_task(self._close_dropped_stream(stream))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _close_dropped_stream(self, stream: TranscriptStream) -> None:
+        try:
+            await stream.close()
+        except (STTServiceError, AudioProcessingError) as exc:
+            logger.warning(
+                "Failed to close dropped transcript stream for meeting %s: %s",
+                self.meeting_id,
+                exc,
+            )
 
     def _utterances_or_drop(
         self,
