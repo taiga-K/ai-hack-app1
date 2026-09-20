@@ -26,9 +26,10 @@ import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
 import {
   MEETING_SPLIT,
+  isMobileSidePane,
   isWorkspaceTab,
-  mindMapPlaceLabel,
   type MobilePane,
+  type MobileSidePane,
   type WorkspaceTab,
 } from "../model/workspace";
 
@@ -108,8 +109,6 @@ export function MeetingRoomPage({
     oursVolume: audio.micVolume,
     theirsVolume: audio.tabVolume,
   };
-  const mapPlace = mindMapPlaceLabel(mindMap.nodes);
-
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       {layout === "mobile" ? <MeetingFloor {...floorProps} /> : null}
@@ -187,24 +186,28 @@ export function MeetingRoomPage({
                 : "ささやき"}
             </MobilePaneButton>
           </div>
-          {mobilePane !== "map" && mapPlace !== null ? (
-            <button
-              type="button"
-              className="mb-2 text-left text-sm text-foreground underline-offset-4 hover:underline"
-              onClick={() => {
-                setMobilePane("map");
-              }}
-            >
-              話の地図は残っています（{mapPlace}）
-            </button>
-          ) : null}
           <div
-            id="meeting-mobile-pane"
-            role="tabpanel"
-            className="min-h-0 flex-1"
+            className={
+              mobilePane === "map"
+                ? "min-h-0 flex-1 overflow-hidden"
+                : "mb-2 min-h-44 basis-[38%] shrink-0 overflow-hidden"
+            }
           >
-            {renderMobilePane(mobilePane, utterances, adviceItems, mindMap)}
+            <MindMapCanvas snapshot={mindMap} compact />
           </div>
+          {isMobileSidePane(mobilePane) ? (
+            <div
+              id="meeting-mobile-pane"
+              role="tabpanel"
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              {renderMobileSidePane(mobilePane, utterances, adviceItems)}
+            </div>
+          ) : (
+            <div id="meeting-mobile-pane" role="tabpanel" className="sr-only">
+              話の地図を表示しています
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -347,15 +350,12 @@ function MobilePaneButton({
   );
 }
 
-function renderMobilePane(
-  pane: MobilePane,
+function renderMobileSidePane(
+  pane: MobileSidePane,
   utterances: Utterance[],
-  adviceItems: Advice[],
-  mindMap: MindMapSnapshot
+  adviceItems: Advice[]
 ) {
   switch (pane) {
-    case "map":
-      return <MindMapCanvas snapshot={mindMap} compact />;
     case "notes":
       return <TranscriptFeed utterances={utterances} />;
     case "whispers":

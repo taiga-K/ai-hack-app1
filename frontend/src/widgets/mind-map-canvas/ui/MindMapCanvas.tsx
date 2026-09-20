@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   Handle,
@@ -16,6 +16,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { layoutMindMap, type MindMapSnapshot } from "@/entities/mind-map";
 import { cn } from "cn";
+import { shouldRefitMindMapCamera } from "../model/should-refit-camera";
 
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
@@ -73,6 +74,9 @@ function MindMapFlow({
   const didInitialFit = useRef(false);
   const compactRef = useRef(compact);
   const lastSizeRef = useRef({ width: 0, height: 0 });
+  const lastNodeSignatureRef = useRef("");
+  const isFittingRef = useRef(false);
+  const [userTookCamera, setUserTookCamera] = useState(false);
   const { fitView } = useReactFlow();
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
@@ -105,6 +109,9 @@ function MindMapFlow({
     [layout.edges]
   );
   const hasNodes = snapshot.nodes.length > 0;
+  const nodeSignature = `${String(snapshot.revision)}:${snapshot.nodes
+    .map((node) => node.id)
+    .join(",")}`;
   const minZoom = compact ? 0.85 : 0.4;
   const maxZoom = compact ? 1.15 : 1.5;
   const padding = compact ? 0.1 : 0.18;
@@ -115,19 +122,31 @@ function MindMapFlow({
       didInitialFit.current = false;
       lastSizeRef.current = { width: 0, height: 0 };
     }
-    if (!hasNodes || width < 8 || height < 8) {
-      return;
-    }
     const previous = lastSizeRef.current;
     const sizeChanged =
       previous.width > 0 &&
       (Math.abs(previous.width - width) > 2 ||
         Math.abs(previous.height - height) > 2);
     const isFirstLayout = !didInitialFit.current;
+    const previousSignature = lastNodeSignatureRef.current;
+    const nodesChanged =
+      previousSignature.length > 0 && previousSignature !== nodeSignature;
     lastSizeRef.current = { width, height };
-    if (!isFirstLayout && !sizeChanged) {
+    lastNodeSignatureRef.current = nodeSignature;
+    if (
+      !shouldRefitMindMapCamera({
+        hasNodes,
+        width,
+        height,
+        isFirstLayout,
+        sizeChanged,
+        nodesChanged,
+        userTookCamera,
+      })
+    ) {
       return;
     }
+    isFittingRef.current = true;
     const frame = window.requestAnimationFrame(() => {
       didInitialFit.current = true;
       void fitView({
@@ -135,15 +154,49 @@ function MindMapFlow({
         duration: isFirstLayout ? 380 : 180,
         minZoom,
         maxZoom,
+      }).finally(() => {
+        isFittingRef.current = false;
       });
     });
     return () => {
       window.cancelAnimationFrame(frame);
+      isFittingRef.current = false;
     };
-  }, [compact, fitView, hasNodes, height, maxZoom, minZoom, padding, width]);
+  }, [
+    compact,
+    fitView,
+    hasNodes,
+    height,
+    maxZoom,
+    minZoom,
+    nodeSignature,
+    padding,
+    userTookCamera,
+    width,
+  ]);
 
   return (
-    <div className="h-full min-h-0">
+    <div className="relative h-full min-h-0">
+      {userTookCamera ? (
+        <button
+          type="button"
+          className="absolute right-2 top-2 z-10 text-sm text-foreground underline-offset-4 hover:underline"
+          onClick={() => {
+            setUserTookCamera(false);
+            isFittingRef.current = true;
+            void fitView({
+              padding,
+              duration: 280,
+              minZoom,
+              maxZoom,
+            }).finally(() => {
+              isFittingRef.current = false;
+            });
+          }}
+        >
+          ぜんぶ見る
+        </button>
+      ) : null}
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -157,6 +210,12 @@ function MindMapFlow({
         maxZoom={maxZoom}
         proOptions={{ hideAttribution: true }}
         className="h-full bg-transparent"
+        onMove={(event) => {
+          if (event === null || isFittingRef.current || userTookCamera) {
+            return;
+          }
+          setUserTookCamera(true);
+        }}
       >
         <Background gap={22} size={1} color="var(--border)" />
       </ReactFlow>

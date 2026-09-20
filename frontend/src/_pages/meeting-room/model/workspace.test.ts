@@ -1,16 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { mindMapPlaceLabel } from "./workspace.ts";
+import { isMobileSidePane } from "./workspace.ts";
 
-describe("mindMapPlaceLabel", () => {
-  it("returns the root label so the map place can stay visible", () => {
-    assert.equal(mindMapPlaceLabel([]), null);
-    assert.equal(
-      mindMapPlaceLabel([
-        { label: "対象範囲", parentId: "root" },
-        { label: "今日の会議", parentId: null },
-      ]),
-      "今日の会議"
-    );
+describe("isMobileSidePane", () => {
+  it("keeps notes and whispers as side panes beside the live map", () => {
+    assert.equal(isMobileSidePane("notes"), true);
+    assert.equal(isMobileSidePane("whispers"), true);
+    assert.equal(isMobileSidePane("map"), false);
   });
 });

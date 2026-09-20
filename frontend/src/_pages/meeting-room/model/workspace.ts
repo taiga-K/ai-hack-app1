@@ -14,12 +14,8 @@ export function isWorkspaceTab(value: string): value is WorkspaceTab {
   return value === "map" || value === "notes";
 }
 
-export function mindMapPlaceLabel(
-  nodes: readonly { label: string; parentId: string | null }[]
-): string | null {
-  if (nodes.length === 0) {
-    return null;
-  }
-  const root = nodes.find((node) => node.parentId === null) ?? nodes[0];
-  return root.label;
+export type MobileSidePane = Exclude<MobilePane, "map">;
+
+export function isMobileSidePane(pane: MobilePane): pane is MobileSidePane {
+  return pane === "notes" || pane === "whispers";
 }

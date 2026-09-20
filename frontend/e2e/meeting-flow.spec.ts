@@ -51,6 +51,29 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("対象範囲").first()).toBeVisible({
     timeout: 4000,
   });
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  const mapBox = await mapRegion.boundingBox();
+  expect(mapBox).not.toBeNull();
+  if (mapBox !== null) {
+    await page.mouse.move(
+      mapBox.x + mapBox.width / 2,
+      mapBox.y + mapBox.height / 2
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      mapBox.x + mapBox.width / 2 + 90,
+      mapBox.y + mapBox.height / 2,
+      { steps: 8 }
+    );
+    await page.mouse.up();
+    await expect(
+      page.getByRole("button", { name: "ぜんぶ見る" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "ぜんぶ見る" }).click();
+    await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(
+      0
+    );
+  }
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
@@ -127,9 +150,11 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await expect(page.getByRole("heading", { name: "ささやき" })).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /話の地図は残っています/ })
+    page.getByRole("region", { name: "話の地図" }).getByText("今日の会議")
   ).toBeVisible();
+  await expect(page.getByText("話の地図は残っています")).toHaveCount(0);
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
 
   await page.getByRole("tab", { name: "話の地図" }).click();
