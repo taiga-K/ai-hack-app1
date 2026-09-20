@@ -15,14 +15,14 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
   - `pytest`: 単体・結合テスト
 
 ## 環境変数
-コピー用の実在名一覧は `.env.example` にあります。`cp .env.example .env` してから値を入れてください。初回認証は追加しません。
+コピー用の実在名一覧は `.env.example` にあります。`cp .env.example .env` してから値を入れてください。初回認証は追加しません。助言・要件書のデフォルトは [Orca Router 無料モデル](https://docs.orcarouter.ai/ja/routing/free-models) です。名前付きルーティング（`orcarouter/free` 等）は後続で入れます。
 
 - `ORCAROUTER_API_KEY`: オルカルーターの API キー（必須）
 - `ORCAROUTER_BASE_URL`: オルカルーターの Base URL（デフォルト: `https://api.orcarouter.ai/v1`）
-- `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: `openai/gpt-4o-mini`）
+- `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: 無料モデル `deepseek/deepseek-v4-flash-free`）
 - `ORCAROUTER_TIMEOUT_SECONDS`: タイムアウト秒数（デフォルト: `60.0`）
-- `ORCAROUTER_REQUIREMENTS_MODEL`: 要件定義書生成モデル（デフォルト: `anthropic/claude-3-5-sonnet`）
-- `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS`: 要件定義書生成のフォールバックモデル（カンマ区切り、デフォルト: `openai/gpt-4o`）
+- `ORCAROUTER_REQUIREMENTS_MODEL`: 要件定義書生成モデル（デフォルト: 無料モデル `deepseek/deepseek-v4-flash-free`）
+- `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS`: 要件定義書生成のフォールバックモデル（カンマ区切り、デフォルト: 無料モデル `z-ai/glm-5.3-flash-free`）
 - `ORCAROUTER_REQUIREMENTS_TIMEOUT_SECONDS`: 要件定義書生成タイムアウト秒数（デフォルト: `120.0`）
 - `WHISPER_MODEL_SIZE`: faster-whisper モデルサイズ（デフォルト: `base`）
 - `WHISPER_DEVICE`: 実行デバイス（デフォルト: `cpu`）

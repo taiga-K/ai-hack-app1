@@ -31,3 +31,30 @@ def test_env_example_lists_every_settings_field() -> None:
     expected = {name.upper() for name in settings_cls.model_fields}
     missing = expected - declared
     assert missing == set()
+
+
+def test_settings_model_defaults_are_free_models() -> None:
+    settings_cls = _load_settings_class()
+    fields = settings_cls.model_fields
+    example_values = {
+        line.split("=", 1)[0]: line.split("=", 1)[1]
+        for line in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#") and "=" in line
+    }
+
+    assert fields["orcarouter_default_model"].default == "deepseek/deepseek-v4-flash-free"
+    assert fields["orcarouter_requirements_model"].default == (
+        "deepseek/deepseek-v4-flash-free"
+    )
+    assert fields["orcarouter_requirements_fallback_models"].default == (
+        "z-ai/glm-5.3-flash-free"
+    )
+    assert example_values["ORCAROUTER_DEFAULT_MODEL"] == (
+        fields["orcarouter_default_model"].default
+    )
+    assert example_values["ORCAROUTER_REQUIREMENTS_MODEL"] == (
+        fields["orcarouter_requirements_model"].default
+    )
+    assert example_values["ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS"] == (
+        fields["orcarouter_requirements_fallback_models"].default
+    )

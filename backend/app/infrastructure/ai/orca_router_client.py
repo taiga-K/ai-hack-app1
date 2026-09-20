@@ -35,7 +35,7 @@ class OrcaRouterClient(LLMService):
         self,
         api_key: str,
         base_url: str = "https://api.orcarouter.ai/v1",
-        default_model: str = "openai/gpt-4o-mini",
+        default_model: str = "deepseek/deepseek-v4-flash-free",
         timeout: float = 60.0,
         client: AsyncOpenAI | None = None,
     ) -> None:

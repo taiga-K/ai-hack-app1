@@ -36,8 +36,8 @@ from app.domain.services.meeting_session_repository import MeetingSessionReposit
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_REQUIREMENTS_MODEL = "anthropic/claude-3-5-sonnet"
-DEFAULT_REQUIREMENTS_FALLBACK_MODELS = ("openai/gpt-4o",)
+DEFAULT_REQUIREMENTS_MODEL = "deepseek/deepseek-v4-flash-free"
+DEFAULT_REQUIREMENTS_FALLBACK_MODELS = ("z-ai/glm-5.3-flash-free",)
 MAX_REQUIREMENTS_PROMPT_CHARS = 200_000
 
 REQUIREMENTS_JSON_SCHEMA: dict[str, Any] = {

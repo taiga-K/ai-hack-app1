@@ -11,10 +11,10 @@ class Settings(BaseSettings):
     debug: bool = False
     orcarouter_api_key: str = ""
     orcarouter_base_url: str = "https://api.orcarouter.ai/v1"
-    orcarouter_default_model: str = "openai/gpt-4o-mini"
+    orcarouter_default_model: str = "deepseek/deepseek-v4-flash-free"
     orcarouter_timeout_seconds: float = 60.0
-    orcarouter_requirements_model: str = "anthropic/claude-3-5-sonnet"
-    orcarouter_requirements_fallback_models: str = "openai/gpt-4o"
+    orcarouter_requirements_model: str = "deepseek/deepseek-v4-flash-free"
+    orcarouter_requirements_fallback_models: str = "z-ai/glm-5.3-flash-free"
     orcarouter_requirements_timeout_seconds: float = 120.0
 
     whisper_model_size: str = "base"
