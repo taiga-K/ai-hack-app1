@@ -542,17 +542,17 @@ async def test_websocket_mindmap_broadcast_on_manual_analyze() -> None:
 
 
 @pytest.mark.asyncio
-async def test_websocket_mindmap_force_true_on_local_only_speech() -> None:
+async def test_websocket_mindmap_waits_for_silence_not_stt_turn() -> None:
     mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
     mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
-        meeting_id="meet-map-local",
+        meeting_id="meet-map-silence",
         advice_items=[],
         analyzed_utterance_count=1,
     )
     mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
     mock_mind_map.execute.return_value = MindMapUpdateDTO(
-        meeting_id="meet-map-local",
+        meeting_id="meet-map-silence",
         revision=1,
         upserts=[
             MindMapNodeDTO(
@@ -576,7 +576,7 @@ async def test_websocket_mindmap_force_true_on_local_only_speech() -> None:
     )
 
     async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
-        if chunk.speaker == Speaker.LOCAL_PM:
+        if chunk.timestamp_ms == 0 and chunk.speaker == Speaker.LOCAL_PM:
             return [
                 UtteranceDTO(
                     id="utt-pm-map",
@@ -604,16 +604,26 @@ async def test_websocket_mindmap_force_true_on_local_only_speech() -> None:
 
     try:
         client = TestClient(app)
-        with client.websocket_connect("/ws/meetings/meet-map-local/audio") as ws:
-            stereo_bytes = np.zeros(64000, dtype=np.int16).tobytes()
-            ws.send_bytes(stereo_bytes)
-            messages = [ws.receive_json()]
-            if messages[0]["type"] != "mindmap":
-                messages.append(ws.receive_json())
-            mindmap = next(item for item in messages if item["type"] == "mindmap")
+        one_second = np.zeros(64000, dtype=np.int16).tobytes()
+        with client.websocket_connect("/ws/meetings/meet-map-silence/audio") as ws:
+            ws.send_bytes(one_second)
+            utterance = ws.receive_json()
+            assert utterance["type"] == "utterance"
+            mock_mind_map.execute.assert_not_awaited()
+
+            ws.send_bytes(one_second)
+            ws.send_bytes(one_second)
+            mock_mind_map.execute.assert_not_awaited()
+
+            ws.send_bytes(one_second)
+            mindmap = ws.receive_json()
+            assert mindmap["type"] == "mindmap"
             assert mindmap["revision"] == 1
             mock_mind_map.execute.assert_awaited()
-            assert mock_mind_map.execute.await_args.kwargs["force"] is True
+            called = mock_mind_map.execute.await_args.kwargs
+            assert called["force"] is False
+            assert called["window"] is not None
+            assert [item.id for item in called["window"]] == ["utt-pm-map"]
     finally:
         app.dependency_overrides.clear()
 
@@ -629,6 +639,44 @@ def _session_utterance(meeting_id: str, utterance_id: str, text: str) -> Utteran
         is_final=True,
         created_at=datetime.now(UTC),
     )
+
+
+@pytest.mark.asyncio
+async def test_session_does_not_call_mind_map_llm_until_silence() -> None:
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-quiet",
+        revision=1,
+        upserts=[],
+        removes=[],
+        nodes=[],
+        source_utterance_count=1,
+        changed=False,
+    )
+    session = AudioStreamSession(
+        meeting_id="meet-map-quiet",
+        websocket=AsyncMock(),
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+    )
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-quiet", "u-1", "対象範囲を決めたいです。")
+    )
+    session._accumulate_mind_map_utterance("u-1")
+    session._observe_mind_map_audio(speech=False, duration_ms=800)
+
+    assert not session._mind_map_buffer.should_flush()
+    mock_mind_map.execute.assert_not_awaited()
+
+    session._observe_mind_map_audio(speech=False, duration_ms=2200)
+    assert session._mind_map_buffer.should_flush()
+    await session._flush_mind_map_now(force=False)
+
+    mock_mind_map.execute.assert_awaited_once()
+    called = mock_mind_map.execute.await_args.kwargs
+    assert called["force"] is False
+    assert [item.id for item in called["window"]] == ["u-1"]
 
 
 @pytest.mark.asyncio

@@ -17,11 +17,15 @@ from app.application.use_cases.generate_requirements_doc import parse_seed_advic
 from app.application.use_cases.transcribe_audio import TranscriptStream
 from app.domain.exceptions import AudioProcessingError, STTServiceError
 from app.domain.models.meeting_context import MeetingDialogueContext
-from app.domain.models.mind_map import MindMapNode, MindMapSnapshot
+from app.domain.models.mind_map import (
+    MindMapNode,
+    MindMapSilenceBuffer,
+    MindMapSnapshot,
+)
 from app.domain.models.transcript import Speaker, Utterance
 from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
-from app.infrastructure.stt.pcm import pcm16_is_dominant
+from app.infrastructure.stt.pcm import pcm16_has_speech, pcm16_is_dominant
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
@@ -95,6 +99,8 @@ class AudioStreamSession:
         self._mind_map_lock = asyncio.Lock()
         self._mind_map_pending = False
         self._mind_map_pending_force = False
+        self._mind_map_pending_windows: list[tuple[Utterance, ...]] = []
+        self._mind_map_buffer = MindMapSilenceBuffer()
         self._local_stream: TranscriptStream | None = None
         self._remote_stream: TranscriptStream | None = None
 
@@ -161,7 +167,7 @@ class AudioStreamSession:
                 if self.analyze_dialogue_use_case is not None and not self._is_closed:
                     self._schedule_analysis(force=True)
                 if self.update_mind_map_use_case is not None and not self._is_closed:
-                    self._schedule_mind_map(force=True)
+                    self._schedule_mind_map_flush(force=True)
         except json.JSONDecodeError:
             logger.warning("Received invalid non-JSON text message: %s", text)
 
@@ -310,7 +316,9 @@ class AudioStreamSession:
                     created_at=u.created_at,
                 )
                 if u.is_final:
-                    self.dialogue_context.add_utterance(utterance)
+                    added = self.dialogue_context.add_utterance(utterance)
+                    if added:
+                        self._accumulate_mind_map_utterance(u.id)
                     if self.meeting_session_repository is not None:
                         self.meeting_session_repository.add_utterance(
                             self.meeting_id, utterance
@@ -330,8 +338,8 @@ class AudioStreamSession:
             finals = [item for item in all_utterances if item.is_final]
             if finals and self.analyze_dialogue_use_case is not None:
                 await self._trigger_analysis(force=has_remote_client_speech)
-            if finals and self.update_mind_map_use_case is not None:
-                await self._trigger_mind_map(force=True)
+            if self.update_mind_map_use_case is not None:
+                await self._flush_mind_map_now(force=True)
         finally:
             self._end_persist_work()
 
@@ -359,6 +367,11 @@ class AudioStreamSession:
         try:
             left_chunk, right_chunk = self.diarizer.demux_stereo_pcm(
                 stereo_bytes, timestamp_ms=start_ms
+            )
+            self._observe_mind_map_audio(
+                speech=pcm16_has_speech(left_chunk.data)
+                or pcm16_has_speech(right_chunk.data),
+                duration_ms=duration_ms,
             )
             local_stream = self._stream_for(Speaker.LOCAL_PM)
             remote_stream = self._stream_for(Speaker.REMOTE_CLIENT)
@@ -434,7 +447,9 @@ class AudioStreamSession:
                 created_at=u.created_at,
             )
             if u.is_final:
-                self.dialogue_context.add_utterance(utterance)
+                added = self.dialogue_context.add_utterance(utterance)
+                if added:
+                    self._accumulate_mind_map_utterance(u.id)
                 if self.meeting_session_repository is not None:
                     self.meeting_session_repository.add_utterance(
                         self.meeting_id, utterance
@@ -463,11 +478,11 @@ class AudioStreamSession:
             else:
                 self._schedule_analysis(force=has_remote_client_speech)
 
-        if final_utterances and self.update_mind_map_use_case is not None:
+        if self.update_mind_map_use_case is not None:
             if self._is_closed:
-                await self._trigger_mind_map(force=True)
-            else:
-                self._schedule_mind_map(force=True)
+                await self._flush_mind_map_now(force=True)
+            elif self._mind_map_buffer.should_flush():
+                self._schedule_mind_map_flush(force=False)
 
     def _schedule_analysis(self, force: bool) -> None:
         """Start analysis without a persist-count gap after STT returns."""
@@ -566,52 +581,137 @@ class AudioStreamSession:
             if self.meeting_session_repository is not None:
                 self.meeting_session_repository.end_close(self.meeting_id)
 
-    def _schedule_mind_map(self, force: bool) -> None:
+    def _observe_mind_map_audio(self, *, speech: bool, duration_ms: int) -> None:
+        self._mind_map_buffer = self._mind_map_buffer.observe_audio(
+            speech=speech,
+            duration_ms=duration_ms,
+        )
+
+    def _accumulate_mind_map_utterance(self, utterance_id: str) -> None:
+        self._mind_map_buffer = self._mind_map_buffer.accumulate((utterance_id,))
+
+    def _take_mind_map_window(self, *, include_unprocessed: bool) -> tuple[Utterance, ...]:
+        self._mind_map_buffer, pending_ids = self._mind_map_buffer.take()
+        known = set(pending_ids)
+        window = tuple(
+            item for item in self.dialogue_context.utterances if item.id in known
+        )
+        if include_unprocessed:
+            seen = {item.id for item in window}
+            extra = tuple(
+                item
+                for item in self.dialogue_context.utterances[
+                    self._mind_map.source_utterance_count :
+                ]
+                if item.id not in seen
+            )
+            window = window + extra
+        return window
+
+    def _schedule_mind_map_flush(self, *, force: bool) -> None:
+        """Send the accumulated silence window, or unprocessed text when forced."""
+        if self.update_mind_map_use_case is None:
+            return
+        window = self._take_mind_map_window(include_unprocessed=force)
+        if not window and not force:
+            return
+        self._schedule_mind_map(force=force, window=window)
+
+    async def _flush_mind_map_now(self, *, force: bool) -> None:
+        if self.update_mind_map_use_case is None:
+            return
+        window = self._take_mind_map_window(include_unprocessed=force)
+        if not window and not force:
+            return
+        await self._trigger_mind_map(force=force, window=window)
+
+    def _schedule_mind_map(
+        self,
+        force: bool,
+        window: tuple[Utterance, ...] | None = None,
+    ) -> None:
         """Start a mind-map update without blocking the audio loop."""
         if self.update_mind_map_use_case is None:
             return
         self._begin_persist_work()
-        task = asyncio.create_task(self._run_scheduled_mind_map(force))
+        task = asyncio.create_task(self._run_scheduled_mind_map(force, window))
         self._background_tasks.add(task)
         task.add_done_callback(self._background_tasks.discard)
 
-    async def _run_scheduled_mind_map(self, force: bool) -> None:
+    async def _run_scheduled_mind_map(
+        self,
+        force: bool,
+        window: tuple[Utterance, ...] | None,
+    ) -> None:
         try:
-            await self._trigger_mind_map(force)
+            await self._trigger_mind_map(force, window=window)
         finally:
             self._end_persist_work()
 
-    async def _trigger_mind_map(self, force: bool = False) -> None:
+    async def _trigger_mind_map(
+        self,
+        force: bool = False,
+        window: tuple[Utterance, ...] | None = None,
+    ) -> None:
         if self.update_mind_map_use_case is None:
             return
         if self._mind_map_lock.locked():
             self._mind_map_pending = True
             if force:
                 self._mind_map_pending_force = True
+            if window:
+                self._mind_map_pending_windows.append(window)
             return
 
         self._begin_persist_work()
         try:
-            await self._run_mind_map_loop(force)
+            await self._run_mind_map_loop(force, window)
         finally:
             self._end_persist_work()
 
-    async def _run_mind_map_loop(self, force: bool) -> None:
+    def _next_queued_mind_map_window(
+        self,
+        current: tuple[Utterance, ...] | None,
+    ) -> tuple[Utterance, ...] | None:
+        queued = list(self._mind_map_pending_windows)
+        self._mind_map_pending_windows = []
+        batches = ([] if current is None else [current]) + queued
+        if not batches:
+            return None
+        merged: list[Utterance] = []
+        seen: set[str] = set()
+        for batch in batches:
+            for utterance in batch:
+                if utterance.id in seen:
+                    continue
+                seen.add(utterance.id)
+                merged.append(utterance)
+        return tuple(merged)
+
+    async def _run_mind_map_loop(
+        self,
+        force: bool,
+        window: tuple[Utterance, ...] | None,
+    ) -> None:
         use_case = self.update_mind_map_use_case
         if use_case is None:
             return
         async with self._mind_map_lock:
             current_force = force
+            current_window = window
             while True:
                 self._mind_map_pending = False
                 force_to_use = current_force or self._mind_map_pending_force
                 self._mind_map_pending_force = False
+                window_to_use = self._next_queued_mind_map_window(current_window)
+                current_window = None
 
                 try:
                     result = await use_case.execute(
                         context=self.dialogue_context,
                         current=self._mind_map,
                         force=force_to_use,
+                        window=window_to_use,
                     )
                     self._mind_map = MindMapSnapshot(
                         meeting_id=result.meeting_id,
@@ -647,7 +747,7 @@ class AudioStreamSession:
                 except Exception as exc:
                     logger.error("Failed to update mind map: %s", exc)
 
-                if self._mind_map_pending:
+                if self._mind_map_pending or self._mind_map_pending_windows:
                     current_force = self._mind_map_pending_force
                     continue
                 break
