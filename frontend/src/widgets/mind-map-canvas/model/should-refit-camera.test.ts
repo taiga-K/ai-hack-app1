@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   didMindMapPaneWidthChange,
-  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
+  shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "./should-refit-camera.ts";
@@ -189,20 +189,42 @@ describe("didMindMapPaneWidthChange", () => {
   });
 });
 
-describe("mindMapGrowthSignature", () => {
-  it("stays stable when only the visible branch changes", () => {
-    const snapshotIds = ["root", "scope", "release", "homework"];
+describe("shouldRefitForPaneHeight", () => {
+  it("refits a height-only change when the tree fits or a node anchors it", () => {
     assert.equal(
-      mindMapGrowthSignature(3, snapshotIds),
-      mindMapGrowthSignature(3, snapshotIds)
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: false,
+        hasAnchor: false,
+      }),
+      true
     );
-    assert.notEqual(
-      mindMapGrowthSignature(3, snapshotIds),
-      mindMapGrowthSignature(4, snapshotIds)
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: true,
+        hasAnchor: true,
+      }),
+      true
     );
-    assert.notEqual(
-      mindMapGrowthSignature(3, ["root", "scope"]),
-      mindMapGrowthSignature(3, snapshotIds)
+  });
+
+  it("leaves an overflowing map alone when とじる clears the selection", () => {
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: true,
+        hasAnchor: false,
+      }),
+      false
+    );
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: false,
+        overflows: false,
+        hasAnchor: true,
+      }),
+      false
     );
   });
 });

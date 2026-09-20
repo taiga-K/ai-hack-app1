@@ -6,6 +6,8 @@ import {
   describeMindMapNode,
   describeMindMapStatus,
   getMindMapNodePresentation,
+  summarizeMindMapBranch,
+  summarizeMindMapDecisions,
 } from "./labels.ts";
 import { createMindMapNode } from "./types.ts";
 
@@ -60,9 +62,9 @@ describe("getMindMapNodePresentation", () => {
     assert.equal(decided.tone, "decision");
     assert.equal(concern.chip, "気になる点");
     assert.equal(action.chip, "つぎにやること");
-    assert.equal(superseded.chip, "言いなおし前");
+    assert.equal(superseded.chip, "いまは対象外");
     assert.equal(superseded.struck, true);
-    assert.equal(MIND_MAP_RELATION_LABELS.opposes, "反対");
+    assert.equal(MIND_MAP_RELATION_LABELS.opposes, "懸念");
   });
 
   it("does not repeat 決定 for a decision node", () => {
@@ -161,5 +163,97 @@ describe("decorationForMindMapNode", () => {
       chipChars: 2,
       badge: false,
     });
+  });
+});
+
+describe("summarizeMindMapBranch", () => {
+  const nodes = [
+    createMindMapNode({ id: "root", label: "今日の会議", parentId: null }),
+    createMindMapNode({ id: "scope", label: "対象範囲", parentId: "root" }),
+    createMindMapNode({
+      id: "renewal",
+      label: "更新申請だけ",
+      parentId: "scope",
+      kind: "proposal",
+      status: "decided",
+    }),
+    createMindMapNode({
+      id: "decision",
+      label: "更新申請に限定で決定",
+      parentId: "scope",
+      kind: "decision",
+      status: "decided",
+    }),
+    createMindMapNode({
+      id: "homework",
+      label: "例外は宿題",
+      parentId: "scope",
+      kind: "action",
+    }),
+    createMindMapNode({
+      id: "old",
+      label: "前の決定",
+      parentId: "scope",
+      kind: "decision",
+      status: "superseded",
+    }),
+    createMindMapNode({
+      id: "all",
+      label: "申請ぜんぶ",
+      parentId: "scope",
+      kind: "proposal",
+    }),
+    createMindMapNode({ id: "due", label: "来月末の本番", parentId: "root" }),
+    createMindMapNode({
+      id: "due-risk",
+      label: "間に合うか",
+      parentId: "due",
+      kind: "concern",
+    }),
+  ];
+
+  it("reads decisions and next actions out of a topic's branch", () => {
+    const scope = nodes[1];
+    assert.ok(scope);
+    const summary = summarizeMindMapBranch(scope, nodes);
+    assert.deepEqual(
+      summary.decisions.map((node) => node.id),
+      ["decision"]
+    );
+    assert.deepEqual(
+      summary.adopted.map((node) => node.id),
+      ["renewal"]
+    );
+    assert.deepEqual(
+      summary.actions.map((node) => node.id),
+      ["homework"]
+    );
+    assert.equal(summary.openCount, 1);
+
+    const due = nodes[7];
+    assert.ok(due);
+    const concernOnly = summarizeMindMapBranch(due, nodes);
+    assert.equal(concernOnly.decisions.length, 0);
+    assert.equal(concernOnly.actions.length, 0);
+    assert.equal(concernOnly.openCount, 1);
+  });
+
+  it("summarizes the whole map without superseded claims", () => {
+    const summary = summarizeMindMapDecisions(nodes);
+    assert.deepEqual(
+      summary.decided.map((node) => node.id),
+      ["decision"]
+    );
+    assert.deepEqual(
+      summary.actions.map((node) => node.id),
+      ["homework"]
+    );
+    const adoptedOnly = summarizeMindMapDecisions(
+      nodes.filter((node) => node.kind !== "decision")
+    );
+    assert.deepEqual(
+      adoptedOnly.decided.map((node) => node.id),
+      ["renewal"]
+    );
   });
 });

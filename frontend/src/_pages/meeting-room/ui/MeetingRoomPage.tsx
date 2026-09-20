@@ -330,7 +330,7 @@ export function MeetingRoomPage({
                 : "mb-2 flex min-h-[24rem] basis-3/5 shrink-0 flex-col overflow-hidden"
             }
           >
-            <MindMapCanvas snapshot={mindMap} compact />
+            <MindMapCanvas snapshot={mindMap} utterances={utterances} compact />
           </div>
           {isMobileSidePane(mobilePane) ? (
             <div
@@ -488,7 +488,7 @@ function WorkspaceTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="map" className="min-h-0 overflow-hidden">
-        <MindMapCanvas snapshot={mindMap} />
+        <MindMapCanvas snapshot={mindMap} utterances={utterances} />
       </TabsContent>
       <TabsContent value="notes" className="min-h-0 overflow-hidden">
         <TranscriptFeed utterances={utterances} />

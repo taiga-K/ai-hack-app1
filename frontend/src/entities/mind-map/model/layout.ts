@@ -20,6 +20,8 @@ export interface MindMapEdge {
   source: string;
   target: string;
   kind: MindMapEdgeKind;
+  /** True for the parent-child line itself, even when a relation colours it. */
+  structural: boolean;
 }
 
 export interface MindMapLayout {
@@ -28,6 +30,7 @@ export interface MindMapLayout {
 }
 
 export type MindMapLayoutAlgorithm = "mindmap" | "compactBox";
+export type MindMapLayoutDirection = "LR" | "TB";
 
 /** Extra room a pill needs besides its label: a chip in front, a count behind. */
 export interface MindMapNodeDecoration {
@@ -38,6 +41,7 @@ export interface MindMapNodeDecoration {
 export interface LayoutMindMapOptions {
   compact?: boolean;
   algorithm?: MindMapLayoutAlgorithm;
+  direction?: MindMapLayoutDirection;
   decorationFor?: (node: MindMapNode) => MindMapNodeDecoration;
 }
 
@@ -170,6 +174,42 @@ function collectLaidOut(
   });
 }
 
+const STACKED_INDENT_X = 12;
+
+function layoutStackedColumn(
+  nodes: readonly MindMapNode[],
+  decorationFor: LayoutMindMapOptions["decorationFor"]
+): MindMapLayout {
+  const forest = nestMindMapForest(nodes, decorationFor);
+  const placed: LaidOutMindMapNode[] = [];
+  let y = 0;
+
+  function place(node: NestedMindMapNode, depth: number): void {
+    const box = measureMindMapLabel(node.label, node.extraWidth);
+    placed.push({
+      id: node.id,
+      label: node.label,
+      x: depth * STACKED_INDENT_X,
+      y,
+      depth,
+      width: box.width,
+      height: box.height,
+    });
+    y += box.height + NODE_GAP_Y;
+    for (const child of node.children) {
+      place(child, depth + 1);
+    }
+  }
+
+  for (const root of forest) {
+    place(root, 0);
+    y += NODE_GAP_Y;
+  }
+
+  const knownIds = new Set(nodes.map((node) => node.id));
+  return { nodes: placed, edges: edgesFor(nodes, knownIds) };
+}
+
 function layoutNestedTree(
   root: NestedMindMapNode,
   algorithm: MindMapLayoutAlgorithm
@@ -202,10 +242,15 @@ function edgesFor(
 ): MindMapEdge[] {
   const edges: MindMapEdge[] = [];
   const seen = new Set<string>();
+  const superseded = new Set(
+    nodes.filter((node) => node.status === "superseded").map((node) => node.id)
+  );
   for (const node of nodes) {
-    const toParent = node.relations.find(
-      (relation) => relation.targetId === node.parentId
-    );
+    const stands = !superseded.has(node.id);
+    const toParent =
+      stands && node.parentId !== null && !superseded.has(node.parentId)
+        ? node.relations.find((relation) => relation.targetId === node.parentId)
+        : undefined;
     if (node.parentId !== null && knownIds.has(node.parentId)) {
       const id = `${node.parentId}-${node.id}`;
       seen.add(id);
@@ -214,13 +259,16 @@ function edgesFor(
         source: node.parentId,
         target: node.id,
         kind: toParent?.kind ?? "tree",
+        structural: true,
       });
     }
     for (const relation of node.relations) {
       if (
+        !stands ||
         relation.targetId === node.parentId ||
         relation.targetId === node.id ||
-        !knownIds.has(relation.targetId)
+        !knownIds.has(relation.targetId) ||
+        superseded.has(relation.targetId)
       ) {
         continue;
       }
@@ -234,6 +282,7 @@ function edgesFor(
         source: node.id,
         target: relation.targetId,
         kind: relation.kind,
+        structural: false,
       });
     }
   }
@@ -245,6 +294,10 @@ export function layoutMindMap(
   options: LayoutMindMapOptions = {}
 ): MindMapLayout {
   void options.compact;
+  const direction = options.direction ?? "LR";
+  if (direction === "TB") {
+    return layoutStackedColumn(nodes, options.decorationFor);
+  }
   const algorithm = options.algorithm ?? DEFAULT_MIND_MAP_LAYOUT_ALGORITHM;
   const knownIds = new Set(nodes.map((node) => node.id));
   const forest = nestMindMapForest(nodes, options.decorationFor);

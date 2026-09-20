@@ -75,6 +75,29 @@ describe("layoutMindMap", () => {
     });
   }
 
+  it("stacks children under the root on a tall phone pane", () => {
+    const layout = layoutMindMap(previewTree, { direction: "TB" });
+    const byId = new Map(layout.nodes.map((node) => [node.id, node]));
+    const root = byId.get("root");
+    const scope = byId.get("scope");
+    const exceptions = byId.get("exceptions");
+    const sideways = layoutMindMap(previewTree);
+    const stackedWidth = Math.max(
+      ...layout.nodes.map((node) => node.x + node.width)
+    );
+    const sidewaysWidth = Math.max(
+      ...sideways.nodes.map((node) => node.x + node.width)
+    );
+
+    assert.ok(root);
+    assert.ok(scope);
+    assert.ok(exceptions);
+    assert.ok(scope.y >= root.y + root.height);
+    assert.ok(exceptions.y >= scope.y + scope.height);
+    assert.ok(stackedWidth < sidewaysWidth);
+    assert.ok(stackedWidth < 320);
+  });
+
   it("keeps a compact tree left-to-right like the full map", () => {
     const layout = layoutMindMap(sampleNodes, { compact: true });
     const root = layout.nodes.find((node) => node.id === "root");
@@ -164,12 +187,67 @@ describe("layoutMindMap", () => {
 
     const byId = new Map(layout.edges.map((edge) => [edge.id, edge]));
     assert.equal(byId.get("outsource-risk")?.kind, "opposes");
+    assert.equal(byId.get("outsource-risk")?.structural, true);
     assert.equal(byId.get("root-inhouse")?.kind, "tree");
     const cross = byId.get("supports-risk-inhouse");
     assert.ok(cross);
     assert.equal(cross.source, "risk");
     assert.equal(cross.target, "inhouse");
     assert.equal(cross.kind, "supports");
+    assert.equal(cross.structural, false);
     assert.equal(layout.edges.length, 4);
+  });
+
+  it("keeps a plain tree line toward a parent that no longer stands", () => {
+    const layout = layoutMindMap([
+      createMindMapNode({ id: "root", label: "今日の会議", parentId: null }),
+      createMindMapNode({
+        id: "old-plan",
+        label: "前の案",
+        parentId: "root",
+        kind: "proposal",
+        status: "superseded",
+      }),
+      createMindMapNode({
+        id: "why",
+        label: "理由",
+        parentId: "old-plan",
+        kind: "reason",
+        relations: [{ kind: "supports", targetId: "old-plan" }],
+      }),
+    ]);
+
+    const edge = layout.edges.find((item) => item.id === "old-plan-why");
+    assert.ok(edge);
+    assert.equal(edge.kind, "tree");
+    assert.equal(edge.structural, true);
+  });
+
+  it("stops drawing relation lines for claims that no longer stand", () => {
+    const layout = layoutMindMap([
+      createMindMapNode({ id: "root", label: "今日の会議", parentId: null }),
+      createMindMapNode({
+        id: "plan",
+        label: "まず参照だけ反映",
+        parentId: "root",
+        history: ["すぐ反映したい"],
+      }),
+      createMindMapNode({
+        id: "risk",
+        label: "来月末に間に合うか",
+        parentId: "root",
+        kind: "concern",
+        status: "superseded",
+        relations: [{ kind: "opposes", targetId: "plan" }],
+      }),
+    ]);
+
+    assert.deepEqual(
+      layout.edges.map((edge) => [edge.id, edge.kind, edge.structural]),
+      [
+        ["root-plan", "tree", true],
+        ["root-risk", "tree", true],
+      ]
+    );
   });
 });

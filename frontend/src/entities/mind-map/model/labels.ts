@@ -21,7 +21,7 @@ export const MIND_MAP_STATUS_LABELS: Record<MindMapNodeStatus, string> = {
   open: "まだ決まっていない",
   decided: "決定",
   pending: "あとで",
-  superseded: "言いなおし前",
+  superseded: "いまは対象外",
 };
 
 /** A proposal that was decided on reads as "adopted" rather than a second 決定. */
@@ -29,8 +29,8 @@ export const MIND_MAP_ADOPTED_LABEL = "採用";
 
 export const MIND_MAP_RELATION_LABELS: Record<MindMapRelationKind, string> = {
   supports: "賛成",
-  opposes: "反対",
-  supersedes: "言いなおし",
+  opposes: "懸念",
+  supersedes: "置きかえ",
 };
 
 export type MindMapNodeTone =
@@ -140,5 +140,79 @@ export function decorationForMindMapNode(
     chipChars:
       presentation.chip === null ? 0 : Array.from(presentation.chip).length,
     badge: visibility.hiddenChildCount.has(node.id),
+  };
+}
+
+export interface MindMapBranchSummary {
+  decisions: MindMapNode[];
+  adopted: MindMapNode[];
+  actions: MindMapNode[];
+  openCount: number;
+}
+
+function descendantsOf(
+  node: MindMapNode,
+  nodes: readonly MindMapNode[]
+): MindMapNode[] {
+  const children = new Map<string, MindMapNode[]>();
+  for (const item of nodes) {
+    if (item.parentId === null) {
+      continue;
+    }
+    const siblings = children.get(item.parentId) ?? [];
+    siblings.push(item);
+    children.set(item.parentId, siblings);
+  }
+  const found: MindMapNode[] = [];
+  const queue = [...(children.get(node.id) ?? [])];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) {
+      break;
+    }
+    found.push(current);
+    queue.push(...(children.get(current.id) ?? []));
+  }
+  return found;
+}
+
+/** What a branch has settled, so a topic is never described as undecided while
+ *  one of its children is a decision. */
+export function summarizeMindMapBranch(
+  node: MindMapNode,
+  nodes: readonly MindMapNode[]
+): MindMapBranchSummary {
+  const live = descendantsOf(node, nodes).filter(
+    (item) => item.status !== "superseded"
+  );
+  return {
+    decisions: live.filter((item) => item.kind === "decision"),
+    adopted: live.filter(
+      (item) => item.kind === "proposal" && item.status === "decided"
+    ),
+    actions: live.filter((item) => item.kind === "action"),
+    openCount: live.filter(
+      (item) =>
+        (item.kind === "topic" ||
+          item.kind === "proposal" ||
+          item.kind === "concern") &&
+        item.status === "open"
+    ).length,
+  };
+}
+
+/** One glance for the whole map: what was decided and what comes next. */
+export function summarizeMindMapDecisions(nodes: readonly MindMapNode[]): {
+  decided: MindMapNode[];
+  actions: MindMapNode[];
+} {
+  const live = nodes.filter((item) => item.status !== "superseded");
+  const decisions = live.filter((item) => item.kind === "decision");
+  const adopted = live.filter(
+    (item) => item.kind === "proposal" && item.status === "decided"
+  );
+  return {
+    decided: decisions.length > 0 ? decisions : adopted,
+    actions: live.filter((item) => item.kind === "action"),
   };
 }
