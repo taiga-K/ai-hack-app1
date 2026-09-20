@@ -16,6 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
+  MIND_MAP_KIND_LABELS,
   MIND_MAP_RELATION_LABELS,
   decorationForMindMapNode,
   describeMindMapNode,
@@ -23,17 +24,22 @@ import {
   layoutMindMap,
   resolveMindMapVisibility,
   selectedMindMapNode,
-  toggleMindMapBranch,
+  summarizeMindMapBranch,
+  summarizeMindMapDecisions,
   type MindMapEdgeKind,
   type MindMapNode,
   type MindMapNodeTone,
   type MindMapSnapshot,
   type MindMapVisibility,
 } from "@/entities/mind-map";
+import {
+  formatUtteranceClock,
+  getSpeakerLabel,
+  type Utterance,
+} from "@/entities/utterance";
 import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
-  didMindMapPaneHeightRefit,
   didMindMapPaneWidthChange,
   mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
@@ -46,7 +52,17 @@ import { viewportFromMindMapLayout } from "../model/viewport-from-layout";
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
   compact?: boolean;
+  /** Finalized speech, so a claim can show who said what and when. */
+  utterances?: readonly Utterance[];
 }
+
+const HANDLE_IN_LEFT = "in-left";
+const HANDLE_IN_RIGHT = "in-right";
+const HANDLE_OUT_RIGHT = "out-right";
+const HANDLE_OUT_LEFT = "out-left";
+const EVIDENCE_LIMIT = 3;
+const EVIDENCE_TEXT_MAX = 72;
+const SUMMARY_LIMIT = 3;
 
 interface TopicNodeData extends Record<string, unknown> {
   label: string;
@@ -90,8 +106,15 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
   return (
     <div className="motion-safe:animate-cute-label-enter relative h-full w-full">
       <Handle
+        id={HANDLE_IN_LEFT}
         type="target"
         position={data.stacked ? Position.Top : Position.Left}
+        className="!size-2 !border-0 !bg-transparent"
+      />
+      <Handle
+        id={HANDLE_OUT_LEFT}
+        type="source"
+        position={Position.Left}
         className="!size-2 !border-0 !bg-transparent"
       />
       <button
@@ -104,7 +127,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
             : data.label
         }
         className={cn(
-          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ours",
+          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-ours",
           toneClass,
           data.selected &&
             "ring-2 ring-ring ring-offset-2 ring-offset-background"
@@ -131,8 +154,15 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
         ) : null}
       </button>
       <Handle
+        id={HANDLE_OUT_RIGHT}
         type="source"
         position={data.stacked ? Position.Bottom : Position.Right}
+        className="!size-2 !border-0 !bg-transparent"
+      />
+      <Handle
+        id={HANDLE_IN_RIGHT}
+        type="target"
+        position={Position.Right}
         className="!size-2 !border-0 !bg-transparent"
       />
     </div>
@@ -277,34 +307,45 @@ function MindMapFlow({
       stacked,
     ]
   );
-  const edges: Edge[] = useMemo(
-    () =>
-      layout.edges.map((edge) => {
-        const style = EDGE_STYLE[edge.kind];
-        const isRelation = edge.kind !== "tree";
-        return {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          type: isRelation ? "simplebezier" : "smoothstep",
-          label:
-            edge.kind === "supports" || edge.kind === "opposes"
-              ? MIND_MAP_RELATION_LABELS[edge.kind]
-              : undefined,
-          labelStyle: { fontSize: 10, fill: style.stroke },
-          labelBgStyle: { fill: "var(--background)" },
-          labelBgPadding: [4, 2] as [number, number],
-          labelBgBorderRadius: 8,
-          style: {
-            stroke: style.stroke,
-            strokeWidth: 1.5,
-            strokeDasharray: style.dash,
-            opacity: isRelation ? 0.85 : 1,
-          },
-        };
-      }),
-    [layout.edges]
-  );
+  const edges: Edge[] = useMemo(() => {
+    const placedById = new Map(layout.nodes.map((node) => [node.id, node]));
+    return layout.edges.map((edge) => {
+      const style = EDGE_STYLE[edge.kind];
+      const isRelation = edge.kind !== "tree";
+      const from = placedById.get(edge.source);
+      const to = placedById.get(edge.target);
+      const targetIsLeft =
+        !stacked &&
+        isRelation &&
+        from !== undefined &&
+        to !== undefined &&
+        to.x + to.width <= from.x;
+      // In the phone column, relation lines hook around the left side.
+      const hooksLeft = targetIsLeft || (stacked && isRelation);
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        sourceHandle: hooksLeft ? HANDLE_OUT_LEFT : HANDLE_OUT_RIGHT,
+        targetHandle: hooksLeft ? HANDLE_IN_RIGHT : HANDLE_IN_LEFT,
+        type: isRelation ? "simplebezier" : "smoothstep",
+        label:
+          edge.kind === "supports" || edge.kind === "opposes"
+            ? MIND_MAP_RELATION_LABELS[edge.kind]
+            : undefined,
+        labelStyle: { fontSize: 10, fill: style.stroke },
+        labelBgStyle: { fill: "var(--background)" },
+        labelBgPadding: [4, 2] as [number, number],
+        labelBgBorderRadius: 8,
+        style: {
+          stroke: style.stroke,
+          strokeWidth: 1.5,
+          strokeDasharray: style.dash,
+          opacity: isRelation ? 0.85 : 1,
+        },
+      };
+    });
+  }, [layout.edges, layout.nodes, stacked]);
   const hasNodes = layout.nodes.length > 0;
   const nodeSignature = mindMapGrowthSignature(
     snapshot.revision,
@@ -373,10 +414,6 @@ function MindMapFlow({
       previous.width,
       visible.width
     );
-    const heightRefit = didMindMapPaneHeightRefit(
-      previous.height,
-      visible.height
-    );
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
@@ -387,7 +424,7 @@ function MindMapFlow({
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged: widthChanged || heightRefit,
+      sizeChanged: widthChanged,
       nodesChanged,
       userTookCamera,
     });
@@ -405,7 +442,7 @@ function MindMapFlow({
       return;
     }
     const deferResize = shouldDeferMindMapResizeFit({
-      sizeChanged: widthChanged || heightRefit,
+      sizeChanged: widthChanged,
       isFirstLayout,
       nodesChanged,
     });
@@ -536,50 +573,111 @@ function MindMapFlow({
   );
 }
 
+function clipEvidence(text: string): string {
+  const chars = Array.from(text);
+  if (chars.length <= EVIDENCE_TEXT_MAX) {
+    return text;
+  }
+  return `${chars.slice(0, EVIDENCE_TEXT_MAX - 1).join("")}…`;
+}
+
+function joinLabels(nodes: readonly MindMapNode[]): string {
+  const shown = nodes.slice(0, SUMMARY_LIMIT).map((node) => node.label);
+  const rest = nodes.length - shown.length;
+  return rest > 0
+    ? `${shown.join(" ／ ")} ほか${String(rest)}件`
+    : shown.join(" ／ ");
+}
+
+function BranchStatusLine({
+  node,
+  nodes,
+}: {
+  node: MindMapNode;
+  nodes: readonly MindMapNode[];
+}) {
+  if (node.kind !== "topic" && node.kind !== "report") {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {describeMindMapNode(node)}
+      </p>
+    );
+  }
+  const summary = summarizeMindMapBranch(node, nodes);
+  const decided = [...summary.decisions, ...summary.adopted];
+  if (decided.length === 0 && summary.actions.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {MIND_MAP_KIND_LABELS[node.kind]}
+        ・この枝で決まったことは、まだありません
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+      {decided.length > 0 ? (
+        <p>この枝で決まったこと: {joinLabels(decided)}</p>
+      ) : null}
+      {summary.actions.length > 0 ? (
+        <p>つぎにやること: {joinLabels(summary.actions)}</p>
+      ) : null}
+      {summary.openCount > 0 ? (
+        <p>まだ決まっていないこと: {String(summary.openCount)}件</p>
+      ) : null}
+    </div>
+  );
+}
+
 function BranchDetail({
   node,
   nodes,
+  utterances,
   expanded,
   hiddenChildren,
+  onCollapse,
   onClose,
 }: {
   node: MindMapNode;
   nodes: readonly MindMapNode[];
+  utterances: readonly Utterance[];
   expanded: boolean;
   hiddenChildren: number;
+  onCollapse: () => void;
   onClose: () => void;
 }) {
-  const labelById = new Map(nodes.map((item) => [item.id, item.label]));
+  const nodeById = new Map(nodes.map((item) => [item.id, item]));
   const detailLines = node.detail
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
   const relations = node.relations.filter((relation) =>
-    labelById.has(relation.targetId)
+    nodeById.has(relation.targetId)
   );
+  const utteranceById = new Map(utterances.map((item) => [item.id, item]));
+  const evidence = node.sourceUtteranceIds
+    .flatMap((id) => {
+      const found = utteranceById.get(id);
+      return found === undefined ? [] : [found];
+    })
+    .slice(-EVIDENCE_LIMIT);
   const childCount = nodes.filter((item) => item.parentId === node.id).length;
-  let branchNote: string | null = null;
-  if (childCount > 0) {
-    branchNote = expanded
-      ? "この枝はひらいています。もう一度おすと、たたみます。"
-      : hiddenChildren > 0
-        ? `中に ${String(hiddenChildren)} 件。もう一度おすと、ひらきます。`
-        : null;
-  }
 
   return (
     <div
       aria-label={`${node.label} のくわしい話`}
       role="region"
-      className="motion-safe:animate-cute-enter mt-2 max-h-[12rem] shrink-0 overflow-y-auto border-t border-border pt-3 pb-1"
+      className="motion-safe:animate-cute-enter mt-2 max-h-[14rem] shrink-0 overflow-y-auto border-t border-border pt-3 pb-1"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <p className="font-medium leading-6 text-foreground">{node.label}</p>
-          <p className="text-xs text-muted-foreground">
-            {describeMindMapNode(node)}
-          </p>
+          <BranchStatusLine node={node} nodes={nodes} />
         </div>
+        {childCount > 0 && expanded ? (
+          <Button type="button" variant="link" size="sm" onClick={onCollapse}>
+            枝をたたむ
+          </Button>
+        ) : null}
         <Button type="button" variant="link" size="sm" onClick={onClose}>
           とじる
         </Button>
@@ -607,24 +705,76 @@ function BranchDetail({
       ) : null}
       {relations.length > 0 ? (
         <ul className="mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground">
-          {relations.map((relation) => (
-            <li key={`${relation.kind}-${relation.targetId}`}>
-              {MIND_MAP_RELATION_LABELS[relation.kind]}:{" "}
-              {labelById.get(relation.targetId)}
+          {relations.map((relation) => {
+            const target = nodeById.get(relation.targetId);
+            if (target === undefined) {
+              return null;
+            }
+            const stale =
+              target.status === "superseded" || node.status === "superseded";
+            const earlier =
+              target.history.length > 0
+                ? `（言いなおし前は「${target.history[target.history.length - 1] ?? ""}」）`
+                : "";
+            return (
+              <li key={`${relation.kind}-${relation.targetId}`}>
+                {MIND_MAP_RELATION_LABELS[relation.kind]}: {target.label}
+                {earlier}
+                {stale ? "（いまは対象外）" : ""}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {evidence.length > 0 ? (
+        <ul
+          aria-label="もとの発話"
+          className="mt-2 flex flex-col gap-0.5 text-xs text-muted-foreground"
+        >
+          {evidence.map((item) => (
+            <li key={item.id}>
+              {formatUtteranceClock(item.startMs)}{" "}
+              {getSpeakerLabel(item.speaker)}「{clipEvidence(item.text)}」
             </li>
           ))}
         </ul>
       ) : null}
-      {branchNote !== null ? (
-        <p className="mt-2 text-xs text-muted-foreground">{branchNote}</p>
+      {childCount > 0 && !expanded && hiddenChildren > 0 ? (
+        <p className="mt-2 text-xs text-muted-foreground">
+          中に {String(hiddenChildren)} 件。もう一度おすと、ひらきます。
+        </p>
       ) : null}
     </div>
+  );
+}
+
+function MapSummaryLine({ nodes }: { nodes: readonly MindMapNode[] }) {
+  const summary = summarizeMindMapDecisions(nodes);
+  if (summary.decided.length === 0 && summary.actions.length === 0) {
+    return null;
+  }
+  return (
+    <p
+      aria-label="決まったことと、つぎにやること"
+      className="shrink-0 pb-2 text-xs text-muted-foreground"
+    >
+      {summary.decided.length > 0 ? (
+        <span>決まったこと: {joinLabels(summary.decided)}</span>
+      ) : null}
+      {summary.decided.length > 0 && summary.actions.length > 0 ? (
+        <span>　</span>
+      ) : null}
+      {summary.actions.length > 0 ? (
+        <span>つぎにやること: {joinLabels(summary.actions)}</span>
+      ) : null}
+    </p>
   );
 }
 
 export function MindMapCanvas({
   snapshot,
   compact = false,
+  utterances = [],
 }: MindMapCanvasProps) {
   const isEmpty = snapshot.nodes.length === 0;
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(
@@ -637,9 +787,13 @@ export function MindMapCanvas({
     [snapshot.nodes, expandedIds]
   );
 
+  // A click always opens: pick the claim and unfold its branch. Folding is
+  // an explicit action in the detail, so re-reading a node never hides children.
   const handlePick = useCallback((nodeId: string): void => {
     setSelectedId(nodeId);
-    setExpandedIds((current) => toggleMindMapBranch(current, nodeId));
+    setExpandedIds((current) =>
+      current.has(nodeId) ? current : new Set([...current, nodeId])
+    );
   }, []);
 
   return (
@@ -647,6 +801,7 @@ export function MindMapCanvas({
       aria-label="マインドマップ"
       className="flex h-full min-h-0 flex-col overflow-hidden px-6"
     >
+      {isEmpty ? null : <MapSummaryLine nodes={snapshot.nodes} />}
       <div className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
           <p className="py-8 text-sm text-muted-foreground">
@@ -669,8 +824,16 @@ export function MindMapCanvas({
         <BranchDetail
           node={selected}
           nodes={snapshot.nodes}
+          utterances={utterances}
           expanded={expandedIds.has(selected.id)}
           hiddenChildren={visibility.hiddenChildCount.get(selected.id) ?? 0}
+          onCollapse={() => {
+            setExpandedIds((current) => {
+              const next = new Set(current);
+              next.delete(selected.id);
+              return next;
+            });
+          }}
           onClose={() => {
             setSelectedId(null);
           }}

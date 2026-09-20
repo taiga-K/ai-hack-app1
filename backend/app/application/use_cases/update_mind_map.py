@@ -187,6 +187,8 @@ SYSTEM_PROMPT = f"""【未信頼データ規則】
 - 階層は包含と分解だけ。ルートは会議全体を表す一つだけ（depth 1）。深さは最大 {MIND_MAP_MAX_DEPTH}。depth {MIND_MAP_MAX_DEPTH + 1} になる内容は親の detail に書く。
 - 情報が増えても階層は深くしない。補足は同じノードの detail。別案は同じ親の並列。理由・懸念は関係する提案の子に置き、relate で supports / opposes を付ける。
 - 訂正は correct。以前のラベルは履歴に残るので、消さずに直す。前の決定を置き換えるときは新しいノードから supersedes を付ける。
+- 訂正や新しい決定で、以前の懸念・理由・案が当たらなくなったら、そのノードを set_status で superseded にする（消さない。いまは対象外として残る）。
+- detail に話者を書くときは「こちら」（自社）「むこう」（相手）と書く。
 
 ## 更新の種類（operations）
 - add: 新しいノード。id は英小文字とハイフンの短い slug。parent_id は既存 id か、この操作列で先に add した id。ルートがまだ無いときだけ parent_id を null にする。

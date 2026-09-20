@@ -440,6 +440,8 @@ def test_mind_map_prompt_is_an_editor_of_the_existing_map() -> None:
     assert "以前の話題への復帰なら、その既存の枝を使う" in SYSTEM_PROMPT
     assert "相づちや雑談だけなら operations は空配列" in SYSTEM_PROMPT
     assert "pinned=true のノードは変更しない" in SYSTEM_PROMPT
+    assert "当たらなくなったら、そのノードを set_status で superseded" in SYSTEM_PROMPT
+    assert "「こちら」（自社）「むこう」（相手）" in SYSTEM_PROMPT
     assert "source_utterance_ids" in SYSTEM_PROMPT
     assert "今回のウィンドウの発話だけ" in WINDOW_USER_INSTRUCTION
     schema = MIND_MAP_JSON_SCHEMA["schema"]

@@ -195,4 +195,32 @@ describe("layoutMindMap", () => {
     assert.equal(cross.kind, "supports");
     assert.equal(layout.edges.length, 4);
   });
+
+  it("stops drawing relation lines for claims that no longer stand", () => {
+    const layout = layoutMindMap([
+      createMindMapNode({ id: "root", label: "今日の会議", parentId: null }),
+      createMindMapNode({
+        id: "plan",
+        label: "まず参照だけ反映",
+        parentId: "root",
+        history: ["すぐ反映したい"],
+      }),
+      createMindMapNode({
+        id: "risk",
+        label: "来月末に間に合うか",
+        parentId: "root",
+        kind: "concern",
+        status: "superseded",
+        relations: [{ kind: "opposes", targetId: "plan" }],
+      }),
+    ]);
+
+    assert.deepEqual(
+      layout.edges.map((edge) => [edge.id, edge.kind]),
+      [
+        ["root-plan", "tree"],
+        ["root-risk", "tree"],
+      ]
+    );
+  });
 });
