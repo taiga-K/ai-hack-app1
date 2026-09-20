@@ -88,10 +88,14 @@ function MindMapFlow({
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
   const [userTookCamera, setUserTookCamera] = useState(false);
+  const [measuredPane, setMeasuredPane] = useState({ width: 0, height: 0 });
+  const paneRef = useRef<HTMLDivElement>(null);
   const { setViewport } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
-  const width = useStore((state) => state.width);
-  const height = useStore((state) => state.height);
+  const storeWidth = useStore((state) => state.width);
+  const storeHeight = useStore((state) => state.height);
+  const width = measuredPane.width > 8 ? measuredPane.width : storeWidth;
+  const height = measuredPane.height > 8 ? measuredPane.height : storeHeight;
   const stacked = usesStackedMindMapLayout(width, compact);
   const layout = useMemo(
     () => layoutMindMap(snapshot.nodes, { compact: stacked }),
@@ -127,6 +131,36 @@ function MindMapFlow({
   const nodeSignature = `${String(snapshot.revision)}:${snapshot.nodes
     .map((node) => node.id)
     .join(",")}`;
+
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (pane === null) {
+      return;
+    }
+    const syncPane = (nextWidth: number, nextHeight: number): void => {
+      setMeasuredPane((current) => {
+        if (
+          Math.abs(current.width - nextWidth) <= 1 &&
+          Math.abs(current.height - nextHeight) <= 1
+        ) {
+          return current;
+        }
+        return { width: nextWidth, height: nextHeight };
+      });
+    };
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry === undefined) {
+        return;
+      }
+      syncPane(entry.contentRect.width, entry.contentRect.height);
+    });
+    observer.observe(pane);
+    syncPane(pane.clientWidth, pane.clientHeight);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -222,7 +256,7 @@ function MindMapFlow({
   ]);
 
   return (
-    <div className="relative h-full min-h-0">
+    <div ref={paneRef} className="relative h-full min-h-0">
       {userTookCamera ? (
         <button
           type="button"
