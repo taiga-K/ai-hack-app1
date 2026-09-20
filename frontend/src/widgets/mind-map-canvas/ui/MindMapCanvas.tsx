@@ -8,6 +8,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Edge,
   type Node,
   type NodeProps,
@@ -69,10 +70,12 @@ function MindMapFlow({
   snapshot: MindMapSnapshot;
   compact: boolean;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
   const didInitialFit = useRef(false);
   const compactRef = useRef(compact);
+  const lastSizeRef = useRef({ width: 0, height: 0 });
   const { fitView } = useReactFlow();
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
   const layout = useMemo(
     () => layoutMindMap(snapshot.nodes, { compact }),
     [compact, snapshot.nodes]
@@ -110,35 +113,37 @@ function MindMapFlow({
     if (compactRef.current !== compact) {
       compactRef.current = compact;
       didInitialFit.current = false;
+      lastSizeRef.current = { width: 0, height: 0 };
     }
-    if (didInitialFit.current || snapshot.nodes.length === 0) {
+    if (!hasNodes || width < 8 || height < 8) {
+      return;
+    }
+    const previous = lastSizeRef.current;
+    const sizeChanged =
+      previous.width > 0 &&
+      (Math.abs(previous.width - width) > 2 ||
+        Math.abs(previous.height - height) > 2);
+    const isFirstLayout = !didInitialFit.current;
+    lastSizeRef.current = { width, height };
+    if (!isFirstLayout && !sizeChanged) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
       didInitialFit.current = true;
-      void fitView({ padding, duration: 380, minZoom, maxZoom });
+      void fitView({
+        padding,
+        duration: isFirstLayout ? 380 : 180,
+        minZoom,
+        maxZoom,
+      });
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [compact, fitView, maxZoom, minZoom, padding, snapshot.nodes.length]);
-
-  useEffect(() => {
-    const element = containerRef.current;
-    if (element === null || !hasNodes) {
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      void fitView({ padding, duration: 180, minZoom, maxZoom });
-    });
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [compact, fitView, hasNodes, maxZoom, minZoom, padding]);
+  }, [compact, fitView, hasNodes, height, maxZoom, minZoom, padding, width]);
 
   return (
-    <div ref={containerRef} className="h-full min-h-0">
+    <div className="h-full min-h-0">
       <ReactFlow
         nodes={nodes}
         edges={edges}
