@@ -25,6 +25,8 @@ from app.infrastructure.stt.pcm import (
 
 OpenAIRealtimeReceiver = Callable[[], Awaitable[str]]
 OPENAI_STT_DELAYS = frozenset({"minimal", "low", "medium", "high", "xhigh"})
+OPENAI_MIN_COMMIT_MS = 100
+OPENAI_COMMIT_FLOOR_MS = 200
 
 
 def realtime_ssl_context() -> ssl.SSLContext:
@@ -213,6 +215,7 @@ class PersistentOpenAIRealtimeSession:
         self._pending: list[Utterance] = []
         self._partials: dict[str, str] = {}
         self._has_uncommitted_audio = False
+        self._uncommitted_ms = 0.0
         self._commits_in_flight = 0
         self._pending_windows: list[tuple[int, int]] = []
         self._windows_by_item: dict[str, tuple[int, int]] = {}
@@ -244,6 +247,7 @@ class PersistentOpenAIRealtimeSession:
         if not self._has_uncommitted_audio:
             self._item_start_ms = self._elapsed_ms
         self._elapsed_ms += _pcm16_duration_ms(audio_data, sample_rate)
+        self._uncommitted_ms += (len(pcm_24k) // 2) * 1000.0 / OPENAI_REALTIME_PCM_RATE
         if pcm16_has_speech(audio_data):
             self._has_uncommitted_audio = True
         if self._turn_tracker.observe(audio_data, sample_rate):
@@ -273,7 +277,8 @@ class PersistentOpenAIRealtimeSession:
         websocket = self._websocket
         if websocket is None:
             return
-        if self._has_uncommitted_audio:
+        minimum_ms = OPENAI_MIN_COMMIT_MS if wait else OPENAI_COMMIT_FLOOR_MS
+        if self._has_uncommitted_audio and self._uncommitted_ms >= minimum_ms:
             window = (self._item_start_ms, self._elapsed_ms)
             self._turn_tracker.reset()
             self._turn_committed.clear()
@@ -291,6 +296,7 @@ class PersistentOpenAIRealtimeSession:
                 self._commits_in_flight = max(0, self._commits_in_flight - 1)
                 self._has_uncommitted_audio = True
                 raise
+            self._uncommitted_ms = 0.0
         if not wait:
             return
         while self._commits_in_flight > 0:
