@@ -12,6 +12,7 @@ from app.infrastructure.config import Settings
 from app.infrastructure.stt.factory import build_stt_service
 from app.infrastructure.stt.openai_realtime import (
     OpenAIRealtimeWhisperSTTService,
+    PersistentOpenAIRealtimeSession,
     _wait_for_completed_transcript,
     parse_realtime_event,
     realtime_ssl_context,
@@ -284,6 +285,38 @@ def test_dominant_channel_detects_turn_taking() -> None:
     assert pcm16_is_dominant(loud, quiet)
     assert not pcm16_is_dominant(quiet, loud)
     assert not pcm16_is_dominant(loud, loud)
+
+
+def test_completed_event_keeps_next_turn_audio() -> None:
+    session = PersistentOpenAIRealtimeSession(
+        api_key="sk-test",
+        url="wss://api.openai.com/v1/realtime",
+        timeout_seconds=1.0,
+        language="ja",
+        model="gpt-realtime-whisper",
+        delay="high",
+        speaker=Speaker.LOCAL_PM,
+        meeting_id="meeting-turns",
+        start_offset_ms=0,
+    )
+    session._has_uncommitted_audio = True
+    session._item_start_ms = 900
+    session._elapsed_ms = 1600
+    session._committed_windows.append((0, 800))
+    session._commits_in_flight = 1
+    session._handle_event(
+        {
+            "type": "conversation.item.input_audio_transcription.completed",
+            "item_id": "item-1",
+            "transcript": "こんにちは",
+        }
+    )
+    assert session._has_uncommitted_audio is True
+    assert session._commits_in_flight == 0
+    assert session._pending[0].id == "item-1"
+    assert session._pending[0].start_ms == 0
+    assert session._pending[0].end_ms == 800
+    assert session._pending[0].is_final is True
 
 
 @pytest.mark.asyncio

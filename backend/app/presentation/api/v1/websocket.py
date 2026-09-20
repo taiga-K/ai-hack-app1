@@ -187,7 +187,7 @@ class AudioStreamSession:
             buffer_to_process = buffer_to_process[:-remainder]
         if buffer_to_process:
             await self._process_stereo_buffer(buffer_to_process)
-        await self._close_transcript_streams()
+        await self._finalize_transcript_streams(close_streams=False)
 
     def _stream_for(self, speaker: Speaker) -> TranscriptStream:
         if speaker == Speaker.LOCAL_PM:
@@ -206,31 +206,62 @@ class AudioStreamSession:
             )
         return self._remote_stream
 
-    async def _close_transcript_streams(self) -> None:
+    async def _finalize_transcript_streams(self, *, close_streams: bool) -> None:
         streams = [self._local_stream, self._remote_stream]
-        self._local_stream = None
-        self._remote_stream = None
+        if close_streams:
+            self._local_stream = None
+            self._remote_stream = None
         open_streams = [stream for stream in streams if stream is not None]
         if not open_streams:
             return
-        try:
-            results = await asyncio.gather(
-                *(stream.close() for stream in open_streams),
-                return_exceptions=False,
-            )
-        except (STTServiceError, AudioProcessingError) as exc:
-            logger.warning(
-                "Skipping transcript close for meeting %s due to processing error: %s",
-                self.meeting_id,
-                exc,
-            )
-            return
-        all_utterances = sorted(
-            [item for group in results for item in group],
-            key=lambda u: u.start_ms,
-        )
+        operations = [
+            stream.close() if close_streams else stream.commit()
+            for stream in open_streams
+        ]
+        results = await asyncio.gather(*operations, return_exceptions=True)
+        all_utterances: list[UtteranceDTO] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.warning(
+                    "Skipping one transcript stream for meeting %s: %s",
+                    self.meeting_id,
+                    result,
+                )
+                continue
+            all_utterances.extend(result)
+        all_utterances.sort(key=lambda u: u.start_ms)
         if all_utterances:
             await self._publish_closed_utterances(all_utterances)
+
+    def _drop_stream(self, speaker: Speaker) -> None:
+        if speaker == Speaker.LOCAL_PM:
+            self._local_stream = None
+            return
+        self._remote_stream = None
+
+    def _utterances_or_drop(
+        self,
+        result: list[UtteranceDTO] | BaseException,
+        speaker: Speaker,
+    ) -> list[UtteranceDTO]:
+        if isinstance(result, BaseException):
+            logger.warning(
+                "Dropping %s transcript stream for meeting %s: %s",
+                speaker.value,
+                self.meeting_id,
+                result,
+            )
+            self._drop_stream(speaker)
+            return []
+        return result
+
+    async def _commit_or_error(
+        self, stream: TranscriptStream
+    ) -> list[UtteranceDTO] | BaseException:
+        try:
+            return await stream.commit()
+        except (STTServiceError, AudioProcessingError) as exc:
+            return exc
 
     async def _publish_closed_utterances(
         self, all_utterances: list[UtteranceDTO]
@@ -309,25 +340,37 @@ class AudioStreamSession:
             )
             local_stream = self._stream_for(Speaker.LOCAL_PM)
             remote_stream = self._stream_for(Speaker.REMOTE_CLIENT)
-            results: tuple[
-                list[UtteranceDTO], list[UtteranceDTO]
-            ] = await asyncio.gather(
+            left_result, right_result = await asyncio.gather(
                 local_stream.append(left_chunk),
                 remote_stream.append(right_chunk),
-                return_exceptions=False,
+                return_exceptions=True,
             )
-            left_utterances, right_utterances = results
-            if pcm16_is_dominant(left_chunk.data, right_chunk.data):
+            left_utterances = self._utterances_or_drop(left_result, Speaker.LOCAL_PM)
+            right_utterances = self._utterances_or_drop(
+                right_result, Speaker.REMOTE_CLIENT
+            )
+            if (
+                pcm16_is_dominant(left_chunk.data, right_chunk.data)
+                and self._remote_stream is not None
+            ):
                 right_utterances = [
                     *right_utterances,
-                    *(await remote_stream.commit()),
+                    *self._utterances_or_drop(
+                        await self._commit_or_error(self._remote_stream),
+                        Speaker.REMOTE_CLIENT,
+                    ),
                 ]
-            if pcm16_is_dominant(right_chunk.data, left_chunk.data):
+            if (
+                pcm16_is_dominant(right_chunk.data, left_chunk.data)
+                and self._local_stream is not None
+            ):
                 left_utterances = [
                     *left_utterances,
-                    *(await local_stream.commit()),
+                    *self._utterances_or_drop(
+                        await self._commit_or_error(self._local_stream),
+                        Speaker.LOCAL_PM,
+                    ),
                 ]
-            results = (left_utterances, right_utterances)
         except (STTServiceError, AudioProcessingError) as e:
             logger.warning(
                 "Skipping audio chunk for meeting %s due to processing error: %s",
@@ -342,8 +385,6 @@ class AudioStreamSession:
                 e,
             )
             return
-
-        left_utterances, right_utterances = results
         all_utterances = sorted(
             left_utterances + right_utterances,
             key=lambda u: u.start_ms,
@@ -495,6 +536,7 @@ class AudioStreamSession:
             self.meeting_session_repository.begin_close(self.meeting_id)
         try:
             await self.flush()
+            await self._finalize_transcript_streams(close_streams=True)
             pending = list(self._background_tasks)
             if pending:
                 await asyncio.gather(*pending, return_exceptions=True)

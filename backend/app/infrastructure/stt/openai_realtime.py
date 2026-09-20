@@ -213,7 +213,8 @@ class PersistentOpenAIRealtimeSession:
         self._pending: list[Utterance] = []
         self._partials: dict[str, str] = {}
         self._has_uncommitted_audio = False
-        self._commit_in_flight = False
+        self._commits_in_flight = 0
+        self._committed_windows: list[tuple[int, int]] = []
         self._turn_committed = asyncio.Event()
         self._closed = False
         self._send_lock = asyncio.Lock()
@@ -276,17 +277,21 @@ class PersistentOpenAIRealtimeSession:
             self._turn_committed.clear()
             async with self._send_lock:
                 await websocket.send(json.dumps({"type": "input_audio_buffer.commit"}))
+            self._committed_windows.append((self._item_start_ms, self._elapsed_ms))
             self._has_uncommitted_audio = False
-            self._commit_in_flight = True
-        if not wait or not self._commit_in_flight:
+            self._commits_in_flight += 1
+        if not wait:
             return
-        try:
-            await asyncio.wait_for(
-                self._turn_committed.wait(),
-                timeout=self._timeout_seconds,
-            )
-        except TimeoutError:
-            self._commit_in_flight = False
+        while self._commits_in_flight > 0:
+            self._turn_committed.clear()
+            try:
+                await asyncio.wait_for(
+                    self._turn_committed.wait(),
+                    timeout=self._timeout_seconds,
+                )
+            except TimeoutError:
+                self._commits_in_flight = 0
+                return
 
     async def _ensure_started(self) -> None:
         if self._runner is None:
@@ -362,21 +367,38 @@ class PersistentOpenAIRealtimeSession:
         if completed is None:
             return
         self._partials.pop(item_id, None)
-        self._has_uncommitted_audio = False
-        self._commit_in_flight = False
+        window = self._committed_windows.pop(0) if self._committed_windows else None
+        self._commits_in_flight = max(0, self._commits_in_flight - 1)
         self._turn_committed.set()
         if not completed:
             return
-        self._pending.append(self._utterance(item_id, completed, is_final=True))
+        start_ms, end_ms = window or (self._item_start_ms, self._elapsed_ms)
+        self._pending.append(
+            self._utterance(
+                item_id,
+                completed,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                is_final=True,
+            )
+        )
 
-    def _utterance(self, item_id: str, text: str, *, is_final: bool) -> Utterance:
+    def _utterance(
+        self,
+        item_id: str,
+        text: str,
+        *,
+        is_final: bool,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+    ) -> Utterance:
         return Utterance(
             id=item_id,
             meeting_id=self._meeting_id,
             speaker=self._speaker,
             text=text,
-            start_ms=self._item_start_ms,
-            end_ms=self._elapsed_ms,
+            start_ms=self._item_start_ms if start_ms is None else start_ms,
+            end_ms=self._elapsed_ms if end_ms is None else end_ms,
             is_final=is_final,
             created_at=datetime.now(UTC),
         )
