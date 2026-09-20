@@ -308,9 +308,12 @@ function MindMapFlow({
   );
   const edges: Edge[] = useMemo(() => {
     const placedById = new Map(layout.nodes.map((node) => [node.id, node]));
-    // The phone column lists relations in the detail instead of drawing them.
+    // The phone column lists relations in the detail instead of drawing them,
+    // but every parent-child line stays, even one a relation would colour.
     const drawn = stacked
-      ? layout.edges.filter((edge) => edge.kind === "tree")
+      ? layout.edges.flatMap((edge) =>
+          edge.structural ? [{ ...edge, kind: "tree" as const }] : []
+        )
       : layout.edges;
     return drawn.map((edge) => {
       const style = EDGE_STYLE[edge.kind];
@@ -618,7 +621,11 @@ function BranchStatusLine({
   }
   const summary = summarizeMindMapBranch(node, nodes);
   const decided = [...summary.decisions, ...summary.adopted];
-  if (decided.length === 0 && summary.actions.length === 0) {
+  if (
+    decided.length === 0 &&
+    summary.actions.length === 0 &&
+    summary.openCount === 0
+  ) {
     return (
       <p className="text-xs text-muted-foreground">
         {MIND_MAP_KIND_LABELS[node.kind]}

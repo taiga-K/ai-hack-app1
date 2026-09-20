@@ -187,13 +187,40 @@ describe("layoutMindMap", () => {
 
     const byId = new Map(layout.edges.map((edge) => [edge.id, edge]));
     assert.equal(byId.get("outsource-risk")?.kind, "opposes");
+    assert.equal(byId.get("outsource-risk")?.structural, true);
     assert.equal(byId.get("root-inhouse")?.kind, "tree");
     const cross = byId.get("supports-risk-inhouse");
     assert.ok(cross);
     assert.equal(cross.source, "risk");
     assert.equal(cross.target, "inhouse");
     assert.equal(cross.kind, "supports");
+    assert.equal(cross.structural, false);
     assert.equal(layout.edges.length, 4);
+  });
+
+  it("keeps a plain tree line toward a parent that no longer stands", () => {
+    const layout = layoutMindMap([
+      createMindMapNode({ id: "root", label: "今日の会議", parentId: null }),
+      createMindMapNode({
+        id: "old-plan",
+        label: "前の案",
+        parentId: "root",
+        kind: "proposal",
+        status: "superseded",
+      }),
+      createMindMapNode({
+        id: "why",
+        label: "理由",
+        parentId: "old-plan",
+        kind: "reason",
+        relations: [{ kind: "supports", targetId: "old-plan" }],
+      }),
+    ]);
+
+    const edge = layout.edges.find((item) => item.id === "old-plan-why");
+    assert.ok(edge);
+    assert.equal(edge.kind, "tree");
+    assert.equal(edge.structural, true);
   });
 
   it("stops drawing relation lines for claims that no longer stand", () => {
@@ -216,10 +243,10 @@ describe("layoutMindMap", () => {
     ]);
 
     assert.deepEqual(
-      layout.edges.map((edge) => [edge.id, edge.kind]),
+      layout.edges.map((edge) => [edge.id, edge.kind, edge.structural]),
       [
-        ["root-plan", "tree"],
-        ["root-risk", "tree"],
+        ["root-plan", "tree", true],
+        ["root-risk", "tree", true],
       ]
     );
   });

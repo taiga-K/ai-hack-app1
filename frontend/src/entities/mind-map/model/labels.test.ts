@@ -204,6 +204,12 @@ describe("summarizeMindMapBranch", () => {
       kind: "proposal",
     }),
     createMindMapNode({ id: "due", label: "来月末の本番", parentId: "root" }),
+    createMindMapNode({
+      id: "due-risk",
+      label: "間に合うか",
+      parentId: "due",
+      kind: "concern",
+    }),
   ];
 
   it("reads decisions and next actions out of a topic's branch", () => {
@@ -226,9 +232,10 @@ describe("summarizeMindMapBranch", () => {
 
     const due = nodes[7];
     assert.ok(due);
-    const empty = summarizeMindMapBranch(due, nodes);
-    assert.equal(empty.decisions.length, 0);
-    assert.equal(empty.actions.length, 0);
+    const concernOnly = summarizeMindMapBranch(due, nodes);
+    assert.equal(concernOnly.decisions.length, 0);
+    assert.equal(concernOnly.actions.length, 0);
+    assert.equal(concernOnly.openCount, 1);
   });
 
   it("summarizes the whole map without superseded claims", () => {

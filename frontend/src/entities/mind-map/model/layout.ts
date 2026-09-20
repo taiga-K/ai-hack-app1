@@ -20,6 +20,8 @@ export interface MindMapEdge {
   source: string;
   target: string;
   kind: MindMapEdgeKind;
+  /** True for the parent-child line itself, even when a relation colours it. */
+  structural: boolean;
 }
 
 export interface MindMapLayout {
@@ -245,9 +247,10 @@ function edgesFor(
   );
   for (const node of nodes) {
     const stands = !superseded.has(node.id);
-    const toParent = stands
-      ? node.relations.find((relation) => relation.targetId === node.parentId)
-      : undefined;
+    const toParent =
+      stands && node.parentId !== null && !superseded.has(node.parentId)
+        ? node.relations.find((relation) => relation.targetId === node.parentId)
+        : undefined;
     if (node.parentId !== null && knownIds.has(node.parentId)) {
       const id = `${node.parentId}-${node.id}`;
       seen.add(id);
@@ -256,6 +259,7 @@ function edgesFor(
         source: node.parentId,
         target: node.id,
         kind: toParent?.kind ?? "tree",
+        structural: true,
       });
     }
     for (const relation of node.relations) {
@@ -278,6 +282,7 @@ function edgesFor(
         source: node.id,
         target: relation.targetId,
         kind: relation.kind,
+        structural: false,
       });
     }
   }

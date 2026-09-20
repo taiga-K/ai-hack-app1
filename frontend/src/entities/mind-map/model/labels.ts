@@ -193,7 +193,9 @@ export function summarizeMindMapBranch(
     actions: live.filter((item) => item.kind === "action"),
     openCount: live.filter(
       (item) =>
-        (item.kind === "topic" || item.kind === "proposal") &&
+        (item.kind === "topic" ||
+          item.kind === "proposal" ||
+          item.kind === "concern") &&
         item.status === "open"
     ).length,
   };
