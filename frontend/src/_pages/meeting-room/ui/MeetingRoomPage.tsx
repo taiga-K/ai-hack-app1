@@ -8,16 +8,16 @@ import type { MindMapSnapshot } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
 import { MeetingControls } from "@/features/meeting-control";
 import {
-  BackToMeeting,
   buildDocumentHref,
   completedSummaryHref,
-  decideAfterFinalize,
-  decideAfterReadyPause,
+  decideAfterEndNavigation,
   isMeetingAlreadyOver,
   rememberCompletedSummary,
+  SHOW_STOP_WAITING_AFTER_MS,
   useRememberedCompletedSummary,
   replaceEndedMeetingUrl,
   shouldReopenLiveFloor,
+  type AfterEndHandoff,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -57,7 +57,7 @@ export interface MeetingRoomPageProps {
   completedSummaryHint?: boolean;
 }
 
-type Handoff = "none" | "making" | "ready";
+type Handoff = AfterEndHandoff;
 
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -79,7 +79,9 @@ export function MeetingRoomPage({
   const [sessionDocumentHref, setSessionDocumentHref] = useState<string | null>(
     null
   );
-  const stayOnFloorRef = useRef(false);
+  const [showStopWaiting, setShowStopWaiting] = useState(false);
+  const handoffAliveRef = useRef(true);
+  const stopWaitingTimeoutRef = useRef<number | null>(null);
   const layout = useMeetingLayout();
   const backTarget: BackTarget = {
     kind: "meeting",
@@ -106,6 +108,7 @@ export function MeetingRoomPage({
     startCapture,
     stopCapture,
     endMeeting,
+    stopWaitingForSummary,
     toggleChime,
     reopenLiveFloor,
   } = useMeetingRoom({
@@ -115,15 +118,40 @@ export function MeetingRoomPage({
     alreadyEnded: rememberedCompletedSummary !== null,
   });
 
+  useEffect(() => {
+    handoffAliveRef.current = true;
+    return () => {
+      handoffAliveRef.current = false;
+      if (stopWaitingTimeoutRef.current !== null) {
+        window.clearTimeout(stopWaitingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function clearStopWaiting() {
+    if (stopWaitingTimeoutRef.current !== null) {
+      window.clearTimeout(stopWaitingTimeoutRef.current);
+      stopWaitingTimeoutRef.current = null;
+    }
+    setShowStopWaiting(false);
+  }
+
   async function handleEndMeeting() {
-    stayOnFloorRef.current = false;
+    clearStopWaiting();
     setSessionDocumentHref(null);
     setHandoff("making");
+    stopWaitingTimeoutRef.current = window.setTimeout(() => {
+      setShowStopWaiting(true);
+    }, SHOW_STOP_WAITING_AFTER_MS) as unknown as number;
     if (preview) {
       await waitMs(720);
     }
     const result = await endMeeting();
+    if (!handoffAliveRef.current) {
+      return;
+    }
     if (!result.ok) {
+      clearStopWaiting();
       setHandoff("none");
       return;
     }
@@ -142,38 +170,21 @@ export function MeetingRoomPage({
       hasCompletedSummary: true,
     });
 
-    const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
-    switch (afterFinalize) {
-      case "stay-on-floor":
-        return;
-      case "announce-ready":
-        setHandoff("ready");
-        break;
-      default: {
-        const _exhaustiveCheck: never = afterFinalize;
-        throw new Error(`Unhandled finalize decision: ${_exhaustiveCheck}`);
-      }
-    }
-
+    clearStopWaiting();
+    setHandoff("ready");
     await waitMs(780);
-    const afterReady = decideAfterReadyPause(stayOnFloorRef.current);
+    const afterReady = decideAfterEndNavigation(handoffAliveRef.current);
     switch (afterReady) {
-      case "stay-on-floor":
-        setHandoff("none");
+      case "stay-put":
         return;
       case "open-document":
         router.push(nextDocumentHref);
         return;
       default: {
         const _exhaustiveCheck: never = afterReady;
-        throw new Error(`Unhandled ready decision: ${_exhaustiveCheck}`);
+        throw new Error(`Unhandled after-end navigation: ${_exhaustiveCheck}`);
       }
     }
-  }
-
-  function handleBackFromAfterEnd() {
-    stayOnFloorRef.current = true;
-    setHandoff("none");
   }
 
   const meetingAlreadyOver = isMeetingAlreadyOver({
@@ -315,6 +326,18 @@ export function MeetingRoomPage({
             ? "いまから、出来たまとめを開きます。"
             : "すこし、待っててね。"}
         </p>
+        {showStopWaiting ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-3"
+            onClick={() => {
+              stopWaitingForSummary();
+            }}
+          >
+            つくるのをやめる
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -324,11 +347,6 @@ export function MeetingRoomPage({
       <Header
         title={meetingTitle}
         badge={preview ? "おためし" : undefined}
-        leading={
-          showAfterEnd ? (
-            <BackToMeeting onClick={handleBackFromAfterEnd} />
-          ) : undefined
-        }
         actions={
           showOpenDocument && documentHref !== null ? (
             <Link
