@@ -89,16 +89,6 @@ function fitMaxZoom(stacked: boolean): number {
   return stacked ? 1 : MAX_ZOOM;
 }
 
-function isUserCameraMove(event: MouseEvent | TouchEvent): boolean {
-  if ("deltaY" in event) {
-    return true;
-  }
-  if ("touches" in event) {
-    return event.touches.length > 0;
-  }
-  return event.buttons > 0;
-}
-
 function MindMapFlow({
   snapshot,
   compact,
@@ -348,12 +338,7 @@ function MindMapFlow({
           });
         }}
         onMove={(event) => {
-          if (
-            event === null ||
-            isFittingRef.current ||
-            userTookCamera ||
-            !isUserCameraMove(event)
-          ) {
+          if (event === null || isFittingRef.current || userTookCamera) {
             return;
           }
           setUserTookCamera(true);
