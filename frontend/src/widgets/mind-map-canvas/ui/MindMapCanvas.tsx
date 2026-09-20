@@ -85,6 +85,10 @@ function readVisiblePaneSize(
   return { width: fallbackWidth, height: fallbackHeight };
 }
 
+function fitMaxZoom(stacked: boolean): number {
+  return stacked ? 1 : MAX_ZOOM;
+}
+
 function MindMapFlow({
   snapshot,
   compact,
@@ -229,7 +233,7 @@ function MindMapFlow({
         nextVisible.height,
         FIT_PADDING,
         MIN_ZOOM,
-        MAX_ZOOM
+        fitMaxZoom(stacked)
       );
       if (viewport === null) {
         return;
@@ -283,7 +287,7 @@ function MindMapFlow({
               visible.height,
               FIT_PADDING,
               MIN_ZOOM,
-              MAX_ZOOM
+              fitMaxZoom(stacked)
             );
             if (viewport === null) {
               setUserTookCamera(false);
@@ -313,20 +317,21 @@ function MindMapFlow({
         className="h-full bg-transparent"
         onInit={() => {
           const visible = readVisiblePaneSize(paneRef.current, width, height);
+          if (visible.width < 80 || visible.height < 80) {
+            return;
+          }
           const viewport = viewportFromMindMapLayout(
             layout.nodes,
             visible.width,
             visible.height,
             FIT_PADDING,
             MIN_ZOOM,
-            MAX_ZOOM
+            fitMaxZoom(stacked)
           );
           if (viewport === null) {
             return;
           }
           lastSizeRef.current = visible;
-          lastNodeSignatureRef.current = nodeSignature;
-          didInitialFit.current = true;
           isFittingRef.current = true;
           void setViewport(viewport, { duration: 0 }).finally(() => {
             isFittingRef.current = false;
