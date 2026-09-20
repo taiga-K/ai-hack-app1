@@ -7,7 +7,7 @@ export function GoHome() {
     <Link
       href="/"
       className={cn(
-        buttonVariants({ variant: "outline", size: "lg" }),
+        buttonVariants({ variant: "default", size: "lg" }),
         "cursor-pointer"
       )}
     >
