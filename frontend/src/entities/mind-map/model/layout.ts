@@ -26,11 +26,36 @@ export interface LayoutMindMapOptions {
 }
 
 const NODE_GAP_X = 28;
-const NODE_GAP_Y = 76;
-const NODE_WIDTH = 160;
-const NODE_HEIGHT = 36;
+const NODE_GAP_Y = 20;
 const COMPACT_INDENT = 28;
-const COMPACT_GAP_Y = 54;
+const COMPACT_GAP_Y = 16;
+const LABEL_CHAR_PX = 14;
+const LABEL_PAD_X = 28;
+const LABEL_PAD_Y = 16;
+const LABEL_LINE_PX = 20;
+const LABEL_MIN_WIDTH = 88;
+const LABEL_MAX_WIDTH = 224;
+const LABEL_MAX_LINES = 3;
+
+export function measureMindMapLabel(label: string): {
+  width: number;
+  height: number;
+} {
+  const chars = Array.from(label).length;
+  const textWidth = chars * LABEL_CHAR_PX;
+  const inner = LABEL_MAX_WIDTH - LABEL_PAD_X;
+  const lines = Math.min(
+    LABEL_MAX_LINES,
+    Math.max(1, Math.ceil(Math.max(textWidth, 1) / inner))
+  );
+  return {
+    width: Math.min(
+      LABEL_MAX_WIDTH,
+      Math.max(LABEL_MIN_WIDTH, textWidth + LABEL_PAD_X)
+    ),
+    height: LABEL_PAD_Y + lines * LABEL_LINE_PX,
+  };
+}
 
 function childrenOf(
   nodes: readonly MindMapNode[],
@@ -39,15 +64,21 @@ function childrenOf(
   return nodes.filter((node) => node.parentId === parentId);
 }
 
+function nodeBox(node: MindMapNode): { width: number; height: number } {
+  return measureMindMapLabel(node.label);
+}
+
 function subtreeWidth(nodes: readonly MindMapNode[], nodeId: string): number {
+  const node = nodes.find((item) => item.id === nodeId);
+  const ownWidth = node ? nodeBox(node).width : LABEL_MIN_WIDTH;
   const children = childrenOf(nodes, nodeId);
   if (children.length === 0) {
-    return NODE_WIDTH;
+    return ownWidth;
   }
   const childWidths = children.map((child) => subtreeWidth(nodes, child.id));
   const gaps = Math.max(0, children.length - 1) * NODE_GAP_X;
   return Math.max(
-    NODE_WIDTH,
+    ownWidth,
     childWidths.reduce((sum, width) => sum + width, 0) + gaps
   );
 }
@@ -57,26 +88,38 @@ function placeSubtree(
   node: MindMapNode,
   left: number,
   depth: number,
+  rowTop: number,
   placed: LaidOutMindMapNode[]
-): void {
+): number {
+  const box = nodeBox(node);
   const width = subtreeWidth(nodes, node.id);
   placed.push({
     id: node.id,
     label: node.label,
-    x: left + width / 2 - NODE_WIDTH / 2,
-    y: depth * NODE_GAP_Y,
+    x: left + width / 2 - box.width / 2,
+    y: rowTop,
     depth,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
+    width: box.width,
+    height: box.height,
   });
 
   const children = childrenOf(nodes, node.id);
   let cursor = left;
+  let nextRow = rowTop + box.height + NODE_GAP_Y;
   for (const child of children) {
     const childWidth = subtreeWidth(nodes, child.id);
-    placeSubtree(nodes, child, cursor, depth + 1, placed);
+    const childBottom = placeSubtree(
+      nodes,
+      child,
+      cursor,
+      depth + 1,
+      rowTop + box.height + NODE_GAP_Y,
+      placed
+    );
+    nextRow = Math.max(nextRow, childBottom);
     cursor += childWidth + NODE_GAP_X;
   }
+  return children.length === 0 ? rowTop + box.height : nextRow;
 }
 
 function layoutCompactMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
@@ -85,19 +128,20 @@ function layoutCompactMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
     (node) => node.parentId === null || !knownIds.has(node.parentId)
   );
   const placed: LaidOutMindMapNode[] = [];
-  let row = 0;
+  let top = 0;
 
   const walk = (node: MindMapNode, depth: number): void => {
+    const box = nodeBox(node);
     placed.push({
       id: node.id,
       label: node.label,
       x: depth * COMPACT_INDENT,
-      y: row * COMPACT_GAP_Y,
+      y: top,
       depth,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
+      width: box.width,
+      height: box.height,
     });
-    row += 1;
+    top += box.height + COMPACT_GAP_Y;
     for (const child of childrenOf(nodes, node.id)) {
       walk(child, depth + 1);
     }
@@ -105,7 +149,7 @@ function layoutCompactMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
 
   for (const root of roots) {
     walk(root, 0);
-    row += 1;
+    top += COMPACT_GAP_Y;
   }
 
   return {
@@ -148,7 +192,7 @@ export function layoutMindMap(
 
   for (const root of roots) {
     const width = subtreeWidth(nodes, root.id);
-    placeSubtree(nodes, root, cursor, 0, placed);
+    placeSubtree(nodes, root, cursor, 0, 0, placed);
     cursor += width + NODE_GAP_X * 2;
   }
 

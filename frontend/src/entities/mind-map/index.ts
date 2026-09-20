@@ -1,5 +1,5 @@
 export { applyMindMapEvent } from "./model/apply";
-export { layoutMindMap } from "./model/layout";
+export { layoutMindMap, measureMindMapLabel } from "./model/layout";
 export type {
   LaidOutMindMapNode,
   LayoutMindMapOptions,

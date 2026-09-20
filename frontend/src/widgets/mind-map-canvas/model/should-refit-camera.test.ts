@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
@@ -136,6 +137,35 @@ describe("shouldDeferMindMapResizeFit", () => {
         nodesChanged: true,
       }),
       false
+    );
+  });
+});
+
+describe("shouldCommitMindMapCameraMemory", () => {
+  it("does not consume growth while nodes are still measuring", () => {
+    assert.equal(
+      shouldCommitMindMapCameraMemory({
+        fitRan: false,
+        nodesInitialized: false,
+        userTookCamera: false,
+      }),
+      false
+    );
+    assert.equal(
+      shouldCommitMindMapCameraMemory({
+        fitRan: true,
+        nodesInitialized: true,
+        userTookCamera: false,
+      }),
+      true
+    );
+    assert.equal(
+      shouldCommitMindMapCameraMemory({
+        fitRan: false,
+        nodesInitialized: true,
+        userTookCamera: true,
+      }),
+      true
     );
   });
 });

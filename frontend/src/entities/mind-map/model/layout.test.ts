@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { layoutMindMap } from "./layout.ts";
+import { layoutMindMap, measureMindMapLabel } from "./layout.ts";
 
 describe("layoutMindMap", () => {
   it("places children below the root and draws parent links", () => {
@@ -78,7 +78,24 @@ describe("layoutMindMap", () => {
     assert.equal(scope.x, due.x);
     assert.ok(scope.x > root.x);
     assert.ok(layout.nodes.every((node) => node.x < 80));
-    assert.ok(layout.nodes.every((node) => node.width === 160));
-    assert.ok(layout.nodes.every((node) => node.height === 36));
+    assert.ok(root.width >= 88);
+    assert.ok(root.height >= 36);
+  });
+
+  it("gives a long Japanese label enough room instead of a fixed pill", () => {
+    const longLabel = "既存顧客向けの更新申請だけと考えてよいですか";
+    const box = measureMindMapLabel(longLabel);
+    assert.ok(box.width > 160);
+    assert.ok(box.height > 36);
+    const layout = layoutMindMap([
+      {
+        id: "root",
+        label: longLabel,
+        parentId: null,
+        sourceUtteranceIds: [],
+      },
+    ]);
+    assert.equal(layout.nodes[0]?.width, box.width);
+    assert.equal(layout.nodes[0]?.height, box.height);
   });
 });

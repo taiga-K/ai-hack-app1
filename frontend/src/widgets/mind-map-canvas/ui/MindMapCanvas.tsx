@@ -18,6 +18,7 @@ import "@xyflow/react/dist/style.css";
 import { layoutMindMap, type MindMapSnapshot } from "@/entities/mind-map";
 import { cn } from "cn";
 import {
+  shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
@@ -45,7 +46,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
   return (
     <div
       className={cn(
-        "motion-safe:animate-cute-label-enter flex h-full w-full items-center justify-center rounded-full px-3 text-center text-sm leading-snug",
+        "motion-safe:animate-cute-label-enter flex w-full items-center justify-center rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal",
         tone
       )}
     >
@@ -146,8 +147,6 @@ function MindMapFlow({
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
       previousSignature.length > 0 && previousSignature !== nodeSignature;
-    const canObserve =
-      hasNodes && nodesInitialized && width >= 8 && height >= 8;
     const shouldFit = shouldRefitMindMapCamera({
       hasNodes,
       nodesInitialized,
@@ -159,14 +158,18 @@ function MindMapFlow({
       userTookCamera,
     });
     if (!shouldFit) {
-      if (canObserve) {
+      if (
+        shouldCommitMindMapCameraMemory({
+          fitRan: false,
+          nodesInitialized,
+          userTookCamera,
+        })
+      ) {
         lastSizeRef.current = { width, height };
         lastNodeSignatureRef.current = nodeSignature;
       }
       return;
     }
-    lastSizeRef.current = { width, height };
-    lastNodeSignatureRef.current = nodeSignature;
     const deferResize = shouldDeferMindMapResizeFit({
       sizeChanged,
       isFirstLayout,
@@ -184,6 +187,8 @@ function MindMapFlow({
       if (viewport === null) {
         return;
       }
+      lastSizeRef.current = { width, height };
+      lastNodeSignatureRef.current = nodeSignature;
       isFittingRef.current = true;
       didInitialFit.current = true;
       void setViewport(viewport, {

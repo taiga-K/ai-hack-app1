@@ -43,3 +43,14 @@ export function usesStackedMindMapLayout(
   }
   return width > 0 && width < 560;
 }
+
+export function shouldCommitMindMapCameraMemory(input: {
+  fitRan: boolean;
+  nodesInitialized: boolean;
+  userTookCamera: boolean;
+}): boolean {
+  if (!input.nodesInitialized) {
+    return false;
+  }
+  return input.fitRan || input.userTookCamera;
+}
