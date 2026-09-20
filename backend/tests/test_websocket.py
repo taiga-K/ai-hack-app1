@@ -9,8 +9,18 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app.application.dto import AdviceItemDTO, AnalysisResultDTO, UtteranceDTO
-from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.application.dto import (
+    AdviceItemDTO,
+    AnalysisResultDTO,
+    MindMapNodeDTO,
+    MindMapUpdateDTO,
+    UtteranceDTO,
+)
+from app.application.use_cases import (
+    AnalyzeDialogueUseCase,
+    TranscribeAudioUseCase,
+    UpdateMindMapUseCase,
+)
 from app.domain.exceptions import STTServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
 from app.domain.models.transcript import Speaker
@@ -23,6 +33,7 @@ from app.presentation.deps import (
     get_channel_diarizer,
     get_meeting_session_repository,
     get_transcribe_audio_use_case,
+    get_update_mind_map_use_case,
 )
 from main import app
 
@@ -79,6 +90,7 @@ async def test_websocket_audio_streaming() -> None:
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -126,6 +138,7 @@ async def test_websocket_advice_broadcast_on_manual_analyze() -> None:
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -171,6 +184,7 @@ async def test_websocket_advice_deduplication() -> None:
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -206,6 +220,7 @@ async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
     mock_use_case.execute.side_effect = STTServiceError("Whisper transient failure")
 
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -260,6 +275,7 @@ async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -327,6 +343,7 @@ async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -414,6 +431,7 @@ async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
         mock_analyze_use_case
     )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )
@@ -435,5 +453,63 @@ async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize
         assert record.dialogue.total_utterances == 2
         assert len(record.advice_items) == 1
         assert record.advice_items[0].category == IssueCategory.UNEXPLAINED_JARGON
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_websocket_mindmap_broadcast_on_manual_analyze() -> None:
+    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-map",
+        advice_items=[],
+        analyzed_utterance_count=0,
+    )
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map",
+        revision=1,
+        upserts=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            )
+        ],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            )
+        ],
+        source_utterance_count=1,
+        changed=True,
+    )
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: mock_mind_map
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-map/audio") as ws:
+            ws.send_text(json.dumps({"action": "analyze"}))
+            messages = [ws.receive_json()]
+            if messages[0]["type"] != "mindmap":
+                messages.append(ws.receive_json())
+            mindmap = next(item for item in messages if item["type"] == "mindmap")
+            assert mindmap["revision"] == 1
+            assert mindmap["upserts"][0]["label"] == "今日の会議"
+            mock_mind_map.execute.assert_awaited()
     finally:
         app.dependency_overrides.clear()

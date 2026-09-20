@@ -43,7 +43,23 @@ export interface PongEvent {
   type: "pong";
 }
 
-export type MeetingServerEvent = UtteranceEvent | AdviceEvent | PongEvent;
+export interface MindMapNodePayload {
+  id: string;
+  label: string;
+  parentId: string | null;
+  sourceUtteranceIds: string[];
+}
+
+export interface MindMapEvent {
+  type: "mindmap";
+  meetingId: string;
+  revision: number;
+  upserts: MindMapNodePayload[];
+  removes: string[];
+}
+
+export type MeetingServerEvent =
+  UtteranceEvent | AdviceEvent | MindMapEvent | PongEvent;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -59,6 +75,33 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function parseMindMapNode(value: unknown): MindMapNodePayload | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = asString(value.id);
+  const label = asString(value.label);
+  if (id === null || label === null) {
+    return null;
+  }
+  const parentRaw = value.parent_id;
+  const parentId =
+    typeof parentRaw === "string" && parentRaw.length > 0 ? parentRaw : null;
+  return {
+    id,
+    label,
+    parentId,
+    sourceUtteranceIds: asStringList(value.source_utterance_ids),
+  };
 }
 
 function isSpeakerId(value: unknown): value is SpeakerId {
@@ -177,6 +220,29 @@ export function parseMeetingServerMessage(
       suggestedQuestion,
       detectedAt: toIsoString(payload.detected_at),
       quote,
+    };
+  }
+
+  if (type === "mindmap") {
+    const meetingId = asString(payload.meeting_id);
+    const revision = asNumber(payload.revision);
+    if (meetingId === null || revision === null) {
+      return null;
+    }
+    const upsertsRaw = payload.upserts;
+    const removesRaw = payload.removes;
+    const upserts = Array.isArray(upsertsRaw)
+      ? upsertsRaw
+          .map((item) => parseMindMapNode(item))
+          .filter((item): item is MindMapNodePayload => item !== null)
+      : [];
+    const removes = asStringList(removesRaw);
+    return {
+      type: "mindmap",
+      meetingId,
+      revision,
+      upserts,
+      removes,
     };
   }
 

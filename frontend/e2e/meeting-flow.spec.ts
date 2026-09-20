@@ -33,6 +33,21 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("おためし").first()).toBeVisible();
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
   await expect(page.getByRole("region", { name: "むこう" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "話の地図" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  await expect(
+    page.getByRole("separator", { name: "左右の幅を変える" })
+  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
+  await expect(page.getByText("今日の会議").first()).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(page.getByText("対象範囲").first()).toBeVisible({
+    timeout: 4000,
+  });
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
   await expect(page.getByText("了解です。そこはお任せします。")).toBeVisible();
@@ -54,6 +69,38 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("きいている").first()).toBeVisible();
 });
 
+test("デスクトップで左右の幅を拖って変えられる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E幅変更会議");
+
+  const whispers = page.getByRole("complementary", {
+    name: "こちらのささやき",
+  });
+  const handle = page.getByRole("separator", { name: "左右の幅を変える" });
+  await expect(handle).toBeVisible();
+  const before = await whispers.boundingBox();
+  expect(before).not.toBeNull();
+  const handleBox = await handle.boundingBox();
+  expect(handleBox).not.toBeNull();
+  if (before === null || handleBox === null) {
+    return;
+  }
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2 + 90,
+    handleBox.y + handleBox.height / 2,
+    { steps: 8 }
+  );
+  await page.mouse.up();
+  const after = await whispers.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.abs((after?.width ?? 0) - before.width)).toBeGreaterThan(20);
+});
+
 test("モバイルのささやきタブは選択と本文が一致する", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startUiPreview(page, "E2Eモバイル会議");
@@ -62,6 +109,10 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
   await expect(whispersTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "話の地図" })).toHaveAttribute(
+    "aria-selected",
+    "false"
+  );
   await expect(page.getByRole("tab", { name: "メモ" })).toHaveAttribute(
     "aria-selected",
     "false"
@@ -138,6 +189,10 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
 
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+\?title=/);
   await expect(page).not.toHaveURL(/demo=1/);
+  await expect(
+    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await expect(
     page.getByText("いまは、ささやくことがありません")
@@ -195,6 +250,10 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
 
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(
+    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await page.getByRole("button", { name: "ききはじめる" }).click();
   await expect(page.getByText("うまく聞けませんでした")).toBeVisible();

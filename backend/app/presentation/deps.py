@@ -7,6 +7,7 @@ from app.application.use_cases import (
     GenerateRequirementsDocUseCase,
     GetRequirementsDocUseCase,
     TranscribeAudioUseCase,
+    UpdateMindMapUseCase,
 )
 from app.domain.exceptions import LLMConfigurationError
 from app.domain.services.llm_service import LLMService
@@ -96,6 +97,21 @@ def get_analyze_dialogue_use_case() -> AnalyzeDialogueUseCase | None:
     except LLMConfigurationError:
         logger.warning(
             "ORCAROUTER_API_KEY is not configured; dialogue analysis is disabled."
+        )
+        return None
+
+
+def get_update_mind_map_use_case() -> UpdateMindMapUseCase | None:
+    """Dependency injection provider for UpdateMindMapUseCase."""
+    try:
+        llm = get_llm_service()
+        return UpdateMindMapUseCase(
+            llm_service=llm,
+            model=settings.orcarouter_default_model,
+        )
+    except LLMConfigurationError:
+        logger.warning(
+            "ORCAROUTER_API_KEY is not configured; mind-map updates are disabled."
         )
         return None
 
