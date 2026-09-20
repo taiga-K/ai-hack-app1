@@ -62,8 +62,8 @@ export function AdviceWhisper({
         </summary>
         <div className="mt-2 flex flex-col gap-1">
           <p className="text-xs font-medium text-ours">{category.badge}</p>
-          <p className="text-sm text-foreground">{advice.title}</p>
-          <p className="text-sm leading-relaxed text-foreground">
+          <p className="text-sm font-medium text-foreground">{advice.title}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {advice.reason}
           </p>
         </div>
