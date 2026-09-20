@@ -18,6 +18,10 @@ import {
 } from "@/shared/api";
 import { playSoftChime } from "@/shared/lib";
 import {
+  readMeetingFloorSnapshot,
+  writeMeetingFloorSnapshot,
+} from "./meeting-floor-snapshot";
+import {
   createPreviewAdvice,
   createPreviewMindMapEvents,
   createPreviewUtterances,
@@ -41,22 +45,50 @@ export interface UseMeetingRoomOptions {
   meetingId: string;
   title: string;
   preview?: boolean;
+  alreadyEnded?: boolean;
 }
 
 export type EndMeetingResult =
   { ok: true; preview: boolean } | { ok: false; message: string };
 
+function initialPhase(preview: boolean, alreadyEnded: boolean): MeetingPhase {
+  if (alreadyEnded) {
+    return "ended";
+  }
+  return preview ? "live" : "idle";
+}
+
+function restoreFloor(
+  meetingId: string,
+  preview: boolean,
+  alreadyEnded: boolean
+) {
+  const snapshot = readMeetingFloorSnapshot(meetingId);
+  const ended = alreadyEnded || snapshot?.ended === true;
+  const utterances = preview
+    ? createPreviewUtterances(meetingId)
+    : (snapshot?.utterances ?? []);
+  const adviceItems = preview
+    ? createPreviewAdvice(meetingId)
+    : (snapshot?.adviceItems ?? []);
+  return { ended, utterances, adviceItems };
+}
+
 export function useMeetingRoom({
   meetingId,
   title,
   preview = false,
+  alreadyEnded = false,
 }: UseMeetingRoomOptions) {
-  const [phase, setPhase] = useState<MeetingPhase>(preview ? "live" : "idle");
-  const [utterances, setUtterances] = useState<Utterance[]>(() =>
-    preview ? createPreviewUtterances(meetingId) : []
+  const restored = restoreFloor(meetingId, preview, alreadyEnded);
+  const [phase, setPhase] = useState<MeetingPhase>(() =>
+    initialPhase(preview, restored.ended)
   );
-  const [adviceItems, setAdviceItems] = useState<Advice[]>(() =>
-    preview ? createPreviewAdvice(meetingId) : []
+  const [utterances, setUtterances] = useState<Utterance[]>(
+    () => restored.utterances
+  );
+  const [adviceItems, setAdviceItems] = useState<Advice[]>(
+    () => restored.adviceItems
   );
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
@@ -64,88 +96,98 @@ export function useMeetingRoom({
     createEmptyMindMap(meetingId)
   );
   const chimeEnabledRef = useRef(true);
-  const phaseRef = useRef<MeetingPhase>(preview ? "live" : "idle");
-  const utterancesRef = useRef<Utterance[]>(
-    preview ? createPreviewUtterances(meetingId) : []
-  );
-  const adviceItemsRef = useRef<Advice[]>(
-    preview ? createPreviewAdvice(meetingId) : []
-  );
+  const phaseRef = useRef<MeetingPhase>(initialPhase(preview, restored.ended));
+  const utterancesRef = useRef<Utterance[]>(restored.utterances);
+  const adviceItemsRef = useRef<Advice[]>(restored.adviceItems);
   const seenAdviceIdsRef = useRef<Set<string>>(
-    new Set(
-      preview ? createPreviewAdvice(meetingId).map((item) => item.id) : []
-    )
+    new Set(restored.adviceItems.map((item) => item.id))
   );
 
-  const handleServerMessage = useCallback((event: MessageEvent) => {
-    const parsed = parseMeetingServerMessage(event.data);
-    if (parsed === null) {
-      return;
-    }
+  const persistFloor = useCallback(
+    (ended: boolean) => {
+      writeMeetingFloorSnapshot(meetingId, {
+        ended,
+        utterances: utterancesRef.current,
+        adviceItems: adviceItemsRef.current,
+      });
+    },
+    [meetingId]
+  );
 
-    switch (parsed.type) {
-      case "pong":
+  const handleServerMessage = useCallback(
+    (event: MessageEvent) => {
+      const parsed = parseMeetingServerMessage(event.data);
+      if (parsed === null) {
         return;
-      case "utterance":
-        setUtterances((current) => {
-          const next = upsertUtterance(current, {
-            id: parsed.id,
-            meetingId: parsed.meetingId,
-            speaker: parsed.speaker,
-            text: parsed.text,
-            startMs: parsed.startMs,
-            endMs: parsed.endMs,
-            isFinal: parsed.isFinal,
-            createdAt: parsed.createdAt,
-          });
-          utterancesRef.current = next;
-          return next;
-        });
-        return;
-      case "mindmap":
-        setMindMap((current) =>
-          applyMindMapEvent(current, {
-            type: "mindmap",
-            meetingId: parsed.meetingId,
-            revision: parsed.revision,
-            upserts: parsed.upserts,
-            removes: parsed.removes,
-          })
-        );
-        return;
-      case "advice":
-        if (seenAdviceIdsRef.current.has(parsed.id)) {
+      }
+
+      switch (parsed.type) {
+        case "pong":
           return;
-        }
-        seenAdviceIdsRef.current.add(parsed.id);
-        setAdviceItems((current) => {
-          const next = [
-            {
+        case "utterance":
+          setUtterances((current) => {
+            const next = upsertUtterance(current, {
               id: parsed.id,
               meetingId: parsed.meetingId,
-              category: parsed.category,
-              priority: parsed.priority,
-              title: parsed.title,
-              reason: parsed.reason,
-              suggestedQuestion: parsed.suggestedQuestion,
-              detectedAt: parsed.detectedAt,
-              quote: parsed.quote,
-            },
-            ...current,
-          ];
-          adviceItemsRef.current = next;
-          return next;
-        });
-        if (chimeEnabledRef.current) {
-          playSoftChime();
+              speaker: parsed.speaker,
+              text: parsed.text,
+              startMs: parsed.startMs,
+              endMs: parsed.endMs,
+              isFinal: parsed.isFinal,
+              createdAt: parsed.createdAt,
+            });
+            utterancesRef.current = next;
+            persistFloor(isTerminalPhase(phaseRef.current));
+            return next;
+          });
+          return;
+        case "mindmap":
+          setMindMap((current) =>
+            applyMindMapEvent(current, {
+              type: "mindmap",
+              meetingId: parsed.meetingId,
+              revision: parsed.revision,
+              upserts: parsed.upserts,
+              removes: parsed.removes,
+            })
+          );
+          return;
+        case "advice":
+          if (seenAdviceIdsRef.current.has(parsed.id)) {
+            return;
+          }
+          seenAdviceIdsRef.current.add(parsed.id);
+          setAdviceItems((current) => {
+            const next = [
+              {
+                id: parsed.id,
+                meetingId: parsed.meetingId,
+                category: parsed.category,
+                priority: parsed.priority,
+                title: parsed.title,
+                reason: parsed.reason,
+                suggestedQuestion: parsed.suggestedQuestion,
+                detectedAt: parsed.detectedAt,
+                quote: parsed.quote,
+              },
+              ...current,
+            ];
+            adviceItemsRef.current = next;
+            persistFloor(isTerminalPhase(phaseRef.current));
+            return next;
+          });
+          if (chimeEnabledRef.current) {
+            playSoftChime();
+          }
+          return;
+        default: {
+          const _exhaustiveCheck: never = parsed;
+          throw new Error(`Unhandled meeting event: ${_exhaustiveCheck}`);
         }
-        return;
-      default: {
-        const _exhaustiveCheck: never = parsed;
-        throw new Error(`Unhandled meeting event: ${_exhaustiveCheck}`);
       }
-    }
-  }, []);
+    },
+    [persistFloor]
+  );
 
   useEffect(() => {
     if (!preview) {
@@ -186,10 +228,13 @@ export function useMeetingRoom({
   }, [startCapture]);
 
   const handleStop = useCallback(() => {
-    if (isTerminalPhase(phaseRef.current)) {
+    if (phaseRef.current === "finalizing") {
       return;
     }
     stopCapture();
+    if (phaseRef.current === "ended") {
+      return;
+    }
     phaseRef.current = "idle";
     setPhase("idle");
   }, [stopCapture]);
@@ -207,6 +252,7 @@ export function useMeetingRoom({
     if (preview) {
       phaseRef.current = "ended";
       setPhase("ended");
+      persistFloor(true);
       return { ok: true, preview: true };
     }
 
@@ -220,6 +266,7 @@ export function useMeetingRoom({
       });
       phaseRef.current = "ended";
       setPhase("ended");
+      persistFloor(true);
       return { ok: true, preview: false };
     } catch (error) {
       const message =
@@ -228,15 +275,28 @@ export function useMeetingRoom({
           : toUserFacingHttpErrorMessage("unknown");
       phaseRef.current = "ended";
       setPhase("ended");
+      persistFloor(false);
       setFinalizeError(message);
       return { ok: false, message };
     }
-  }, [flushAndDisconnect, meetingId, preview, title]);
+  }, [flushAndDisconnect, meetingId, persistFloor, preview, title]);
 
   const handleToggleChime = useCallback((enabled: boolean) => {
     chimeEnabledRef.current = enabled;
     setChimeEnabled(enabled);
   }, []);
+
+  const reopenLiveFloor = useCallback(() => {
+    if (phaseRef.current === "finalizing") {
+      return;
+    }
+    persistFloor(false);
+    if (phaseRef.current !== "ended") {
+      return;
+    }
+    phaseRef.current = "idle";
+    setPhase("idle");
+  }, [persistFloor]);
 
   return {
     phase,
@@ -251,5 +311,6 @@ export function useMeetingRoom({
     stopCapture: handleStop,
     endMeeting,
     toggleChime: handleToggleChime,
+    reopenLiveFloor,
   };
 }
