@@ -362,9 +362,9 @@ test("アドバイスは聞けた・不要・あとでで一覧から外せる",
   await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "もどす" })).toHaveCount(2);
   await page
-    .locator("[data-sonner-toast][data-index='1']")
-    .getByRole("button", { name: "もどす" })
-    .click();
+    .getByTestId("advice-undo-preview-adv-jargon")
+    .locator("button[data-action]")
+    .dispatchEvent("click");
   await expect(
     sidebar.getByRole("article").filter({ hasText: PREVIEW_QUESTION })
   ).toBeVisible();

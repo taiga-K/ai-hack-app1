@@ -137,8 +137,10 @@ export function MeetingRoomPage({
         throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
       }
     }
+    const toastId = `advice-undo-${adviceId}`;
     toast(message, {
-      id: `advice-undo-${adviceId}`,
+      id: toastId,
+      testId: toastId,
       action: {
         label: "もどす",
         onClick: undo,
@@ -429,7 +431,7 @@ export function MeetingRoomPage({
           />
         </div>
       ) : null}
-      <Toaster />
+      <Toaster expand />
     </div>
   );
 }
