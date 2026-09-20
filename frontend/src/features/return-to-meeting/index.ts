@@ -28,5 +28,6 @@ export type {
   CompletedSummaryLookup,
   CompletedSummaryStatus,
 } from "./model/types";
+export { useRememberedCompletedSummary } from "./model/use-remembered-completed-summary";
 export { BackToMeeting } from "./ui/BackToMeeting";
 export type { BackToMeetingProps } from "./ui/BackToMeeting";

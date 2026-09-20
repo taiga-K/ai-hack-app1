@@ -3,8 +3,6 @@ import { SideCluster } from "./SideCluster";
 export interface MeetingFloorProps {
   oursListening: boolean;
   theirsListening: boolean;
-  oursSpeaking: boolean;
-  theirsSpeaking: boolean;
   oursVolume: number;
   theirsVolume: number;
   side?: "ours" | "theirs";
@@ -13,8 +11,6 @@ export interface MeetingFloorProps {
 export function MeetingFloor({
   oursListening,
   theirsListening,
-  oursSpeaking,
-  theirsSpeaking,
   oursVolume,
   theirsVolume,
   side,
@@ -24,29 +20,12 @@ export function MeetingFloor({
 
   return (
     <div
-      className={
-        showOurs && showTheirs
-          ? "relative grid grid-cols-2 gap-6"
-          : "relative min-w-0"
-      }
+      className={showOurs && showTheirs ? "grid grid-cols-2 gap-6" : "min-w-0"}
     >
-      {showOurs ? (
-        <span
-          aria-hidden
-          className="motion-safe:animate-cute-breathe pointer-events-none absolute top-1 left-2 size-10 rounded-full bg-ours/10"
-        />
-      ) : null}
-      {showTheirs ? (
-        <span
-          aria-hidden
-          className="motion-safe:animate-cute-breathe pointer-events-none absolute top-0 right-8 size-8 rounded-full bg-theirs/10 [animation-delay:1.2s]"
-        />
-      ) : null}
       {showOurs ? (
         <SideCluster
           side="ours"
           listening={oursListening}
-          speaking={oursSpeaking}
           volume={oursVolume}
         />
       ) : null}
@@ -54,7 +33,6 @@ export function MeetingFloor({
         <SideCluster
           side="theirs"
           listening={theirsListening}
-          speaking={theirsSpeaking}
           volume={theirsVolume}
         />
       ) : null}

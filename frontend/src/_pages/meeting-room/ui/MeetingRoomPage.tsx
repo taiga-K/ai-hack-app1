@@ -14,8 +14,8 @@ import {
   decideAfterFinalize,
   decideAfterReadyPause,
   isMeetingAlreadyOver,
-  readRememberedCompletedSummary,
   rememberCompletedSummary,
+  useRememberedCompletedSummary,
   replaceEndedMeetingUrl,
   shouldReopenLiveFloor,
   type BackTarget,
@@ -89,6 +89,7 @@ export function MeetingRoomPage({
     preview,
     hasCompletedSummary: completedSummaryHint,
   };
+  const rememberedCompletedSummary = useRememberedCompletedSummary(meetingId);
   const completedSummary = useCompletedSummaryLookup(
     backTarget,
     completedSummaryHint
@@ -112,7 +113,7 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
-    alreadyEnded: readRememberedCompletedSummary(meetingId) !== null,
+    alreadyEnded: rememberedCompletedSummary !== null,
   });
 
   async function handleEndMeeting() {
@@ -205,8 +206,6 @@ export function MeetingRoomPage({
   }, [completedSummary.status, phase, stopCapture]);
   const listening =
     !meetingAlreadyOver && (audio.isRecording || (preview && phase === "live"));
-  const oursSpeaking = listening && audio.micVolume > 0.08;
-  const theirsSpeaking = listening && audio.tabVolume > 0.08;
   const showAfterEnd = handoff === "making" || handoff === "ready";
   const showOpenDocument = documentHref !== null && !showAfterEnd;
   const showControls =
@@ -214,8 +213,6 @@ export function MeetingRoomPage({
   const floorProps = {
     oursListening: listening,
     theirsListening: listening,
-    oursSpeaking: oursSpeaking,
-    theirsSpeaking: theirsSpeaking,
     oursVolume: audio.micVolume,
     theirsVolume: audio.tabVolume,
   };
@@ -246,7 +243,7 @@ export function MeetingRoomPage({
               </div>
             </div>
           </ResizablePanel>
-          <ResizableHandle withHandle aria-label="左右の幅を変える" />
+          <ResizableHandle aria-label="左右の幅を変える" />
           <ResizablePanel
             id="meeting-workspace"
             className="min-w-0"
@@ -270,14 +267,14 @@ export function MeetingRoomPage({
           <div
             role="tablist"
             aria-label="会議の表示"
-            className="mb-3 flex flex-wrap gap-2"
+            className="mb-6 flex flex-wrap gap-2"
           >
             <MobilePaneButton
               pane="map"
               current={mobilePane}
               onSelect={setMobilePane}
             >
-              話の地図
+              マインドマップ
             </MobilePaneButton>
             <MobilePaneButton
               pane="notes"
@@ -315,7 +312,7 @@ export function MeetingRoomPage({
             </div>
           ) : (
             <div id="meeting-mobile-pane" role="tabpanel" className="sr-only">
-              話の地図を表示しています
+              マインドマップを表示しています
             </div>
           )}
         </div>
@@ -433,7 +430,7 @@ function WorkspaceTabs({
           onTabChange(value);
         }
       }}
-      className="flex h-full min-h-0 flex-col gap-0"
+      className="flex h-full min-h-0 flex-col gap-6"
     >
       <TabsList
         variant="line"
@@ -441,7 +438,7 @@ function WorkspaceTabs({
         className="h-9 w-full justify-start rounded-none border-b border-border bg-transparent px-0"
       >
         <TabsTrigger value="map" className="rounded-none px-3">
-          話の地図
+          マインドマップ
         </TabsTrigger>
         <TabsTrigger value="notes" className="rounded-none px-3">
           会議のメモ
