@@ -48,9 +48,7 @@ def test_settings_model_defaults_are_free_models() -> None:
     assert fields["orcarouter_requirements_model"].default == (
         "deepseek/deepseek-v4-flash-free"
     )
-    assert fields["orcarouter_requirements_fallback_models"].default == (
-        "z-ai/glm-5.3-flash-free"
-    )
+    assert fields["orcarouter_requirements_fallback_models"].default == ""
     assert example_values["ORCAROUTER_DEFAULT_MODEL"] == (
         fields["orcarouter_default_model"].default
     )

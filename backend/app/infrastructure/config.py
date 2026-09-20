@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     orcarouter_default_model: str = "deepseek/deepseek-v4-flash-free"
     orcarouter_timeout_seconds: float = 60.0
     orcarouter_requirements_model: str = "deepseek/deepseek-v4-flash-free"
-    orcarouter_requirements_fallback_models: str = "z-ai/glm-5.3-flash-free"
+    orcarouter_requirements_fallback_models: str = ""
     orcarouter_requirements_timeout_seconds: float = 120.0
 
     stt_provider: str = "openai"
