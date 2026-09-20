@@ -6,7 +6,10 @@ export function GoHome() {
   return (
     <Link
       href="/"
-      className={cn(buttonVariants({ variant: "ghost", size: "lg" }))}
+      className={cn(
+        buttonVariants({ variant: "default", size: "lg" }),
+        "cursor-pointer"
+      )}
     >
       ホーム
     </Link>
