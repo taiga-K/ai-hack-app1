@@ -196,6 +196,9 @@ export function isMeetingAlreadyOver(input: {
   if (input.hasSessionDocument) {
     return true;
   }
+  if (input.lookupStatus === "missing") {
+    return false;
+  }
   if (input.phase === "ended" || input.phase === "finalizing") {
     return true;
   }
@@ -204,13 +207,27 @@ export function isMeetingAlreadyOver(input: {
       return true;
     case "checking":
     case "error":
-    case "missing":
       return false;
     default: {
       const _exhaustiveCheck: never = input.lookupStatus;
       throw new Error(`Unhandled lookup status: ${_exhaustiveCheck}`);
     }
   }
+}
+
+export function shouldReopenLiveFloor(input: {
+  lookupStatus: CompletedSummaryStatus;
+  hasSessionDocument: boolean;
+  hasFinalizeError: boolean;
+  phase: "idle" | "live" | "finalizing" | "ended";
+}): boolean {
+  if (input.hasSessionDocument || input.hasFinalizeError) {
+    return false;
+  }
+  if (input.lookupStatus !== "missing") {
+    return false;
+  }
+  return input.phase === "ended";
 }
 
 export function completedSummaryHref(

@@ -2,6 +2,7 @@ export {
   completedSummaryHref,
   forgetCompletedSummary,
   isMeetingAlreadyOver,
+  shouldReopenLiveFloor,
   lookupCompletedSummary,
   mergeCompletedSummaryLookup,
   readRememberedCompletedSummary,

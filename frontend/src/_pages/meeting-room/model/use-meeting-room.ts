@@ -286,6 +286,18 @@ export function useMeetingRoom({
     setChimeEnabled(enabled);
   }, []);
 
+  const reopenLiveFloor = useCallback(() => {
+    if (phaseRef.current === "finalizing") {
+      return;
+    }
+    persistFloor(false);
+    if (phaseRef.current !== "ended") {
+      return;
+    }
+    phaseRef.current = "idle";
+    setPhase("idle");
+  }, [persistFloor]);
+
   return {
     phase,
     utterances,
@@ -299,5 +311,6 @@ export function useMeetingRoom({
     stopCapture: handleStop,
     endMeeting,
     toggleChime: handleToggleChime,
+    reopenLiveFloor,
   };
 }

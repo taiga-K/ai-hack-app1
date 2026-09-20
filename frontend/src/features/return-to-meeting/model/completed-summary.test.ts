@@ -4,6 +4,7 @@ import {
   completedSummaryHref,
   forgetCompletedSummary,
   isMeetingAlreadyOver,
+  shouldReopenLiveFloor,
   isMissingCompletedSummaryError,
   lookupCompletedSummary,
   mergeCompletedSummaryLookup,
@@ -224,6 +225,72 @@ describe("isMeetingAlreadyOver", () => {
         phase: "live",
       }),
       true
+    );
+  });
+
+  it("reopens controls when an ended snapshot has no summary", () => {
+    assert.equal(
+      isMeetingAlreadyOver({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        phase: "ended",
+      }),
+      false
+    );
+  });
+
+  it("keeps an ended remount over while the summary is still checking", () => {
+    assert.equal(
+      isMeetingAlreadyOver({
+        lookupStatus: "checking",
+        hasSessionDocument: false,
+        phase: "ended",
+      }),
+      true
+    );
+  });
+});
+
+describe("shouldReopenLiveFloor", () => {
+  it("reopens only an ended floor after a missing summary", () => {
+    assert.equal(
+      shouldReopenLiveFloor({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        hasFinalizeError: false,
+        phase: "ended",
+      }),
+      true
+    );
+  });
+
+  it("does not reopen a live floor or a failed finalize", () => {
+    assert.equal(
+      shouldReopenLiveFloor({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        hasFinalizeError: false,
+        phase: "idle",
+      }),
+      false
+    );
+    assert.equal(
+      shouldReopenLiveFloor({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        hasFinalizeError: true,
+        phase: "ended",
+      }),
+      false
+    );
+    assert.equal(
+      shouldReopenLiveFloor({
+        lookupStatus: "found",
+        hasSessionDocument: false,
+        hasFinalizeError: false,
+        phase: "ended",
+      }),
+      false
     );
   });
 });

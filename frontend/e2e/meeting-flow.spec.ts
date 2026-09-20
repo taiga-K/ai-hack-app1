@@ -774,6 +774,33 @@ test("読込のあと空のまとめから戻ると会議は続く", async ({ pa
   await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
 });
 
+test("終了スナップショットでもまとめが無いとやり直せる", async ({ page }) => {
+  await seedRealMeetingFloor(page, "e2e-ended-missing", "終了欠落", {
+    rememberSummary: true,
+    ended: true,
+  });
+  await stubMissingRequirements(page);
+
+  await page.goto("/meetings/e2e-ended-missing?title=終了欠落");
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = sessionStorage.getItem(
+          "return-to-meeting:floor-snapshot:e2e-ended-missing"
+        );
+        return raw === null
+          ? null
+          : (JSON.parse(raw) as { ended: boolean }).ended;
+      })
+    )
+    .toBe(false);
+});
+
 test("実会議の生成失敗後に開き直すとやり直せる", async ({ page }) => {
   await installClosedWebSocket(page);
   await seedRealMeetingFloor(page, "e2e-fail-finalize", "失敗会議", {

@@ -17,6 +17,7 @@ import {
   readRememberedCompletedSummary,
   rememberCompletedSummary,
   replaceEndedMeetingUrl,
+  shouldReopenLiveFloor,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -106,6 +107,7 @@ export function MeetingRoomPage({
     stopCapture,
     endMeeting,
     toggleChime,
+    reopenLiveFloor,
   } = useMeetingRoom({
     meetingId,
     title: meetingTitle,
@@ -180,6 +182,25 @@ export function MeetingRoomPage({
     phase,
   });
   useEffect(() => {
+    if (
+      !shouldReopenLiveFloor({
+        lookupStatus: completedSummary.status,
+        hasSessionDocument: sessionDocumentHref !== null,
+        hasFinalizeError: finalizeError !== null,
+        phase,
+      })
+    ) {
+      return;
+    }
+    reopenLiveFloor();
+  }, [
+    completedSummary.status,
+    finalizeError,
+    phase,
+    reopenLiveFloor,
+    sessionDocumentHref,
+  ]);
+  useEffect(() => {
     stopCaptureWhenAlreadyOver(completedSummary.status, phase, stopCapture);
   }, [completedSummary.status, phase, stopCapture]);
   const listening =
@@ -188,7 +209,8 @@ export function MeetingRoomPage({
   const theirsSpeaking = listening && audio.tabVolume > 0.08;
   const showAfterEnd = handoff === "making" || handoff === "ready";
   const showOpenDocument = documentHref !== null && !showAfterEnd;
-  const showControls = !showAfterEnd && !meetingAlreadyOver;
+  const showControls =
+    !showAfterEnd && !meetingAlreadyOver && finalizeError === null;
   const floorProps = {
     oursListening: listening,
     theirsListening: listening,
