@@ -28,12 +28,16 @@ import {
   type MindMapNode,
   type MindMapNodeTone,
   type MindMapSnapshot,
+  type MindMapVisibility,
 } from "@/entities/mind-map";
 import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
+  didMindMapPaneWidthChange,
+  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
+  shouldPinMindMapDecisions,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "../model/should-refit-camera";
@@ -175,12 +179,16 @@ function fitMinZoom(stacked: boolean): number {
 function MindMapFlow({
   snapshot,
   compact,
+  stacked,
+  visibility,
   expandedIds,
   selectedId,
   onPick,
 }: {
   snapshot: MindMapSnapshot;
   compact: boolean;
+  stacked: boolean;
+  visibility: MindMapVisibility;
   expandedIds: ReadonlySet<string>;
   selectedId: string | null;
   onPick: (nodeId: string) => void;
@@ -202,14 +210,6 @@ function MindMapFlow({
   const storeHeight = useStore((state) => state.height);
   const width = measuredPane.width > 8 ? measuredPane.width : storeWidth;
   const height = measuredPane.height > 8 ? measuredPane.height : storeHeight;
-  const stacked = usesStackedMindMapLayout(width, compact);
-  const visibility = useMemo(
-    () =>
-      resolveMindMapVisibility(snapshot.nodes, expandedIds, {
-        pinDecisions: !stacked,
-      }),
-    [snapshot.nodes, expandedIds, stacked]
-  );
   const layout = useMemo(
     () =>
       layoutMindMap(visibility.visible, {
@@ -295,9 +295,10 @@ function MindMapFlow({
     [layout.edges]
   );
   const hasNodes = layout.nodes.length > 0;
-  const nodeSignature = `${String(snapshot.revision)}:${layout.nodes
-    .map((node) => node.id)
-    .join(",")}`;
+  const nodeSignature = mindMapGrowthSignature(
+    snapshot.revision,
+    snapshot.nodes.map((node) => node.id)
+  );
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -341,21 +342,21 @@ function MindMapFlow({
     }
     const visible = readVisiblePaneSize(paneRef.current, width, height);
     const previous = lastSizeRef.current;
-    const sizeChanged =
-      previous.width > 0 &&
-      (Math.abs(previous.width - visible.width) > 2 ||
-        Math.abs(previous.height - visible.height) > 2);
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
       previousSignature.length > 0 && previousSignature !== nodeSignature;
+    const widthChanged = didMindMapPaneWidthChange(
+      previous.width,
+      visible.width
+    );
     const shouldFit = shouldRefitMindMapCamera({
       hasNodes,
       nodesInitialized,
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged,
+      sizeChanged: widthChanged,
       nodesChanged,
       userTookCamera,
     });
@@ -373,7 +374,7 @@ function MindMapFlow({
       return;
     }
     const deferResize = shouldDeferMindMapResizeFit({
-      sizeChanged,
+      sizeChanged: widthChanged,
       isFirstLayout,
       nodesChanged,
     });
@@ -588,18 +589,45 @@ export function MindMapCanvas({
   compact = false,
 }: MindMapCanvasProps) {
   const isEmpty = snapshot.nodes.length === 0;
+  const mapPaneRef = useRef<HTMLDivElement>(null);
+  const [mapPaneWidth, setMapPaneWidth] = useState(0);
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(
     () => new Set()
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = selectedMindMapNode(snapshot.nodes, selectedId);
+  const stacked = usesStackedMindMapLayout(mapPaneWidth, compact);
   const visibility = useMemo(
     () =>
       resolveMindMapVisibility(snapshot.nodes, expandedIds, {
-        pinDecisions: !compact,
+        pinDecisions: shouldPinMindMapDecisions(mapPaneWidth, compact),
       }),
-    [snapshot.nodes, expandedIds, compact]
+    [snapshot.nodes, expandedIds, mapPaneWidth, compact]
   );
+
+  useEffect(() => {
+    const pane = mapPaneRef.current;
+    if (pane === null) {
+      return;
+    }
+    const syncWidth = (nextWidth: number): void => {
+      setMapPaneWidth((current) =>
+        Math.abs(current - nextWidth) <= 4 ? current : nextWidth
+      );
+    };
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry === undefined) {
+        return;
+      }
+      syncWidth(entry.contentRect.width);
+    });
+    observer.observe(pane);
+    syncWidth(pane.clientWidth);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isEmpty]);
 
   const handlePick = useCallback((nodeId: string): void => {
     setSelectedId(nodeId);
@@ -611,7 +639,7 @@ export function MindMapCanvas({
       aria-label="マインドマップ"
       className="flex h-full min-h-0 flex-col overflow-hidden px-6"
     >
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div ref={mapPaneRef} className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
           <p className="py-8 text-sm text-muted-foreground">
             マインドマップが作られます
@@ -621,6 +649,8 @@ export function MindMapCanvas({
             <MindMapFlow
               snapshot={snapshot}
               compact={compact}
+              stacked={stacked}
+              visibility={visibility}
               expandedIds={expandedIds}
               selectedId={selected?.id ?? null}
               onPick={handlePick}

@@ -44,6 +44,30 @@ export function usesStackedMindMapLayout(
   return width > 0 && width < 560;
 }
 
+/** Pills, layout, and branch-detail counts share this flag. */
+export function shouldPinMindMapDecisions(
+  width: number,
+  compact: boolean
+): boolean {
+  return !usesStackedMindMapLayout(width, compact);
+}
+
+/** Snapshot growth only. Expand/collapse must not look like new nodes. */
+export function mindMapGrowthSignature(
+  revision: number,
+  nodeIds: readonly string[]
+): string {
+  return `${String(revision)}:${nodeIds.join(",")}`;
+}
+
+/** BranchDetail shrinking height must not steal the camera. */
+export function didMindMapPaneWidthChange(
+  previousWidth: number,
+  nextWidth: number
+): boolean {
+  return previousWidth > 0 && Math.abs(previousWidth - nextWidth) > 2;
+}
+
 export function shouldCommitMindMapCameraMemory(input: {
   fitRan: boolean;
   nodesInitialized: boolean;
