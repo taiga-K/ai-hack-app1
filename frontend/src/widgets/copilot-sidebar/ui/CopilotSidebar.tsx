@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { AdviceWhisper, type Advice } from "@/entities/advice";
+import {
+  AdviceWhisper,
+  LATER_ADVICE_ACTIONS,
+  type Advice,
+  type AdviceAction,
+} from "@/entities/advice";
 import { ScrollArea } from "@/shared/ui";
 
 export interface CopilotSidebarProps {
   adviceItems: Advice[];
-  onCopied?: (question: string) => void;
+  laterAdviceItems?: Advice[];
+  onAdviceAction?: (adviceId: string, action: AdviceAction) => void;
 }
 
 interface WhisperMotion {
@@ -39,11 +45,42 @@ function mergeNewWhisperMotion(
   return changed ? next : current;
 }
 
-export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
+function renderAdviceItems(
+  items: Advice[],
+  resolvedMotion: ReadonlyMap<string, WhisperMotion>,
+  onAdviceAction: CopilotSidebarProps["onAdviceAction"],
+  availableActions?: readonly AdviceAction[]
+) {
+  return items.map((item, index) => {
+    const motion = resolvedMotion.get(item.id) ?? {
+      enter: true,
+      delayMs: index * 140,
+    };
+    return (
+      <AdviceWhisper
+        key={item.id}
+        advice={item}
+        appearDelayMs={motion.delayMs}
+        enterMotion={motion.enter}
+        availableActions={availableActions}
+        onAction={onAdviceAction}
+      />
+    );
+  });
+}
+
+export function CopilotSidebar({
+  adviceItems,
+  laterAdviceItems = [],
+  onAdviceAction,
+}: CopilotSidebarProps) {
   const [motionById, setMotionById] = useState(() =>
-    createInitialMotion(adviceItems)
+    createInitialMotion([...adviceItems, ...laterAdviceItems])
   );
-  const resolvedMotion = mergeNewWhisperMotion(motionById, adviceItems);
+  const resolvedMotion = mergeNewWhisperMotion(motionById, [
+    ...adviceItems,
+    ...laterAdviceItems,
+  ]);
   if (resolvedMotion !== motionById) {
     setMotionById(resolvedMotion);
   }
@@ -65,22 +102,19 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
               いまは、アドバイスがありません
             </p>
           ) : (
-            adviceItems.map((item, index) => {
-              const motion = resolvedMotion.get(item.id) ?? {
-                enter: true,
-                delayMs: index * 140,
-              };
-              return (
-                <AdviceWhisper
-                  key={item.id}
-                  advice={item}
-                  appearDelayMs={motion.delayMs}
-                  enterMotion={motion.enter}
-                  onCopied={onCopied}
-                />
-              );
-            })
+            renderAdviceItems(adviceItems, resolvedMotion, onAdviceAction)
           )}
+          {laterAdviceItems.length > 0 ? (
+            <div className="flex flex-col gap-5">
+              <h3 className="pt-2 text-sm font-medium">あとで聞く</h3>
+              {renderAdviceItems(
+                laterAdviceItems,
+                resolvedMotion,
+                onAdviceAction,
+                LATER_ADVICE_ACTIONS
+              )}
+            </div>
+          ) : null}
         </div>
       </ScrollArea>
     </aside>

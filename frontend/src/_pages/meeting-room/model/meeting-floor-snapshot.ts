@@ -35,6 +35,8 @@ export interface MeetingFloorSnapshot {
   ended: boolean;
   utterances: FloorUtterance[];
   adviceItems: FloorAdvice[];
+  laterAdviceItems: FloorAdvice[];
+  resolvedAdviceIds: string[];
 }
 
 export function floorSnapshotStorageKey(meetingId: string): string {
@@ -180,6 +182,34 @@ function parseAdvice(value: unknown): FloorAdvice | null {
   };
 }
 
+function parseAdviceList(value: unknown): FloorAdvice[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const adviceItems: FloorAdvice[] = [];
+  for (const item of value) {
+    const advice = parseAdvice(item);
+    if (advice !== null) {
+      adviceItems.push(advice);
+    }
+  }
+  return adviceItems;
+}
+
+function parseResolvedAdviceIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const ids: string[] = [];
+  for (const item of value) {
+    const id = asString(item);
+    if (id !== null) {
+      ids.push(id);
+    }
+  }
+  return ids;
+}
+
 export function parseMeetingFloorSnapshot(
   raw: string | null
 ): MeetingFloorSnapshot | null {
@@ -205,18 +235,14 @@ export function parseMeetingFloorSnapshot(
       }
     }
 
-    const adviceItems: FloorAdvice[] = [];
-    for (const item of parsed.adviceItems) {
-      const advice = parseAdvice(item);
-      if (advice !== null) {
-        adviceItems.push(advice);
-      }
-    }
+    const adviceItems = parseAdviceList(parsed.adviceItems);
 
     return {
       ended: parsed.ended === true,
       utterances,
       adviceItems,
+      laterAdviceItems: parseAdviceList(parsed.laterAdviceItems),
+      resolvedAdviceIds: parseResolvedAdviceIds(parsed.resolvedAdviceIds),
     };
   } catch {
     return null;
