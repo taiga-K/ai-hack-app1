@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   classifyBackendHttpError,
+  isAbortError,
   readBackendErrorDetail,
   toUserFacingHttpErrorMessage,
 } from "./http.ts";
@@ -29,5 +30,10 @@ describe("backend HTTP error mapping", () => {
     assert.equal(classifyBackendHttpError(502, null), "generation_failed");
     assert.match(toUserFacingHttpErrorMessage("no_transcript"), /発話/);
     assert.match(toUserFacingHttpErrorMessage("not_found"), /要件定義書/);
+  });
+
+  it("treats DOM abort as an abort error", () => {
+    assert.equal(isAbortError(new DOMException("aborted", "AbortError")), true);
+    assert.equal(isAbortError(new Error("network down")), false);
   });
 });

@@ -25,6 +25,7 @@ export {
   classifyBackendHttpError,
   readBackendErrorDetail,
   requestBlob,
+  isAbortError,
   requestJson,
   toUserFacingHttpErrorMessage,
 } from "./http";

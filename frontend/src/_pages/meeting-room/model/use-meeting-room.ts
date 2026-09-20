@@ -34,6 +34,9 @@ import {
   undoAdviceAction,
 } from "./resolve-advice";
 
+// Matches backend `orcarouter_requirements_timeout_seconds` (120s).
+const FINALIZE_ABORT_MS = 120_000;
+
 function isTerminalPhase(phase: MeetingPhase): boolean {
   return phase === "ended" || phase === "finalizing";
 }
@@ -111,6 +114,7 @@ export function useMeetingRoom({
     createEmptyMindMap(meetingId)
   );
   const chimeEnabledRef = useRef(true);
+  const finalizeAbortRef = useRef<AbortController | null>(null);
   const phaseRef = useRef<MeetingPhase>(initialPhase(preview, false));
   const utterancesRef = useRef<Utterance[]>(utterances);
   const adviceItemsRef = useRef<Advice[]>(adviceItems);
@@ -302,14 +306,23 @@ export function useMeetingRoom({
       return { ok: true, preview: true };
     }
 
+    const controller = new AbortController();
+    finalizeAbortRef.current = controller;
+    const timeoutId = window.setTimeout(() => {
+      controller.abort();
+    }, FINALIZE_ABORT_MS);
     try {
       // Live transcripts/advice are already persisted over WebSocket.
       // Seeding them again would mint new hash ids and duplicate the prompt.
-      await finalizeRequirementDocument(meetingId, {
-        title,
-        utterances: [],
-        adviceItems: [],
-      });
+      await finalizeRequirementDocument(
+        meetingId,
+        {
+          title,
+          utterances: [],
+          adviceItems: [],
+        },
+        { signal: controller.signal }
+      );
       phaseRef.current = "ended";
       setPhase("ended");
       persistFloor(true);
@@ -324,6 +337,11 @@ export function useMeetingRoom({
       persistFloor(false);
       setFinalizeError(message);
       return { ok: false, message };
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (finalizeAbortRef.current === controller) {
+        finalizeAbortRef.current = null;
+      }
     }
   }, [flushAndDisconnect, meetingId, persistFloor, preview, title]);
 
@@ -400,6 +418,10 @@ export function useMeetingRoom({
     [persistAdviceLists]
   );
 
+  const stopWaitingForSummary = useCallback(() => {
+    finalizeAbortRef.current?.abort();
+  }, []);
+
   const handleToggleChime = useCallback((enabled: boolean) => {
     chimeEnabledRef.current = enabled;
     setChimeEnabled(enabled);
@@ -431,6 +453,7 @@ export function useMeetingRoom({
     startCapture: handleStart,
     stopCapture: handleStop,
     endMeeting,
+    stopWaitingForSummary,
     toggleChime: handleToggleChime,
     reopenLiveFloor,
   };
