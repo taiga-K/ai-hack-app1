@@ -12,7 +12,7 @@ Secondary surfaces (do not treat as the primary drive target): FastAPI at `/api/
 ## Interview snapshot
 
 - **Surface:** browser UI at `/` (home), `/meetings/{id}` (floor), `/meetings/{id}/document` (まとめ). Japanese copy. No account, no password, no OAuth.
-- **Run (repo docs):** `cd backend && uv run uvicorn main:app --reload --port 8000` and `cd frontend && pnpm run dev` → `http://localhost:3000`. Verification uses the same commands on isolated ports so a human's `:3000` / `:8000` session is left alone.
+- **Run (repo docs):** `cd backend && uv run uvicorn main:app --reload --port 8000` and `cd frontend && pnpm run dev` → `http://localhost:3000`. Verification uses the same Next.js / Uvicorn processes on isolated ports (`pnpm exec next dev --hostname 127.0.0.1 --port 3100`) so a human's `:3000` / `:8000` session is left alone. Do not pass a second `--` into `next dev`; Next 16 treats `--hostname` after `--` as a project directory.
 - **Drive:** Playwright. Reuse the roles and names from `frontend/e2e/meeting-flow.spec.ts`. Prefer `scripts/drive.mjs` against the launched verify instance. `pnpm run test:e2e` is a separate production-build harness on `127.0.0.1:3217` (needs `pnpm run build` first); do not point it at the verify instance and do not treat its `webServer` as Launch.
 - **Observe:** Playwright screenshots, Playwright video, ARIA snapshots, `curl` bodies, download filenames. Proof must show the user action and the resulting state.
 - **Isolate:** two verify stacks can run if ports differ. Never attach to a server this run did not start. Refuse to double-drive a shared instance.
@@ -157,7 +157,7 @@ All scripts are executable. Invoke them from the repository root as shown. Do no
 
 | Script | What it does |
 | :--- | :--- |
-| `scripts/launch.sh` | `pnpm install` if `frontend/node_modules` is missing, then `pnpm run dev -- --hostname … --port …`. Optional backend: `uv run uvicorn main:app --reload --port …`. Writes `launch.json`. |
+| `scripts/launch.sh` | `pnpm install` if `frontend/node_modules` is missing, then `pnpm exec next dev --hostname … --port …` (same Next.js dev server as README `pnpm run dev`). Optional backend: `uv run uvicorn main:app --reload --port …`. Writes `launch.json`. |
 | `scripts/doctor.sh` | Read-only ownership + HTTP check. Exit `0` only when the instance is ours and worth driving. |
 | `scripts/cleanup.sh` | Signal the recorded PIDs / process groups. Keep evidence. |
 | `scripts/drive.mjs <feature>` | Playwright driver. Implemented feature id: `meeting-floor`. Other map files use the same selectors in-process or via `pnpm run test:e2e`. |

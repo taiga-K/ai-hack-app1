@@ -73,9 +73,11 @@ FRONTEND_ENV=(env)
 if [[ "${VERIFY_WITH_BACKEND}" == "1" ]]; then
   FRONTEND_ENV+=(BACKEND_HTTP_ORIGIN="${BACKEND_URL}")
 fi
+# Same Next.js dev server as README `pnpm run dev`. Extra `--` must not
+# be forwarded: Next 16 treats a leading `--hostname` as a project path.
 setsid bash -c "
   cd \"${REPO_ROOT}/frontend\"
-  exec ${FRONTEND_ENV[*]} pnpm run dev -- --hostname ${VERIFY_FRONTEND_HOST} --port ${VERIFY_FRONTEND_PORT}
+  exec ${FRONTEND_ENV[*]} pnpm exec next dev --hostname ${VERIFY_FRONTEND_HOST} --port ${VERIFY_FRONTEND_PORT}
 " </dev/null >"${VERIFY_RUN_DIR}/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo "${FRONTEND_PID}" >"${VERIFY_RUN_DIR}/frontend.pid"
