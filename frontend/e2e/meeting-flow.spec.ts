@@ -70,7 +70,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
     page.getByText("現場の担当も同じ認識です。例外はあとで共有します。")
   ).toBeVisible();
   await expect(
-    page.getByRole("complementary", { name: "こちらのささやき" })
+    page.getByRole("complementary", { name: "こちらのアドバイス" })
   ).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText("❓ 専門用語の確認")).toBeVisible();
@@ -144,7 +144,7 @@ test("デスクトップで左右の幅を拖って変えられる", async ({ pa
   await startUiPreview(page, "E2E幅変更会議");
 
   const whispers = page.getByRole("complementary", {
-    name: "こちらのささやき",
+    name: "こちらのアドバイス",
   });
   const handle = page.getByRole("separator", { name: "左右の幅を変える" });
   await expect(handle).toBeVisible();
@@ -190,7 +190,7 @@ test("デスクトップで左右の幅を拖って変えられる", async ({ pa
     .toBe(true);
 });
 
-test("モバイルのささやきタブは選択と本文が一致する", async ({ page }) => {
+test("モバイルのアドバイスタブは選択と本文が一致する", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startUiPreview(page, "E2Eモバイル会議");
 
@@ -215,7 +215,7 @@ test("モバイルのささやきタブは選択と本文が一致する", async
       );
     })
     .toBe(true);
-  const whispersTab = page.getByRole("tab", { name: /ささやき/ });
+  const whispersTab = page.getByRole("tab", { name: /アドバイス/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
   await expect(whispersTab).toHaveAttribute("aria-selected", "true");
@@ -226,7 +226,7 @@ test("モバイルのささやきタブは選択と本文が一致する", async
     "aria-selected",
     "false"
   );
-  await expect(page.getByRole("heading", { name: "ささやき" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "アドバイス" })).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(
@@ -278,15 +278,21 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   ).toBeVisible();
 
   const meetingId = new URL(page.url()).pathname.split("/")[2] ?? "unknown";
+  const titleRow = page.locator("header");
+  await expect(titleRow.getByText("E2E要件書会議")).toBeVisible();
+  await expect(titleRow.getByRole("button", { name: "コピー" })).toBeVisible();
+  await expect(
+    titleRow.getByRole("button", { name: "ファイルに保存" })
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "コピー" }).click();
+  await titleRow.getByRole("button", { name: "コピー" }).click();
   await expect(page.getByText("コピーしました")).toBeVisible();
   await expect
     .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
     .toContain("# E2E要件書会議");
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "保存" }).click();
+  await titleRow.getByRole("button", { name: "ファイルに保存" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe(`requirements-${meetingId}.md`);
   await expect(page.getByText("ファイルに保存しました")).toBeVisible();
@@ -367,12 +373,12 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+\?title=/);
   await expect(page).not.toHaveURL(/demo=1/);
   await expect(
-    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+    page.getByText("マインドマップが作られます")
   ).toBeVisible();
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await expect(
-    page.getByText("いまは、ささやくことがありません")
+    page.getByText("いまは、アドバイスがありません")
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "ききはじめる" })
@@ -440,7 +446,7 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
 
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
   await expect(
-    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+    page.getByText("マインドマップが作られます")
   ).toBeVisible();
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
@@ -520,7 +526,9 @@ test("読込中のまとめから戻ってもおわるは出ない", async ({ pa
   });
 
   await page.goto("/meetings/e2e-loading-doc/document?title=読込中会議");
-  await expect(page.getByRole("button", { name: "コピー" })).toBeVisible();
+  await expect(
+    page.locator("header").getByRole("button", { name: "コピー" })
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "ホーム" })).toHaveCount(0);
   await expect(page.getByText("遅延したまとめです。")).toHaveCount(0);
   await page.goto("/");
@@ -691,7 +699,7 @@ async function stubReadyRequirements(
   });
 }
 
-test("実会議のまとめから戻るとメモとささやきが残る", async ({ page }) => {
+test("実会議のまとめから戻るとメモとアドバイスが残る", async ({ page }) => {
   await seedRealMeetingFloor(page, "e2e-real-floor", "実会議フロア");
   await stubReadyRequirements(page, "e2e-real-floor", "実会議フロア");
 

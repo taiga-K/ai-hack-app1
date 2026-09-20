@@ -98,7 +98,7 @@ async function driveMeetingFloor(page) {
     timeout: 4000,
   });
   await page
-    .getByRole("complementary", { name: "こちらのささやき" })
+    .getByRole("complementary", { name: "こちらのアドバイス" })
     .waitFor({ state: "visible" });
   await page.getByText(PREVIEW_ADVICE_TITLE).waitFor({ state: "visible" });
   await page.getByText(PREVIEW_QUESTION).waitFor({ state: "visible" });

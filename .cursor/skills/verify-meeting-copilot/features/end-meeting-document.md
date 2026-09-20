@@ -41,4 +41,4 @@ The spec `会議終了からまとめの確認・編集・書き出しまで通�
 - Preview making-state is short. Capture `まとめをつくっています` immediately or you will only see the document.
 - Live まとめ needs FastAPI + `ORCAROUTER_API_KEY`. Preview does not. Do not call a preview document proof of Orca Router.
 - Direct `/document` without `demo=1` hits `GET /api/v1/meetings/{id}/requirements`. Without a rewrite target that 404s into `まとめは、まだ出来ていません`.
-- Button **保存** in older notes is on-screen **ファイルに保存** (`getByRole("button", { name: "保存" })` still matches).
+- Title-row save is the icon button `getByRole("button", { name: "ファイルに保存" })` inside `header`.

@@ -4,6 +4,7 @@ export interface HeaderProps {
   title?: string;
   badge?: string;
   leading?: ReactNode;
+  titleActions?: ReactNode;
   actions?: ReactNode;
 }
 
@@ -11,6 +12,7 @@ export function Header({
   title = "会議のまとめ",
   badge,
   leading,
+  titleActions,
   actions,
 }: HeaderProps) {
   return (
@@ -24,6 +26,9 @@ export function Header({
           <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] text-secondary-foreground">
             {badge}
           </span>
+        ) : null}
+        {titleActions ? (
+          <div className="flex shrink-0 items-center gap-1">{titleActions}</div>
         ) : null}
       </div>
       {actions ? (
