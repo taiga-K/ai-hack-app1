@@ -328,7 +328,6 @@ function MindMapFlow({
         elementsSelectable={false}
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
-        proOptions={{ hideAttribution: true }}
         className="h-full bg-transparent"
         onMove={(event) => {
           if (event === null || isFittingRef.current || userTookCamera) {
@@ -351,12 +350,12 @@ export function MindMapCanvas({
 
   return (
     <section
-      aria-label="話の地図"
-      className="flex h-full min-h-0 flex-col overflow-hidden"
+      aria-label="マインドマップ"
+      className="flex h-full min-h-0 flex-col overflow-hidden px-6"
     >
       <div className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
-          <p className="px-1 py-8 text-sm text-muted-foreground">
+          <p className="py-8 text-sm text-muted-foreground">
             話しはじめると、ここにちいさな地図が育ちます
           </p>
         ) : (

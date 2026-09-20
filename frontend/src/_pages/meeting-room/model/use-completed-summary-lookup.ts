@@ -7,9 +7,9 @@ import {
   forgetCompletedSummary,
   lookupCompletedSummary,
   mergeCompletedSummaryLookup,
-  readRememberedCompletedSummary,
   rememberCompletedSummary,
   resolveImmediateCompletedSummary,
+  useRememberedCompletedSummary,
   type BackTarget,
   type CompletedSummaryLookup,
 } from "@/features/return-to-meeting";
@@ -18,7 +18,7 @@ export function useCompletedSummaryLookup(
   target: BackTarget,
   completedSummaryHint: boolean
 ): CompletedSummaryLookup {
-  const rememberedHref = readRememberedCompletedSummary(target.meetingId);
+  const rememberedHref = useRememberedCompletedSummary(target.meetingId);
   const hintedHref = buildDocumentHref({
     ...target,
     hasCompletedSummary: true,

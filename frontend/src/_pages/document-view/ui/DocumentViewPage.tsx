@@ -3,13 +3,10 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { ExportMarkdownActions } from "@/features/export-markdown";
+import { GoHome } from "@/features/go-home";
 import {
-  BackToMeeting,
   buildDocumentHref,
-  buildMeetingHref,
-  shouldHintCompletedSummaryOnBack,
   syncCompletedSummaryMemory,
-  type BackTarget,
 } from "@/features/return-to-meeting";
 import { Header } from "@/widgets/header";
 import { DocumentEditor, MarkdownPreview } from "@/widgets/document-editor";
@@ -42,15 +39,6 @@ export function DocumentViewPage({
     copyMarkdown,
     downloadMarkdown,
   } = useDocumentView({ meetingId, title, preview });
-
-  const backTarget: BackTarget = {
-    kind: "meeting",
-    meetingId,
-    title: meetingTitle,
-    preview,
-    hasCompletedSummary: shouldHintCompletedSummaryOnBack(status),
-  };
-  const meetingHref = buildMeetingHref(backTarget);
 
   useEffect(() => {
     syncCompletedSummaryMemory(
@@ -94,7 +82,6 @@ export function DocumentViewPage({
       <Header
         title={meetingTitle}
         badge={preview ? "おためし" : "できたまとめ"}
-        leading={<BackToMeeting href={meetingHref} />}
       />
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-2 sm:px-8">
@@ -168,7 +155,12 @@ export function DocumentViewPage({
             view={view}
             onMarkdownChange={setMarkdown}
             onViewChange={setView}
-            preview={<MarkdownPreview markdown={markdown} />}
+            preview={
+              <div>
+                <MarkdownPreview markdown={markdown} />
+                <GoHome />
+              </div>
+            }
           />
         </div>
       ) : null}

@@ -80,15 +80,14 @@ export function useMeetingRoom({
   preview = false,
   alreadyEnded = false,
 }: UseMeetingRoomOptions) {
-  const restored = restoreFloor(meetingId, preview, alreadyEnded);
   const [phase, setPhase] = useState<MeetingPhase>(() =>
-    initialPhase(preview, restored.ended)
+    initialPhase(preview, false)
   );
-  const [utterances, setUtterances] = useState<Utterance[]>(
-    () => restored.utterances
+  const [utterances, setUtterances] = useState<Utterance[]>(() =>
+    preview ? createPreviewUtterances(meetingId) : []
   );
-  const [adviceItems, setAdviceItems] = useState<Advice[]>(
-    () => restored.adviceItems
+  const [adviceItems, setAdviceItems] = useState<Advice[]>(() =>
+    preview ? createPreviewAdvice(meetingId) : []
   );
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
@@ -96,12 +95,34 @@ export function useMeetingRoom({
     createEmptyMindMap(meetingId)
   );
   const chimeEnabledRef = useRef(true);
-  const phaseRef = useRef<MeetingPhase>(initialPhase(preview, restored.ended));
-  const utterancesRef = useRef<Utterance[]>(restored.utterances);
-  const adviceItemsRef = useRef<Advice[]>(restored.adviceItems);
+  const phaseRef = useRef<MeetingPhase>(initialPhase(preview, false));
+  const utterancesRef = useRef<Utterance[]>(utterances);
+  const adviceItemsRef = useRef<Advice[]>(adviceItems);
   const seenAdviceIdsRef = useRef<Set<string>>(
-    new Set(restored.adviceItems.map((item) => item.id))
+    new Set(adviceItems.map((item) => item.id))
   );
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      const restored = restoreFloor(meetingId, preview, alreadyEnded);
+      const nextPhase = initialPhase(preview, restored.ended);
+      phaseRef.current = nextPhase;
+      setPhase(nextPhase);
+      if (preview) {
+        return;
+      }
+      utterancesRef.current = restored.utterances;
+      adviceItemsRef.current = restored.adviceItems;
+      seenAdviceIdsRef.current = new Set(
+        restored.adviceItems.map((item) => item.id)
+      );
+      setUtterances(restored.utterances);
+      setAdviceItems(restored.adviceItems);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [alreadyEnded, meetingId, preview]);
 
   const persistFloor = useCallback(
     (ended: boolean) => {
