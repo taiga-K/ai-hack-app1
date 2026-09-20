@@ -276,7 +276,16 @@ function MindMapFlow({
   ]);
 
   return (
-    <div ref={paneRef} className="relative h-full min-h-0 overflow-hidden">
+    <div
+      ref={paneRef}
+      className="relative h-full min-h-0 overflow-hidden"
+      onWheel={() => {
+        if (userTookCamera) {
+          return;
+        }
+        setUserTookCamera(true);
+      }}
+    >
       {userTookCamera ? (
         <button
           type="button"
@@ -318,25 +327,6 @@ function MindMapFlow({
         maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         className="h-full bg-transparent"
-        onInit={() => {
-          const visible = readVisiblePaneSize(paneRef.current, width, height);
-          if (visible.width < 80 || visible.height < 80) {
-            return;
-          }
-          const viewport = viewportFromMindMapLayout(
-            layout.nodes,
-            visible.width,
-            visible.height,
-            FIT_PADDING,
-            MIN_ZOOM,
-            fitMaxZoom(stacked)
-          );
-          if (viewport === null) {
-            return;
-          }
-          lastSizeRef.current = visible;
-          void setViewport(viewport, { duration: 0 });
-        }}
         onMove={(event) => {
           if (event === null || isFittingRef.current || userTookCamera) {
             return;
