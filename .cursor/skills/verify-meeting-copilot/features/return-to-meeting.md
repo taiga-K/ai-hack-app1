@@ -24,7 +24,7 @@ Preconditions:
 - Doctor passed.
 - Happy path: preview floor already taken through **はい、おわる** to a ready document (`end-meeting-document`).
 
-- **Back from ready まとめ.** `page.getByRole("link", { name: "戻る" }).click()`. URL matches `/\/meetings\/[^/]+\?/` and `summary=1`, and does **not** include `/document`. Regions **こちら** / **むこう** are visible. Preview advice title is still visible. Link **まとめを見る** is visible. Button **おわる** count is `0`.
+- **Back from ready まとめ.** `page.getByRole("link", { name: "戻る" }).click()`. URL matches `/\/meetings\/[^/]+\?/` and `summary=1`, and does **not** include `/document`. Complementary **こちらのアドバイス** is visible. Preview advice title is still visible. Link **まとめを見る** is visible. Button **おわる** count is `0`.
 - **Reopen.** `page.getByRole("link", { name: "まとめを見る" }).click()`. URL includes `/document`. Link **戻る** is visible again.
 - **Back while making.** From a new preview floor, confirm end, and while `まとめをつくっています` is visible click `page.getByRole("button", { name: "戻る" })` (button, not link). Floor returns without `/document`. **おわる** count is `0`. **まとめを見る** becomes visible when the document is ready. Opening it shows `あとで確認すること`.
 - **Browser Back.** After preview auto-open of `/document`, `page.goBack()`. Floor has `summary=1`, memos still show the preview utterance, **おわる** is absent.
