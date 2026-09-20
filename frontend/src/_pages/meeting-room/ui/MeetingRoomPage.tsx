@@ -22,7 +22,6 @@ import {
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
 import { Header } from "@/widgets/header";
-import { MeetingFloor } from "@/widgets/meeting-floor";
 import { MindMapCanvas } from "@/widgets/mind-map-canvas";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { cn } from "@/shared/lib";
@@ -210,15 +209,8 @@ export function MeetingRoomPage({
   const showOpenDocument = documentHref !== null && !showAfterEnd;
   const showControls =
     !showAfterEnd && !meetingAlreadyOver && finalizeError === null;
-  const floorProps = {
-    oursListening: listening,
-    theirsListening: listening,
-    oursVolume: audio.micVolume,
-    theirsVolume: audio.tabVolume,
-  };
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      {layout === "mobile" ? <MeetingFloor {...floorProps} /> : null}
       {!listening && phase === "idle" && !meetingAlreadyOver ? (
         <p className="text-sm text-foreground">
           ききはじめるを押すと、相手の画面の音を共有できます。
@@ -236,12 +228,7 @@ export function MeetingRoomPage({
             maxSize={MEETING_SPLIT.leftMax}
             className="min-w-0"
           >
-            <div className="flex h-full min-h-0 flex-col gap-3">
-              <MeetingFloor {...floorProps} side="ours" />
-              <div className="min-h-0 flex-1">
-                <CopilotSidebar adviceItems={adviceItems} />
-              </div>
-            </div>
+            <CopilotSidebar adviceItems={adviceItems} />
           </ResizablePanel>
           <ResizableHandle aria-label="左右の幅を変える" />
           <ResizablePanel
@@ -249,17 +236,12 @@ export function MeetingRoomPage({
             className="min-w-0"
             minSize="38"
           >
-            <div className="flex h-full min-h-0 flex-col gap-3">
-              <MeetingFloor {...floorProps} side="theirs" />
-              <div className="min-h-0 flex-1">
-                <WorkspaceTabs
-                  tab={workspaceTab}
-                  onTabChange={setWorkspaceTab}
-                  utterances={utterances}
-                  mindMap={mindMap}
-                />
-              </div>
-            </div>
+            <WorkspaceTabs
+              tab={workspaceTab}
+              onTabChange={setWorkspaceTab}
+              utterances={utterances}
+              mindMap={mindMap}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
