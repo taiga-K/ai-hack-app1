@@ -34,13 +34,14 @@ export function getAdviceActionLabel(action: AdviceAction): string {
 
 export function getAdviceActionVariant(
   action: AdviceAction
-): "default" | "outline" {
+): "default" | "outline" | "ghost" {
   switch (action) {
     case "heard":
       return "default";
     case "unneeded":
-    case "later":
       return "outline";
+    case "later":
+      return "ghost";
     default: {
       const _exhaustiveCheck: never = action;
       throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);

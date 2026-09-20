@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { Advice, AdviceAction } from "@/entities/advice";
 import type { MindMapSnapshot } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
@@ -102,6 +103,7 @@ export function MeetingRoomPage({
     adviceItems,
     laterAdviceItems,
     resolveAdvice,
+    undoAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,
@@ -117,6 +119,30 @@ export function MeetingRoomPage({
     preview,
     alreadyEnded: rememberedCompletedSummary !== null,
   });
+
+  function handleAdviceAction(adviceId: string, action: AdviceAction) {
+    resolveAdvice(adviceId, action);
+    let message: string;
+    switch (action) {
+      case "heard":
+      case "unneeded":
+        message = "このアドバイスを外しました";
+        break;
+      case "later":
+        message = "あとで聞くに入れました";
+        break;
+      default: {
+        const _exhaustiveCheck: never = action;
+        throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
+      }
+    }
+    toast(message, {
+      action: {
+        label: "もどす",
+        onClick: undoAdvice,
+      },
+    });
+  }
 
   async function handleEndMeeting() {
     stayOnFloorRef.current = false;
@@ -244,7 +270,7 @@ export function MeetingRoomPage({
                 <CopilotSidebar
                   adviceItems={adviceItems}
                   laterAdviceItems={laterAdviceItems}
-                  onAdviceAction={resolveAdvice}
+                  onAdviceAction={handleAdviceAction}
                 />
               </div>
             </div>
@@ -294,8 +320,8 @@ export function MeetingRoomPage({
               current={mobilePane}
               onSelect={setMobilePane}
             >
-              {adviceItems.length > 0
-                ? `アドバイス ${String(adviceItems.length)}`
+              {adviceItems.length + laterAdviceItems.length > 0
+                ? `アドバイス ${String(adviceItems.length + laterAdviceItems.length)}`
                 : "アドバイス"}
             </MobilePaneButton>
           </div>
@@ -319,7 +345,7 @@ export function MeetingRoomPage({
                 utterances,
                 adviceItems,
                 laterAdviceItems,
-                resolveAdvice
+                handleAdviceAction
               )}
             </div>
           ) : (

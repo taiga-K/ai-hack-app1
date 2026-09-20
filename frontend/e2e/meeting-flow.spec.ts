@@ -281,6 +281,17 @@ test("アドバイスは聞けた・不要・あとでで一覧から外せる",
 
   await jargon.getByRole("button", { name: "聞けた" }).click();
   await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
+  await expect(page.getByText("このアドバイスを外しました")).toBeVisible();
+  await page.getByRole("button", { name: "もどす" }).click();
+  await expect(
+    sidebar.getByRole("article").filter({ hasText: PREVIEW_QUESTION })
+  ).toBeVisible();
+  await sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_QUESTION })
+    .getByRole("button", { name: "聞けた" })
+    .click();
+  await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
 
   await ambiguity.getByRole("button", { name: "不要" }).click();
   await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);

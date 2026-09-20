@@ -19,6 +19,6 @@ describe("advice actions", () => {
   it("makes 聞けた the filled action", () => {
     assert.equal(getAdviceActionVariant("heard"), "default");
     assert.equal(getAdviceActionVariant("unneeded"), "outline");
-    assert.equal(getAdviceActionVariant("later"), "outline");
+    assert.equal(getAdviceActionVariant("later"), "ghost");
   });
 });

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { applyAdviceAction, collectSeenAdviceIds } from "./resolve-advice.ts";
+import {
+  applyAdviceAction,
+  captureAdviceUndo,
+  collectSeenAdviceIds,
+  undoAdviceAction,
+} from "./resolve-advice.ts";
 
 function advice(id: string): { id: string; title: string } {
   return { id, title: `${id} title` };
@@ -54,6 +59,33 @@ describe("applyAdviceAction", () => {
     };
 
     assert.deepEqual(applyAdviceAction(lists, "a", "later"), lists);
+  });
+});
+
+describe("undoAdviceAction", () => {
+  it("puts a dismissed item back on the live list", () => {
+    const lists = {
+      active: [advice("a"), advice("b")],
+      later: [],
+    };
+    const undo = captureAdviceUndo(lists, "a", "unneeded");
+    assert.ok(undo);
+    const removed = applyAdviceAction(lists, "a", "unneeded");
+    assert.deepEqual(undoAdviceAction(removed, undo), lists);
+  });
+
+  it("moves a parked item back to the live list", () => {
+    const lists = {
+      active: [advice("a"), advice("b")],
+      later: [],
+    };
+    const undo = captureAdviceUndo(lists, "a", "later");
+    assert.ok(undo);
+    const parked = applyAdviceAction(lists, "a", "later");
+    assert.deepEqual(undoAdviceAction(parked, undo), {
+      active: [advice("a"), advice("b")],
+      later: [],
+    });
   });
 });
 
