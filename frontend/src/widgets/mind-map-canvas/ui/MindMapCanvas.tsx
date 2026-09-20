@@ -43,6 +43,7 @@ import {
   didMindMapPaneWidthChange,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
+  shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "../model/should-refit-camera";
@@ -428,6 +429,11 @@ function MindMapFlow({
     );
     const heightChanged =
       previous.height > 0 && Math.abs(previous.height - visible.height) > 2;
+    const heightRefit = shouldRefitForPaneHeight({
+      heightChanged,
+      overflows: overflowsX || overflowsY,
+      hasAnchor: keepInView !== null,
+    });
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
@@ -438,17 +444,21 @@ function MindMapFlow({
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged: widthChanged || heightChanged,
+      sizeChanged: widthChanged || heightRefit,
       nodesChanged,
       userTookCamera,
     });
     if (!shouldFit) {
+      // A skipped height-only change still becomes the new baseline, so the
+      // next detail open/close is measured against the size the user sees.
+      const skippedHeightOnly = heightChanged && !widthChanged && !heightRefit;
       if (
         shouldCommitMindMapCameraMemory({
           fitRan: false,
           nodesInitialized,
           userTookCamera,
-        })
+        }) ||
+        (skippedHeightOnly && nodesInitialized)
       ) {
         lastSizeRef.current = visible;
         lastNodeSignatureRef.current = nodeSignature;
@@ -510,6 +520,8 @@ function MindMapFlow({
     height,
     nodeSignature,
     nodesInitialized,
+    overflowsX,
+    overflowsY,
     userTookCamera,
     width,
   ]);

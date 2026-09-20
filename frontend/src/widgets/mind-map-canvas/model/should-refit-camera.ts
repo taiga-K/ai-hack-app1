@@ -44,6 +44,23 @@ export function usesStackedMindMapLayout(
   return width > 0 && width < 560;
 }
 
+/**
+ * A height-only change (the branch detail opening or closing) refits when the
+ * whole tree fits the pane, or when a pressed node anchors the fit. On an
+ * overflowing map with nothing to keep in view, the fit would pin to the root
+ * and jump the camera, so the viewport is left alone.
+ */
+export function shouldRefitForPaneHeight(input: {
+  heightChanged: boolean;
+  overflows: boolean;
+  hasAnchor: boolean;
+}): boolean {
+  if (!input.heightChanged) {
+    return false;
+  }
+  return !input.overflows || input.hasAnchor;
+}
+
 /** Splitter drags change the width; the branch detail only changes the height. */
 export function didMindMapPaneWidthChange(
   previousWidth: number,
