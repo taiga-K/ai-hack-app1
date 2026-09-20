@@ -1,4 +1,5 @@
 import type { Advice } from "@/entities/advice";
+import type { MindMapEvent } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
 
 export function createPreviewUtterances(meetingId: string): Utterance[] {
@@ -115,6 +116,85 @@ export function createPreviewAdvice(meetingId: string): Advice[] {
         "来月末の本番は、参照のみの暫定連携でも成立しますか？それとも双方向同期が必須ですか？",
       detectedAt: "2026-09-19T00:00:26.000Z",
       quote: "来月末までに本番投入したいです",
+    },
+  ];
+}
+
+export function createPreviewMindMapEvents(meetingId: string): MindMapEvent[] {
+  return [
+    {
+      type: "mindmap",
+      meetingId,
+      revision: 1,
+      upserts: [
+        {
+          id: "root",
+          label: "今日の会議",
+          parentId: null,
+          sourceUtteranceIds: [],
+        },
+      ],
+      removes: [],
+    },
+    {
+      type: "mindmap",
+      meetingId,
+      revision: 2,
+      upserts: [
+        {
+          id: "scope",
+          label: "対象範囲",
+          parentId: "root",
+          sourceUtteranceIds: ["preview-utt-1"],
+        },
+        {
+          id: "api",
+          label: "システムのつなぎ",
+          parentId: "root",
+          sourceUtteranceIds: ["preview-utt-2"],
+        },
+      ],
+      removes: [],
+    },
+    {
+      type: "mindmap",
+      meetingId,
+      revision: 3,
+      upserts: [
+        {
+          id: "renewal",
+          label: "更新申請だけ",
+          parentId: "scope",
+          sourceUtteranceIds: ["preview-utt-1"],
+        },
+        {
+          id: "sync",
+          label: "すぐ反映したい",
+          parentId: "api",
+          sourceUtteranceIds: ["preview-utt-2"],
+        },
+        {
+          id: "due",
+          label: "来月末の本番",
+          parentId: "root",
+          sourceUtteranceIds: ["preview-utt-2"],
+        },
+      ],
+      removes: [],
+    },
+    {
+      type: "mindmap",
+      meetingId,
+      revision: 4,
+      upserts: [
+        {
+          id: "exceptions",
+          label: "例外は宿題",
+          parentId: "scope",
+          sourceUtteranceIds: ["preview-utt-5", "preview-utt-6"],
+        },
+      ],
+      removes: [],
     },
   ];
 }

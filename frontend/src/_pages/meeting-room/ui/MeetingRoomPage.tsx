@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Advice } from "@/entities/advice";
+import type { MindMapSnapshot } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
 import { MeetingControls } from "@/features/meeting-control";
 import {
@@ -21,13 +22,33 @@ import {
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
 import { Header } from "@/widgets/header";
 import { MeetingFloor } from "@/widgets/meeting-floor";
+import { MindMapCanvas } from "@/widgets/mind-map-canvas";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { cn } from "@/shared/lib";
-import { Button, Toaster, buttonVariants } from "@/shared/ui";
+import {
+  Button,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Toaster,
+  buttonVariants,
+} from "@/shared/ui";
 import { stopCaptureWhenAlreadyOver } from "../model/stop-capture-when-already-over";
 import { useCompletedSummaryLookup } from "../model/use-completed-summary-lookup";
 import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
+import {
+  MEETING_SPLIT,
+  isMobileSidePane,
+  isWorkspaceTab,
+  type MobilePane,
+  type MobileSidePane,
+  type WorkspaceTab,
+} from "../model/workspace";
 
 export interface MeetingRoomPageProps {
   meetingId: string;
@@ -36,7 +57,6 @@ export interface MeetingRoomPageProps {
   completedSummaryHint?: boolean;
 }
 
-type MobilePane = "notes" | "whispers";
 type Handoff = "none" | "making" | "ready";
 
 function waitMs(ms: number): Promise<void> {
@@ -53,7 +73,8 @@ export function MeetingRoomPage({
 }: MeetingRoomPageProps) {
   const router = useRouter();
   const meetingTitle = title?.trim() || "今日の会議";
-  const [mobilePane, setMobilePane] = useState<MobilePane>("notes");
+  const [mobilePane, setMobilePane] = useState<MobilePane>("map");
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("map");
   const [handoff, setHandoff] = useState<Handoff>("none");
   const [sessionDocumentHref, setSessionDocumentHref] = useState<string | null>(
     null
@@ -77,6 +98,7 @@ export function MeetingRoomPage({
     phase,
     utterances,
     adviceItems,
+    mindMap,
     chimeEnabled,
     finalizeError,
     audio,
@@ -167,27 +189,60 @@ export function MeetingRoomPage({
   const showAfterEnd = handoff === "making" || handoff === "ready";
   const showOpenDocument = documentHref !== null && !showAfterEnd;
   const showControls = !showAfterEnd && !meetingAlreadyOver;
-
+  const floorProps = {
+    oursListening: listening,
+    theirsListening: listening,
+    oursSpeaking: oursSpeaking,
+    theirsSpeaking: theirsSpeaking,
+    oursVolume: audio.micVolume,
+    theirsVolume: audio.tabVolume,
+  };
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <MeetingFloor
-        oursListening={listening}
-        theirsListening={listening}
-        oursSpeaking={oursSpeaking}
-        theirsSpeaking={theirsSpeaking}
-        oursVolume={audio.micVolume}
-        theirsVolume={audio.tabVolume}
-      />
+      {layout === "mobile" ? <MeetingFloor {...floorProps} /> : null}
       {!listening && phase === "idle" && !meetingAlreadyOver ? (
         <p className="text-sm text-foreground">
           ききはじめるを押すと、相手の画面の音を共有できます。
         </p>
       ) : null}
       {layout === "desktop" ? (
-        <div className="grid min-h-0 flex-1 grid-cols-2 gap-8 overflow-hidden">
-          <CopilotSidebar adviceItems={adviceItems} />
-          <TranscriptFeed utterances={utterances} />
-        </div>
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 flex-1 overflow-hidden"
+        >
+          <ResizablePanel
+            id="meeting-whispers"
+            defaultSize={MEETING_SPLIT.leftDefault}
+            minSize={MEETING_SPLIT.leftMin}
+            maxSize={MEETING_SPLIT.leftMax}
+            className="min-w-0"
+          >
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              <MeetingFloor {...floorProps} side="ours" />
+              <div className="min-h-0 flex-1">
+                <CopilotSidebar adviceItems={adviceItems} />
+              </div>
+            </div>
+          </ResizablePanel>
+          <ResizableHandle withHandle aria-label="左右の幅を変える" />
+          <ResizablePanel
+            id="meeting-workspace"
+            className="min-w-0"
+            minSize="38"
+          >
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              <MeetingFloor {...floorProps} side="theirs" />
+              <div className="min-h-0 flex-1">
+                <WorkspaceTabs
+                  tab={workspaceTab}
+                  onTabChange={setWorkspaceTab}
+                  utterances={utterances}
+                  mindMap={mindMap}
+                />
+              </div>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
@@ -195,38 +250,52 @@ export function MeetingRoomPage({
             aria-label="会議の表示"
             className="mb-3 flex flex-wrap gap-2"
           >
-            <Button
-              type="button"
-              size="sm"
-              variant={mobilePane === "notes" ? "default" : "outline"}
-              role="tab"
-              aria-selected={mobilePane === "notes"}
-              aria-controls="meeting-mobile-pane"
-              onClick={() => setMobilePane("notes")}
+            <MobilePaneButton
+              pane="map"
+              current={mobilePane}
+              onSelect={setMobilePane}
+            >
+              話の地図
+            </MobilePaneButton>
+            <MobilePaneButton
+              pane="notes"
+              current={mobilePane}
+              onSelect={setMobilePane}
             >
               メモ
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={mobilePane === "whispers" ? "default" : "outline"}
-              role="tab"
-              aria-selected={mobilePane === "whispers"}
-              aria-controls="meeting-mobile-pane"
-              onClick={() => setMobilePane("whispers")}
+            </MobilePaneButton>
+            <MobilePaneButton
+              pane="whispers"
+              current={mobilePane}
+              onSelect={setMobilePane}
             >
               {adviceItems.length > 0
                 ? `ささやき ${String(adviceItems.length)}`
                 : "ささやき"}
-            </Button>
+            </MobilePaneButton>
           </div>
           <div
-            id="meeting-mobile-pane"
-            role="tabpanel"
-            className="min-h-0 flex-1"
+            className={
+              mobilePane === "map"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "mb-2 flex min-h-[24rem] basis-3/5 shrink-0 flex-col overflow-hidden"
+            }
           >
-            {renderMobilePane(mobilePane, utterances, adviceItems)}
+            <MindMapCanvas snapshot={mindMap} compact />
           </div>
+          {isMobileSidePane(mobilePane) ? (
+            <div
+              id="meeting-mobile-pane"
+              role="tabpanel"
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              {renderMobileSidePane(mobilePane, utterances, adviceItems)}
+            </div>
+          ) : (
+            <div id="meeting-mobile-pane" role="tabpanel" className="sr-only">
+              話の地図を表示しています
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -323,8 +392,77 @@ export function MeetingRoomPage({
   );
 }
 
-function renderMobilePane(
-  pane: MobilePane,
+function WorkspaceTabs({
+  tab,
+  onTabChange,
+  utterances,
+  mindMap,
+}: {
+  tab: WorkspaceTab;
+  onTabChange: (tab: WorkspaceTab) => void;
+  utterances: Utterance[];
+  mindMap: MindMapSnapshot;
+}) {
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        if (typeof value === "string" && isWorkspaceTab(value)) {
+          onTabChange(value);
+        }
+      }}
+      className="flex h-full min-h-0 flex-col gap-0"
+    >
+      <TabsList
+        variant="line"
+        aria-label="右側の表示"
+        className="h-9 w-full justify-start rounded-none border-b border-border bg-transparent px-0"
+      >
+        <TabsTrigger value="map" className="rounded-none px-3">
+          話の地図
+        </TabsTrigger>
+        <TabsTrigger value="notes" className="rounded-none px-3">
+          会議のメモ
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="map" className="min-h-0 overflow-hidden">
+        <MindMapCanvas snapshot={mindMap} />
+      </TabsContent>
+      <TabsContent value="notes" className="min-h-0 overflow-hidden">
+        <TranscriptFeed utterances={utterances} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function MobilePaneButton({
+  pane,
+  current,
+  onSelect,
+  children,
+}: {
+  pane: MobilePane;
+  current: MobilePane;
+  onSelect: (pane: MobilePane) => void;
+  children: string;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={current === pane ? "default" : "outline"}
+      role="tab"
+      aria-selected={current === pane}
+      aria-controls="meeting-mobile-pane"
+      onClick={() => onSelect(pane)}
+    >
+      {children}
+    </Button>
+  );
+}
+
+function renderMobileSidePane(
+  pane: MobileSidePane,
   utterances: Utterance[],
   adviceItems: Advice[]
 ) {

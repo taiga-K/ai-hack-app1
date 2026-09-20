@@ -1,8 +1,13 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Advice } from "@/entities/advice";
 import type { MeetingPhase } from "@/entities/meeting";
+import {
+  applyMindMapEvent,
+  createEmptyMindMap,
+  type MindMapSnapshot,
+} from "@/entities/mind-map";
 import { finalizeRequirementDocument } from "@/entities/requirement-doc";
 import type { Utterance } from "@/entities/utterance";
 import { useAudioCapture } from "@/features/audio-capture";
@@ -16,7 +21,11 @@ import {
   readMeetingFloorSnapshot,
   writeMeetingFloorSnapshot,
 } from "./meeting-floor-snapshot";
-import { createPreviewAdvice, createPreviewUtterances } from "./preview-events";
+import {
+  createPreviewAdvice,
+  createPreviewMindMapEvents,
+  createPreviewUtterances,
+} from "./preview-events";
 
 function isTerminalPhase(phase: MeetingPhase): boolean {
   return phase === "ended" || phase === "finalizing";
@@ -83,6 +92,9 @@ export function useMeetingRoom({
   );
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
+  const [mindMap, setMindMap] = useState<MindMapSnapshot>(() =>
+    createEmptyMindMap(meetingId)
+  );
   const chimeEnabledRef = useRef(true);
   const phaseRef = useRef<MeetingPhase>(initialPhase(preview, restored.ended));
   const utterancesRef = useRef<Utterance[]>(restored.utterances);
@@ -129,6 +141,17 @@ export function useMeetingRoom({
             return next;
           });
           return;
+        case "mindmap":
+          setMindMap((current) =>
+            applyMindMapEvent(current, {
+              type: "mindmap",
+              meetingId: parsed.meetingId,
+              revision: parsed.revision,
+              upserts: parsed.upserts,
+              removes: parsed.removes,
+            })
+          );
+          return;
         case "advice":
           if (seenAdviceIdsRef.current.has(parsed.id)) {
             return;
@@ -165,6 +188,26 @@ export function useMeetingRoom({
     },
     [persistFloor]
   );
+
+  useEffect(() => {
+    if (!preview) {
+      return;
+    }
+    const events = createPreviewMindMapEvents(meetingId);
+    const timers = events.map((event, index) =>
+      window.setTimeout(
+        () => {
+          setMindMap((current) => applyMindMapEvent(current, event));
+        },
+        240 + index * 560
+      )
+    );
+    return () => {
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [meetingId, preview]);
 
   const { state, stats, startCapture, stopCapture, flushAndDisconnect } =
     useAudioCapture({
@@ -247,6 +290,7 @@ export function useMeetingRoom({
     phase,
     utterances,
     adviceItems,
+    mindMap,
     chimeEnabled,
     finalizeError,
     audio: state,

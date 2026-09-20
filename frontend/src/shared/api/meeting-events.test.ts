@@ -82,6 +82,38 @@ describe("parseMeetingServerMessage", () => {
     assert.equal(event.priority, "medium");
   });
 
+  it("parses a mindmap delta in revision order fields", () => {
+    const event = parseMeetingServerMessage({
+      type: "mindmap",
+      meeting_id: "m-1",
+      revision: 2,
+      upserts: [
+        {
+          id: "scope",
+          label: "対象範囲",
+          parent_id: "root",
+          source_utterance_ids: ["utt-1"],
+        },
+      ],
+      removes: ["noise"],
+    });
+
+    assert.deepEqual(event, {
+      type: "mindmap",
+      meetingId: "m-1",
+      revision: 2,
+      upserts: [
+        {
+          id: "scope",
+          label: "対象範囲",
+          parentId: "root",
+          sourceUtteranceIds: ["utt-1"],
+        },
+      ],
+      removes: ["noise"],
+    });
+  });
+
   it("parses pong and rejects invalid payloads", () => {
     assert.deepEqual(parseMeetingServerMessage({ type: "pong" }), {
       type: "pong",

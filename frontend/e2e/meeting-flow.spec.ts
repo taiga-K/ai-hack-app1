@@ -18,6 +18,11 @@ async function startUiPreview(page: Page, title: string): Promise<void> {
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
 }
 
+async function showMeetingMemos(page: Page): Promise<void> {
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
+  await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
+}
+
 async function confirmEndMeeting(page: Page): Promise<void> {
   await page.getByRole("button", { name: "おわる" }).click();
   await expect(
@@ -43,6 +48,26 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("おためし").first()).toBeVisible();
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
   await expect(page.getByRole("region", { name: "むこう" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "話の地図" })).toHaveAttribute(
+    "aria-selected",
+    "true"
+  );
+  const widthHandle = page.getByRole("separator", { name: "左右の幅を変える" });
+  await expect(widthHandle).toBeVisible();
+  await expect(widthHandle.getByText("幅")).toBeVisible();
+  const handleBox = await widthHandle.boundingBox();
+  expect(handleBox?.width ?? 0).toBeGreaterThanOrEqual(16);
+  await expect(page.getByText("React Flow")).toHaveCount(0);
+  await expect(page.getByText("地図をかいています")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
+  await expect(page.getByText("今日の会議").first()).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(page.getByText("対象範囲").first()).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
   await expect(page.getByText("了解です。そこはお任せします。")).toBeVisible();
@@ -64,14 +89,146 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("きいている").first()).toBeVisible();
 });
 
+test("地図は動かさなければ成長しても画面内に収まる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E地図成長会議");
+
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(mapRegion.getByText("対象範囲")).toBeVisible({ timeout: 4000 });
+  await expect(mapRegion.getByText("来月末の本番")).toBeVisible({
+    timeout: 4000,
+  });
+  const grown = mapRegion.getByText("例外は宿題", { exact: true });
+  await expect(grown).toBeVisible({ timeout: 4000 });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
+  const mapBox = await mapRegion.boundingBox();
+  const nodeBox = await grown.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(nodeBox).not.toBeNull();
+  if (mapBox !== null && nodeBox !== null) {
+    expect(nodeBox.x).toBeGreaterThanOrEqual(mapBox.x - 8);
+    expect(nodeBox.y).toBeGreaterThanOrEqual(mapBox.y - 8);
+    expect(nodeBox.x + nodeBox.width).toBeLessThanOrEqual(
+      mapBox.x + mapBox.width + 8
+    );
+    expect(nodeBox.y + nodeBox.height).toBeLessThanOrEqual(
+      mapBox.y + mapBox.height + 8
+    );
+  }
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+});
+
+test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E地図操作会議");
+
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("例外は宿題", { exact: true })).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+
+  const pane = mapRegion.locator(".react-flow__pane");
+  await expect(pane).toBeVisible();
+  const paneBox = await pane.boundingBox();
+  expect(paneBox).not.toBeNull();
+  if (paneBox === null) {
+    return;
+  }
+  await page.mouse.move(paneBox.x + paneBox.width - 16, paneBox.y + 16);
+  await page.mouse.wheel(0, -320);
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toBeVisible();
+  await page.getByRole("button", { name: "ぜんぶ見る" }).click();
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+});
+
+test("デスクトップで左右の幅を拖って変えられる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E幅変更会議");
+
+  const whispers = page.getByRole("complementary", {
+    name: "こちらのささやき",
+  });
+  const handle = page.getByRole("separator", { name: "左右の幅を変える" });
+  await expect(handle).toBeVisible();
+  const before = await whispers.boundingBox();
+  expect(before).not.toBeNull();
+  const handleBox = await handle.boundingBox();
+  expect(handleBox).not.toBeNull();
+  if (before === null || handleBox === null) {
+    return;
+  }
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2,
+    handleBox.y + handleBox.height / 2
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    handleBox.x + handleBox.width / 2 + 90,
+    handleBox.y + handleBox.height / 2,
+    { steps: 8 }
+  );
+  await page.mouse.up();
+  const after = await whispers.boundingBox();
+  expect(after).not.toBeNull();
+  expect(Math.abs((after?.width ?? 0) - before.width)).toBeGreaterThan(20);
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  const grown = mapRegion.getByText("例外は宿題", { exact: true });
+  await expect(grown).toBeVisible();
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const mapBox = await mapRegion.boundingBox();
+      const nodeBox = await grown.boundingBox();
+      if (mapBox === null || nodeBox === null) {
+        return false;
+      }
+      return (
+        nodeBox.x >= mapBox.x - 8 &&
+        nodeBox.y >= mapBox.y - 8 &&
+        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
+        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
+      );
+    })
+    .toBe(true);
+});
+
 test("モバイルのささやきタブは選択と本文が一致する", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await startUiPreview(page, "E2Eモバイル会議");
 
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  const lastTopic = mapRegion.getByText("来月末の本番");
+  await expect(lastTopic).toBeVisible({ timeout: 4000 });
+  await expect
+    .poll(async () => {
+      const mapBox = await mapRegion.boundingBox();
+      const nodeBox = await lastTopic.boundingBox();
+      if (mapBox === null || nodeBox === null) {
+        return false;
+      }
+      return (
+        nodeBox.x >= mapBox.x - 8 &&
+        nodeBox.y >= mapBox.y - 8 &&
+        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
+        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
+      );
+    })
+    .toBe(true);
   const whispersTab = page.getByRole("tab", { name: /ささやき/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
   await expect(whispersTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "話の地図" })).toHaveAttribute(
+    "aria-selected",
+    "false"
+  );
   await expect(page.getByRole("tab", { name: "メモ" })).toHaveAttribute(
     "aria-selected",
     "false"
@@ -79,7 +236,21 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await expect(page.getByRole("heading", { name: "ささやき" })).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
+  const peek = page.getByRole("region", { name: "話の地図" });
+  await expect(peek.getByText("今日の会議")).toBeVisible();
+  await expect(peek.getByText("対象範囲")).toBeVisible();
+  await expect(page.getByText("話の地図は残っています")).toHaveCount(0);
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "話の地図" }).click();
+  const mapLabel = page.getByText("今日の会議").first();
+  await expect(mapLabel).toBeVisible({ timeout: 4000 });
+  const fontSize = await mapLabel.evaluate((element) =>
+    Number.parseFloat(window.getComputedStyle(element).fontSize)
+  );
+  expect(fontSize).toBeGreaterThanOrEqual(13);
+  await expect(page.getByText("React Flow")).toHaveCount(0);
 });
 
 test("会議終了からまとめの確認・編集・書き出しまで通る", async ({
@@ -161,6 +332,7 @@ test("生成中に戻るとフロアで完了を待ち同じまとめを開け�
   await expect(page).not.toHaveURL(/\/document/);
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
   await expect(page.getByRole("region", { name: "むこう" })).toBeVisible();
+  await showMeetingMemos(page);
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
@@ -191,6 +363,10 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
 
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+\?title=/);
   await expect(page).not.toHaveURL(/demo=1/);
+  await expect(
+    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await expect(
     page.getByText("いまは、ささやくことがありません")
@@ -261,6 +437,10 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
 
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(
+    page.getByText("話しはじめると、ここにちいさな地図が育ちます")
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await page.getByRole("button", { name: "ききはじめる" }).click();
   await expect(page.getByText("うまく聞けませんでした")).toBeVisible();
@@ -518,8 +698,9 @@ test("実会議のまとめから戻るとメモとささやきが残る", async
   await expect(page).toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/demo=1/);
   await expect(page).not.toHaveURL(/\/document/);
-  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await showMeetingMemos(page);
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
@@ -537,8 +718,9 @@ test("実会議を summary なしで開き直してもメモと終了が残る",
   await page.goto("/meetings/e2e-real-reload?title=実会議再読込");
   await expect(page).not.toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/demo=1/);
-  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await showMeetingMemos(page);
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
@@ -558,6 +740,7 @@ test("おためしでまとめが自動で開いたあとブラウザ戻るで�
   await expect(page).toHaveURL(/\/meetings\/[^/]+\?/);
   await expect(page).toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/\/document/);
+  await showMeetingMemos(page);
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
@@ -607,6 +790,7 @@ test("実会議の生成失敗後に開き直すとやり直せる", async ({ pa
   await stubRequirementsFailure(page);
 
   await page.goto("/meetings/e2e-fail-finalize?title=失敗会議");
+  await showMeetingMemos(page);
   await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await confirmEndMeeting(page);
   await expect(page.getByText("まとめを作れませんでした。")).toBeVisible();
@@ -625,8 +809,9 @@ test("実会議の生成失敗後に開き直すとやり直せる", async ({ pa
     .toBe(false);
 
   await page.reload();
-  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await showMeetingMemos(page);
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
   await expect(page.getByRole("button", { name: "もういちど" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
