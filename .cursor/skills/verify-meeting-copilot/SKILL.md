@@ -80,14 +80,14 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | Start preview | `getByRole("button", { name: "おためし" })` |
 | Preview URL | `/meetings/<uuid>?title=...&demo=1` |
 | Live URL | `/meetings/<uuid>?title=...` and **not** `demo=1` |
-| Ours / theirs | `getByRole("region", { name: "こちら" })` / `むこう` |
+| Voice meter | Must stay absent: `getByRole("region", { name: "こちら" })` / `むこう` count `0` |
 | Whispers | `getByRole("complementary", { name: "こちらのアドバイス" })` |
 | Map / memos tabs | `getByRole("tab", { name: "話の地図" })` / `会議のメモ` |
 | Splitter | `getByRole("separator", { name: "左右の幅を変える" })` |
 | Capture | `ききはじめる` / `きくのをやめる` / `おためしちゅう` |
 | End | `おわる` → heading `おわりますか？` → `はい、おわる` (or `まだつづける`) |
-| After end | text `まとめをつくっています` then `/document` |
-| Back | `getByRole("link", { name: "戻る" })` or `getByRole("button", { name: "戻る" })` |
+| After end | text `まとめをつくっています` (no **戻る**) then `/document` |
+| Back | not on the generating screen; after `/document` use browser Back or `getByRole("link", { name: "戻る" })` if present |
 | Reopen まとめ | `getByRole("link", { name: "まとめを見る" })` |
 | Export | header icon `まとめをコピー` / `ファイルに保存` |
 | Editor modes | `見る` / `ならべて` / `なおす` (`#requirements-markdown`) |

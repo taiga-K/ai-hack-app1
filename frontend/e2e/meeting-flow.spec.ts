@@ -41,6 +41,80 @@ async function stubMissingRequirements(page: Page): Promise<void> {
   });
 }
 
+async function expectNoVoiceMeter(page: Page): Promise<void> {
+  await expect(page.getByRole("region", { name: "こちら" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "むこう" })).toHaveCount(0);
+}
+
+async function installSuccessfulCapture(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    class ImmediateFailWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+      readonly url: string;
+      binaryType = "arraybuffer";
+      readyState = ImmediateFailWebSocket.CLOSED;
+      onopen: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.onerror?.(new Event("error"));
+          this.onclose?.(new CloseEvent("close"));
+        });
+      }
+
+      send(): void {
+        return undefined;
+      }
+
+      close(): void {
+        return undefined;
+      }
+    }
+
+    Object.defineProperty(window, "WebSocket", {
+      configurable: true,
+      value: ImmediateFailWebSocket,
+    });
+
+    function toneStream(frequency: number): MediaStream {
+      const audioCtx = new AudioContext();
+      const dest = audioCtx.createMediaStreamDestination();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.frequency.value = frequency;
+      oscillator.connect(dest);
+      oscillator.start();
+      return dest.stream;
+    }
+
+    function displayStream(): MediaStream {
+      const canvas = document.createElement("canvas");
+      canvas.width = 16;
+      canvas.height = 16;
+      const videoStream = canvas.captureStream(1);
+      return new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...toneStream(440).getAudioTracks(),
+      ]);
+    }
+
+    Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
+      configurable: true,
+      value: () => Promise.resolve(displayStream()),
+    });
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: () => Promise.resolve(toneStream(330)),
+    });
+  });
+}
+
 test("ホームからおためしで発話と助言を確認できる", async ({ page }) => {
   await startUiPreview(page, "E2Eプレビュー会議");
 
@@ -81,6 +155,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
     0
   );
+  await expectNoVoiceMeter(page);
 });
 
 test("地図は動かさなければ成長しても画面内に収まる", async ({ page }) => {
@@ -113,6 +188,80 @@ test("地図は動かさなければ成長しても画面内に収まる", async
     );
   }
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+});
+
+test("地図は浅く始まり、枝をおすとくわしい話と関係が見える", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E構造化地図会議");
+
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(
+    mapRegion.getByText("更新申請に限定で決定", { exact: true })
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    mapRegion.getByText("例外は宿題", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(/まだ地図に置けていない話: 同期の対象データ/)
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    page.getByText("枝をおすと、くわしい話がひらきます。")
+  ).toBeVisible();
+  await expect(mapRegion.getByText("決定", { exact: true })).toBeVisible();
+  await expect(
+    mapRegion.getByText("つぎにやること", { exact: true })
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toHaveCount(0);
+  await expect(mapRegion.getByText("まず参照だけ反映")).toHaveCount(0);
+
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  const scopeDetail = page.getByRole("region", {
+    name: "対象範囲 のくわしい話",
+  });
+  await expect(scopeDetail).toBeVisible();
+  await expect(scopeDetail.getByText("話題・まだ決まっていない")).toBeVisible();
+  await expect(
+    scopeDetail.getByText(
+      "既存顧客向けの更新申請だけでよいか、はじめに確認した。"
+    )
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("採用", { exact: true })).toBeVisible();
+
+  await mapRegion
+    .getByRole("button", { name: /^更新申請に限定で決定/ })
+    .click();
+  const decisionDetail = page.getByRole("region", {
+    name: "更新申請に限定で決定 のくわしい話",
+  });
+  await expect(decisionDetail.getByText("賛成: 更新申請だけ")).toBeVisible();
+  await expect(decisionDetail.getByText("決定・決定")).toHaveCount(0);
+
+  await mapRegion.getByRole("button", { name: /^システムのつなぎ/ }).click();
+  await mapRegion.getByRole("button", { name: /^まず参照だけ反映/ }).click();
+  await expect(
+    page.getByText("言いなおし前: すぐ反映したい", { exact: true })
+  ).toBeVisible();
+
+  await mapRegion.getByRole("button", { name: /^来月末の本番/ }).click();
+  await expect(
+    mapRegion.getByText("来月末に間に合うか", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("反対", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "とじる" }).click();
+  await expect(page.getByRole("region", { name: /のくわしい話/ })).toHaveCount(
+    0
+  );
 });
 
 test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({ page }) => {
@@ -334,20 +483,13 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page).toHaveURL("/");
 });
 
-test("生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({ page }) => {
+test("生成中は戻るが出ずまとめが開く", async ({ page }) => {
   await startUiPreview(page, "E2E生成中戻り");
   await confirmEndMeeting(page);
 
   await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await expect(page.getByRole("button", { name: "戻る" })).toBeVisible();
-  await page.getByRole("button", { name: "戻る" }).click();
-
-  await expect(page).not.toHaveURL(/\/document/);
-  await showMeetingMemos(page);
-  await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
-  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
-  await page.getByRole("link", { name: "まとめを見る" }).click();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
   await expect(page).toHaveURL(/\/document/);
   await expect(page.getByText("あとで確認すること")).toBeVisible();
   await page.goBack();
@@ -382,6 +524,28 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
     page.getByRole("button", { name: "ききはじめる" })
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toBeEnabled();
+  await expectNoVoiceMeter(page);
+});
+
+test("ききはじめても音量バーは出ず操作は続く", async ({ page }) => {
+  await stubMissingRequirements(page);
+  await installSuccessfulCapture(page);
+  await page.goto("/meetings/e2e-listen-no-bar?title=聞く会議");
+
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
+  await expectNoVoiceMeter(page);
+  await page.getByRole("button", { name: "ききはじめる" }).click();
+  await expect(
+    page.getByRole("button", { name: "きくのをやめる" })
+  ).toBeVisible();
+  await expect(page.getByText("うまく聞けませんでした")).toHaveCount(0);
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
+  await expectNoVoiceMeter(page);
+  await page.getByRole("button", { name: "きくのをやめる" }).click();
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
+  await expectNoVoiceMeter(page);
 });
 
 test("実会議は要件書GETが失敗しても操作できる", async ({ page }) => {
@@ -534,9 +698,7 @@ test("読込中のまとめから戻ってもおわるは出ない", async ({ pa
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
-test("実会議の生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({
-  page,
-}) => {
+test("実会議の生成中は戻るが出ずまとめが開く", async ({ page }) => {
   await installClosedWebSocket(page);
   let finalized = false;
   await page.route("**/api/v1/meetings/**/finalize", async (route) => {
@@ -574,15 +736,11 @@ test("実会議の生成中に戻るとフロアで完了を待ち同じまと�
   await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
   await confirmEndMeeting(page);
   await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await page.getByRole("button", { name: "戻る" }).click();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/document/);
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
-  await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible({
-    timeout: 8000,
-  });
-  await page.getByRole("link", { name: "まとめを見る" }).click();
-  await expect(page).toHaveURL(/\/document/);
+  await expect(page).toHaveURL(/\/document/, { timeout: 8000 });
   await expect(
     page.getByText("遅延したまとめです。", { exact: true })
   ).toBeVisible();
@@ -590,6 +748,36 @@ test("実会議の生成中に戻るとフロアで完了を待ち同じまと�
   await expect(page).toHaveURL(/summary=1/);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+});
+
+test("実会議の生成が長いときつくるのをやめでやり直せる", async ({ page }) => {
+  await installClosedWebSocket(page);
+  await page.route("**/api/v1/meetings/**/finalize", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 30_000);
+    });
+    await route.abort();
+  });
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements document not found" }),
+    });
+  });
+
+  await page.goto("/meetings/e2e-gen-stop?title=生成中止会議");
+  await confirmEndMeeting(page);
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "つくるのをやめる" })
+  ).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "つくるのをやめる" }).click();
+  await expect(page.getByText("まとめを作れませんでした。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "もういちど" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
 });
 
 test("未生成のまとめ画面は空状態を出す", async ({ page }) => {

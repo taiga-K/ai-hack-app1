@@ -1,23 +1,37 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decideAfterFinalize, decideAfterReadyPause } from "./after-end.ts";
+import {
+  decideAfterEndNavigation,
+  shouldShowAfterEndBack,
+  SHOW_STOP_WAITING_AFTER_MS,
+} from "./after-end.ts";
 
-describe("decideAfterFinalize", () => {
-  it("stays on the meeting floor when the user already went back", () => {
-    assert.equal(decideAfterFinalize(true), "stay-on-floor");
+describe("decideAfterEndNavigation", () => {
+  it("opens the summary only while the meeting page is still open", () => {
+    assert.equal(decideAfterEndNavigation(true), "open-document");
   });
 
-  it("announces the ready screen when the user is still waiting", () => {
-    assert.equal(decideAfterFinalize(false), "announce-ready");
+  it("does not force the summary after the user left the meeting page", () => {
+    assert.equal(decideAfterEndNavigation(false), "stay-put");
   });
 });
 
-describe("decideAfterReadyPause", () => {
-  it("does not auto-open the summary after a back tap", () => {
-    assert.equal(decideAfterReadyPause(true), "stay-on-floor");
+describe("shouldShowAfterEndBack", () => {
+  it("hides back while the requirements doc is being made", () => {
+    assert.equal(shouldShowAfterEndBack("making"), false);
   });
 
-  it("opens the summary when the user stayed on the confirm screen", () => {
-    assert.equal(decideAfterReadyPause(false), "open-document");
+  it("hides back while the ready announcement is on screen", () => {
+    assert.equal(shouldShowAfterEndBack("ready"), false);
+  });
+
+  it("does not put back on the live floor through the after-end handoff", () => {
+    assert.equal(shouldShowAfterEndBack("none"), false);
+  });
+});
+
+describe("SHOW_STOP_WAITING_AFTER_MS", () => {
+  it("waits several seconds before offering to stop a long generate", () => {
+    assert.equal(SHOW_STOP_WAITING_AFTER_MS, 8_000);
   });
 });
