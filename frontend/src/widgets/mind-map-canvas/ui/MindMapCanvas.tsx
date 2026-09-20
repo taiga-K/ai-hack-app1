@@ -16,6 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { layoutMindMap, type MindMapSnapshot } from "@/entities/mind-map";
+import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   shouldCommitMindMapCameraMemory,
@@ -287,9 +288,11 @@ function MindMapFlow({
       }}
     >
       {userTookCamera ? (
-        <button
+        <Button
           type="button"
-          className="absolute right-2 top-2 z-10 text-sm text-foreground underline-offset-4 hover:underline"
+          variant="link"
+          size="sm"
+          className="absolute right-2 top-2 z-10"
           onClick={() => {
             setUserTookCamera(false);
             const visible = readVisiblePaneSize(paneRef.current, width, height);
@@ -312,7 +315,7 @@ function MindMapFlow({
           }}
         >
           ぜんぶ見る
-        </button>
+        </Button>
       ) : null}
       <ReactFlow
         nodes={nodes}
