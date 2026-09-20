@@ -6,6 +6,8 @@ export interface LaidOutMindMapNode {
   x: number;
   y: number;
   depth: number;
+  width: number;
+  height: number;
 }
 
 export interface MindMapEdge {
@@ -23,11 +25,12 @@ export interface LayoutMindMapOptions {
   compact?: boolean;
 }
 
-const NODE_GAP_X = 36;
-const NODE_GAP_Y = 92;
-const NODE_WIDTH = 168;
+const NODE_GAP_X = 28;
+const NODE_GAP_Y = 76;
+const NODE_WIDTH = 160;
+const NODE_HEIGHT = 36;
 const COMPACT_INDENT = 28;
-const COMPACT_GAP_Y = 70;
+const COMPACT_GAP_Y = 54;
 
 function childrenOf(
   nodes: readonly MindMapNode[],
@@ -63,6 +66,8 @@ function placeSubtree(
     x: left + width / 2 - NODE_WIDTH / 2,
     y: depth * NODE_GAP_Y,
     depth,
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
   });
 
   const children = childrenOf(nodes, node.id);
@@ -89,6 +94,8 @@ function layoutCompactMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
       x: depth * COMPACT_INDENT,
       y: row * COMPACT_GAP_Y,
       depth,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
     });
     row += 1;
     for (const child of childrenOf(nodes, node.id)) {

@@ -1,5 +1,6 @@
 export interface MindMapCameraRefitInput {
   hasNodes: boolean;
+  nodesInitialized: boolean;
   width: number;
   height: number;
   isFirstLayout: boolean;
@@ -11,11 +12,34 @@ export interface MindMapCameraRefitInput {
 export function shouldRefitMindMapCamera(
   input: MindMapCameraRefitInput
 ): boolean {
-  if (!input.hasNodes || input.width < 8 || input.height < 8) {
+  if (
+    !input.hasNodes ||
+    !input.nodesInitialized ||
+    input.width < 8 ||
+    input.height < 8
+  ) {
     return false;
   }
-  if (input.isFirstLayout || input.sizeChanged) {
+  if (input.userTookCamera) {
+    return false;
+  }
+  return input.isFirstLayout || input.sizeChanged || input.nodesChanged;
+}
+
+export function shouldDeferMindMapResizeFit(input: {
+  sizeChanged: boolean;
+  isFirstLayout: boolean;
+  nodesChanged: boolean;
+}): boolean {
+  return input.sizeChanged && !input.isFirstLayout && !input.nodesChanged;
+}
+
+export function usesStackedMindMapLayout(
+  width: number,
+  compact: boolean
+): boolean {
+  if (compact) {
     return true;
   }
-  return input.nodesChanged && !input.userTookCamera;
+  return width > 0 && width < 560;
 }

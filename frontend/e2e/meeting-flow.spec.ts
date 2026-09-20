@@ -51,29 +51,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("対象範囲").first()).toBeVisible({
     timeout: 4000,
   });
-  const mapRegion = page.getByRole("region", { name: "話の地図" });
-  const mapBox = await mapRegion.boundingBox();
-  expect(mapBox).not.toBeNull();
-  if (mapBox !== null) {
-    await page.mouse.move(
-      mapBox.x + mapBox.width / 2,
-      mapBox.y + mapBox.height / 2
-    );
-    await page.mouse.down();
-    await page.mouse.move(
-      mapBox.x + mapBox.width / 2 + 90,
-      mapBox.y + mapBox.height / 2,
-      { steps: 8 }
-    );
-    await page.mouse.up();
-    await expect(
-      page.getByRole("button", { name: "ぜんぶ見る" })
-    ).toBeVisible();
-    await page.getByRole("button", { name: "ぜんぶ見る" }).click();
-    await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(
-      0
-    );
-  }
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
@@ -94,6 +72,62 @@ test("ホームからおためしで発話と助言を確認できる", async ({
     0
   );
   await expect(page.getByText("きいている").first()).toBeVisible();
+});
+
+test("地図は動かさなければ成長しても画面内に収まる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E地図成長会議");
+
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(mapRegion.getByText("対象範囲")).toBeVisible({ timeout: 4000 });
+  await expect(mapRegion.getByText("来月末の本番")).toBeVisible({
+    timeout: 4000,
+  });
+  const grown = mapRegion.getByText("例外は宿題", { exact: true });
+  await expect(grown).toBeVisible({ timeout: 4000 });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
+  const mapBox = await mapRegion.boundingBox();
+  const nodeBox = await grown.boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(nodeBox).not.toBeNull();
+  if (mapBox !== null && nodeBox !== null) {
+    expect(nodeBox.x).toBeGreaterThanOrEqual(mapBox.x - 8);
+    expect(nodeBox.y).toBeGreaterThanOrEqual(mapBox.y - 8);
+    expect(nodeBox.x + nodeBox.width).toBeLessThanOrEqual(
+      mapBox.x + mapBox.width + 8
+    );
+    expect(nodeBox.y + nodeBox.height).toBeLessThanOrEqual(
+      mapBox.y + mapBox.height + 8
+    );
+  }
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+});
+
+test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E地図操作会議");
+
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("例外は宿題", { exact: true })).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+
+  const pane = mapRegion.locator(".react-flow__pane");
+  await expect(pane).toBeVisible();
+  const paneBox = await pane.boundingBox();
+  expect(paneBox).not.toBeNull();
+  if (paneBox === null) {
+    return;
+  }
+  await page.mouse.move(paneBox.x + paneBox.width - 16, paneBox.y + 16);
+  await page.mouse.wheel(0, -320);
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toBeVisible();
+  await page.getByRole("button", { name: "ぜんぶ見る" }).click();
+  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
 });
 
 test("デスクトップで左右の幅を拖って変えられる", async ({ page }) => {
@@ -126,6 +160,25 @@ test("デスクトップで左右の幅を拖って変えられる", async ({ pa
   const after = await whispers.boundingBox();
   expect(after).not.toBeNull();
   expect(Math.abs((after?.width ?? 0) - before.width)).toBeGreaterThan(20);
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  const grown = mapRegion.getByText("例外は宿題", { exact: true });
+  await expect(grown).toBeVisible();
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
+  await expect
+    .poll(async () => {
+      const mapBox = await mapRegion.boundingBox();
+      const nodeBox = await grown.boundingBox();
+      if (mapBox === null || nodeBox === null) {
+        return false;
+      }
+      return (
+        nodeBox.x >= mapBox.x - 8 &&
+        nodeBox.y >= mapBox.y - 8 &&
+        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
+        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
+      );
+    })
+    .toBe(true);
 });
 
 test("モバイルのささやきタブは選択と本文が一致する", async ({ page }) => {
@@ -151,9 +204,9 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "話の地図" }).getByText("今日の会議")
-  ).toBeVisible();
+  const peek = page.getByRole("region", { name: "話の地図" });
+  await expect(peek.getByText("今日の会議")).toBeVisible();
+  await expect(peek.getByText("対象範囲")).toBeVisible();
   await expect(page.getByText("話の地図は残っています")).toHaveCount(0);
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
 

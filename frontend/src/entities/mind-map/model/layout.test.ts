@@ -78,5 +78,7 @@ describe("layoutMindMap", () => {
     assert.equal(scope.x, due.x);
     assert.ok(scope.x > root.x);
     assert.ok(layout.nodes.every((node) => node.x < 80));
+    assert.ok(layout.nodes.every((node) => node.width === 160));
+    assert.ok(layout.nodes.every((node) => node.height === 36));
   });
 });

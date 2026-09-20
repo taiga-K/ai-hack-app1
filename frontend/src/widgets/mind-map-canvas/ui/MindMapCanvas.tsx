@@ -7,6 +7,7 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   useStore,
   type Edge,
@@ -16,7 +17,11 @@ import {
 import "@xyflow/react/dist/style.css";
 import { layoutMindMap, type MindMapSnapshot } from "@/entities/mind-map";
 import { cn } from "cn";
-import { shouldRefitMindMapCamera } from "../model/should-refit-camera";
+import {
+  shouldDeferMindMapResizeFit,
+  shouldRefitMindMapCamera,
+  usesStackedMindMapLayout,
+} from "../model/should-refit-camera";
 
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
@@ -26,7 +31,6 @@ export interface MindMapCanvasProps {
 interface TopicNodeData extends Record<string, unknown> {
   label: string;
   depth: number;
-  compact: boolean;
 }
 
 function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
@@ -40,8 +44,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
   return (
     <div
       className={cn(
-        "rounded-full px-3 py-1.5 text-center text-sm leading-snug",
-        data.compact ? "max-w-52" : "max-w-44",
+        "flex h-full w-full items-center justify-center rounded-full px-3 text-center text-sm leading-snug",
         tone
       )}
     >
@@ -64,6 +67,11 @@ const nodeTypes = {
   topic: TopicNode,
 };
 
+const MIN_ZOOM = 0.12;
+const MAX_ZOOM = 1.45;
+const FIT_PADDING = 0.12;
+const RESIZE_FIT_MS = 220;
+
 function MindMapFlow({
   snapshot,
   compact,
@@ -73,16 +81,19 @@ function MindMapFlow({
 }) {
   const didInitialFit = useRef(false);
   const compactRef = useRef(compact);
+  const stackedForFitRef = useRef(compact);
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
   const [userTookCamera, setUserTookCamera] = useState(false);
   const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
+  const stacked = usesStackedMindMapLayout(width, compact);
   const layout = useMemo(
-    () => layoutMindMap(snapshot.nodes, { compact }),
-    [compact, snapshot.nodes]
+    () => layoutMindMap(snapshot.nodes, { compact: stacked }),
+    [snapshot.nodes, stacked]
   );
   const nodes: Node<TopicNodeData>[] = useMemo(
     () =>
@@ -90,12 +101,15 @@ function MindMapFlow({
         id: node.id,
         type: "topic",
         position: { x: node.x, y: node.y },
-        data: { label: node.label, depth: node.depth, compact },
+        data: { label: node.label, depth: node.depth },
+        width: node.width,
+        height: node.height,
+        style: { width: node.width, height: node.height },
         draggable: false,
         selectable: false,
         className: "motion-safe:animate-cute-enter",
       })),
-    [compact, layout.nodes]
+    [layout.nodes]
   );
   const edges: Edge[] = useMemo(
     () =>
@@ -112,13 +126,14 @@ function MindMapFlow({
   const nodeSignature = `${String(snapshot.revision)}:${snapshot.nodes
     .map((node) => node.id)
     .join(",")}`;
-  const minZoom = compact ? 0.85 : 0.4;
-  const maxZoom = compact ? 1.15 : 1.5;
-  const padding = compact ? 0.1 : 0.18;
 
   useEffect(() => {
-    if (compactRef.current !== compact) {
+    if (
+      compactRef.current !== compact ||
+      stackedForFitRef.current !== stacked
+    ) {
       compactRef.current = compact;
+      stackedForFitRef.current = stacked;
       didInitialFit.current = false;
       lastSizeRef.current = { width: 0, height: 0 };
     }
@@ -136,6 +151,7 @@ function MindMapFlow({
     if (
       !shouldRefitMindMapCamera({
         hasNodes,
+        nodesInitialized,
         width,
         height,
         isFirstLayout,
@@ -146,18 +162,30 @@ function MindMapFlow({
     ) {
       return;
     }
-    isFittingRef.current = true;
-    const frame = window.requestAnimationFrame(() => {
+    const deferResize = shouldDeferMindMapResizeFit({
+      sizeChanged,
+      isFirstLayout,
+      nodesChanged,
+    });
+    const runFit = (): void => {
+      isFittingRef.current = true;
       didInitialFit.current = true;
       void fitView({
-        padding,
-        duration: isFirstLayout ? 380 : 180,
-        minZoom,
-        maxZoom,
+        padding: FIT_PADDING,
+        duration: deferResize ? 0 : isFirstLayout ? 320 : 200,
+        minZoom: MIN_ZOOM,
+        maxZoom: MAX_ZOOM,
       }).finally(() => {
         isFittingRef.current = false;
       });
-    });
+    };
+    if (deferResize) {
+      const timer = window.setTimeout(runFit, RESIZE_FIT_MS);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+    const frame = window.requestAnimationFrame(runFit);
     return () => {
       window.cancelAnimationFrame(frame);
       isFittingRef.current = false;
@@ -165,12 +193,11 @@ function MindMapFlow({
   }, [
     compact,
     fitView,
+    stacked,
     hasNodes,
     height,
-    maxZoom,
-    minZoom,
     nodeSignature,
-    padding,
+    nodesInitialized,
     userTookCamera,
     width,
   ]);
@@ -185,10 +212,10 @@ function MindMapFlow({
             setUserTookCamera(false);
             isFittingRef.current = true;
             void fitView({
-              padding,
+              padding: FIT_PADDING,
               duration: 280,
-              minZoom,
-              maxZoom,
+              minZoom: MIN_ZOOM,
+              maxZoom: MAX_ZOOM,
             }).finally(() => {
               isFittingRef.current = false;
             });
@@ -206,8 +233,8 @@ function MindMapFlow({
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        minZoom={minZoom}
-        maxZoom={maxZoom}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         proOptions={{ hideAttribution: true }}
         className="h-full bg-transparent"
         onMove={(event) => {
