@@ -361,8 +361,8 @@ class _MindMapEditor:
         if parent_id is not None and parent_id not in self._by_id:
             if not final_pass:
                 return False
-            if root_id is None:
-                return True
+            # Unknown parent: hang it on the root, or let it become the root
+            # of an empty map rather than losing the first topic.
             parent_id = root_id
         if parent_id is None:
             self._put(replace(node, parent_id=None))
@@ -469,8 +469,9 @@ def apply_mind_map_delta(
     """Apply one delta and return the next snapshot.
 
     Nothing is discarded: a node that would sit at depth 6 becomes detail on
-    its parent, unknown parents fall back to the root, corrections keep the
-    previous label in ``history``, and pinned nodes are never overwritten.
+    its parent, unknown parents fall back to the root (the first such node on
+    an empty map becomes the root), corrections keep the previous label in
+    ``history``, and pinned nodes are never overwritten.
     The revision advances only when a node or the pending list changed.
     """
     editor = _MindMapEditor(snapshot)

@@ -247,6 +247,34 @@ def test_apply_delta_defers_children_and_falls_back_to_root() -> None:
     assert result.snapshot.root_id() == "root"
 
 
+def test_apply_delta_makes_first_parented_add_the_root_of_an_empty_map() -> None:
+    result = apply_mind_map_delta(
+        MindMapSnapshot(meeting_id="meet-first", revision=0),
+        MindMapDelta(
+            operations=(
+                AddNodeOperation(
+                    MindMapNode(id="budget", label="予算は30万円", parent_id="root")
+                ),
+                AddNodeOperation(
+                    MindMapNode(id="travel", label="交通費を含む", parent_id="budget")
+                ),
+                AddNodeOperation(
+                    MindMapNode(id="release", label="公開は来月末", parent_id="root")
+                ),
+            )
+        ),
+        source_utterance_count=2,
+    )
+
+    by_id = result.snapshot.node_lookup()
+    assert result.changed is True
+    assert result.snapshot.root_id() == "budget"
+    assert by_id["budget"].parent_id is None
+    assert by_id["travel"].parent_id == "budget"
+    assert by_id["release"].parent_id == "budget"
+    assert set(result.changed_node_ids) == {"budget", "travel", "release"}
+
+
 def test_apply_delta_supersedes_and_respects_pinned() -> None:
     pinned = MindMapNode(
         id="fixed",
