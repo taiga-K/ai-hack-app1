@@ -160,7 +160,7 @@ function MindMapFlow({
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [hasNodes]);
 
   useEffect(() => {
     if (

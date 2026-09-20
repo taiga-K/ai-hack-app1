@@ -193,7 +193,7 @@ export function MeetingRoomPage({
                 : "mb-2 flex h-0 min-h-64 basis-1/2 shrink-0 flex-col overflow-hidden"
             }
           >
-            <MindMapCanvas snapshot={mindMap} compact />
+            <MindMapCanvas key={mobilePane} snapshot={mindMap} compact />
           </div>
           {isMobileSidePane(mobilePane) ? (
             <div
