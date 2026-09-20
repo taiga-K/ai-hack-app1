@@ -14,6 +14,11 @@ async function startUiPreview(page: Page, title: string): Promise<void> {
   await page.getByPlaceholder(/なまえ/).fill(title);
   await page.getByRole("button", { name: "おためし" }).click();
   await expect(page).toHaveURL(/\/meetings\/.+[?&]demo=1/);
+  await expect(
+    page
+      .getByRole("region", { name: "会議のメモ" })
+      .or(page.getByRole("tab", { name: "メモ" }))
+  ).toBeVisible();
 }
 
 async function confirmEndMeeting(page: Page): Promise<void> {
@@ -107,7 +112,7 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page.getByText("ファイルに保存しました")).toBeVisible();
 
   await page.getByRole("button", { name: "なおす" }).click();
-  const editor = page.getByLabel("まとめの本文");
+  const editor = page.locator("#requirements-markdown");
   await expect(editor).toBeVisible();
   await editor.fill("# 編集後の要件定義書\n\nE2Eで書き換えました。");
   await page.getByRole("button", { name: "見る" }).click();

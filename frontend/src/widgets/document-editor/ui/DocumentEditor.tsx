@@ -28,11 +28,9 @@ export function DocumentEditor({
   preview,
 }: DocumentEditorProps) {
   const sourceRef = useRef<HTMLTextAreaElement>(null);
-  const splitRef = useRef<HTMLTextAreaElement>(null);
 
   function flushEditorValue() {
-    const next =
-      view === "split" ? splitRef.current?.value : sourceRef.current?.value;
+    const next = sourceRef.current?.value;
     if (typeof next === "string" && next !== markdown) {
       onMarkdownChange(next);
     }
@@ -90,44 +88,25 @@ export function DocumentEditor({
         ) : null}
         <div
           className={cn(
-            "h-full",
-            view === "source" ? "flex flex-col" : "hidden"
-          )}
-        >
-          <Label htmlFor="requirements-markdown" className="sr-only">
-            まとめの本文
-          </Label>
-          <Textarea
-            ref={sourceRef}
-            id="requirements-markdown"
-            value={markdown}
-            onChange={(event) => handleMarkdownInput(event.target.value)}
-            onInput={(event) => handleMarkdownInput(event.currentTarget.value)}
-            spellCheck={false}
-            tabIndex={view === "source" ? 0 : -1}
-            className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
-          />
-        </div>
-        <div
-          className={cn(
-            "h-full min-h-0 grid-cols-1 lg:grid-cols-2",
-            view === "split" ? "grid" : "hidden"
+            "h-full min-h-0",
+            view === "preview" && "hidden",
+            view === "source" && "flex flex-col",
+            view === "split" && "grid grid-cols-1 lg:grid-cols-2"
           )}
         >
           <div className="flex min-h-0 flex-col lg:pr-6">
-            <Label htmlFor="requirements-markdown-split" className="sr-only">
+            <Label htmlFor="requirements-markdown" className="sr-only">
               まとめの本文
             </Label>
             <Textarea
-              ref={splitRef}
-              id="requirements-markdown-split"
+              ref={sourceRef}
+              id="requirements-markdown"
               value={markdown}
               onChange={(event) => handleMarkdownInput(event.target.value)}
               onInput={(event) =>
                 handleMarkdownInput(event.currentTarget.value)
               }
               spellCheck={false}
-              tabIndex={view === "split" ? 0 : -1}
               className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
             />
           </div>

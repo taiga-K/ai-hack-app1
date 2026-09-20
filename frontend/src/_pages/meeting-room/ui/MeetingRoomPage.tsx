@@ -10,6 +10,7 @@ import { Header } from "@/widgets/header";
 import { MeetingFloor } from "@/widgets/meeting-floor";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { Button, Toaster } from "@/shared/ui";
+import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
 
 export interface MeetingRoomPageProps {
@@ -49,6 +50,7 @@ export function MeetingRoomPage({
   const meetingTitle = title?.trim() || "今日の会議";
   const [mobilePane, setMobilePane] = useState<MobilePane>("notes");
   const [handoff, setHandoff] = useState<Handoff>("none");
+  const layout = useMeetingLayout();
   const {
     phase,
     utterances,
@@ -94,49 +96,53 @@ export function MeetingRoomPage({
           ききはじめるを押すと、相手の画面の音を共有できます。
         </p>
       ) : null}
-      <div className="hidden min-h-0 flex-1 grid-cols-2 gap-8 overflow-hidden lg:grid">
-        <CopilotSidebar adviceItems={adviceItems} />
-        <TranscriptFeed utterances={utterances} />
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
-        <div
-          role="tablist"
-          aria-label="会議の表示"
-          className="mb-3 flex flex-wrap gap-2"
-        >
-          <Button
-            type="button"
-            size="sm"
-            variant={mobilePane === "notes" ? "default" : "outline"}
-            role="tab"
-            aria-selected={mobilePane === "notes"}
-            aria-controls="meeting-mobile-pane"
-            onClick={() => setMobilePane("notes")}
-          >
-            メモ
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mobilePane === "whispers" ? "default" : "outline"}
-            role="tab"
-            aria-selected={mobilePane === "whispers"}
-            aria-controls="meeting-mobile-pane"
-            onClick={() => setMobilePane("whispers")}
-          >
-            {adviceItems.length > 0
-              ? `ささやき ${String(adviceItems.length)}`
-              : "ささやき"}
-          </Button>
+      {layout === "desktop" ? (
+        <div className="grid min-h-0 flex-1 grid-cols-2 gap-8 overflow-hidden">
+          <CopilotSidebar adviceItems={adviceItems} />
+          <TranscriptFeed utterances={utterances} />
         </div>
-        <div
-          id="meeting-mobile-pane"
-          role="tabpanel"
-          className="min-h-0 flex-1"
-        >
-          {renderMobilePane(mobilePane, utterances, adviceItems)}
+      ) : null}
+      {layout === "mobile" ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div
+            role="tablist"
+            aria-label="会議の表示"
+            className="mb-3 flex flex-wrap gap-2"
+          >
+            <Button
+              type="button"
+              size="sm"
+              variant={mobilePane === "notes" ? "default" : "outline"}
+              role="tab"
+              aria-selected={mobilePane === "notes"}
+              aria-controls="meeting-mobile-pane"
+              onClick={() => setMobilePane("notes")}
+            >
+              メモ
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mobilePane === "whispers" ? "default" : "outline"}
+              role="tab"
+              aria-selected={mobilePane === "whispers"}
+              aria-controls="meeting-mobile-pane"
+              onClick={() => setMobilePane("whispers")}
+            >
+              {adviceItems.length > 0
+                ? `ささやき ${String(adviceItems.length)}`
+                : "ささやき"}
+            </Button>
+          </div>
+          <div
+            id="meeting-mobile-pane"
+            role="tabpanel"
+            className="min-h-0 flex-1"
+          >
+            {renderMobilePane(mobilePane, utterances, adviceItems)}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 
