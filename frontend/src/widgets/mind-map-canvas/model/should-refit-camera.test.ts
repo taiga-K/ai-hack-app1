@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   didMindMapPaneHeightRefit,
   didMindMapPaneWidthChange,
+  didUserTakeMindMapCamera,
+  mindMapCameraLayoutKey,
   mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
@@ -18,7 +20,7 @@ const readyPane = {
 } as const;
 
 describe("shouldRefitMindMapCamera", () => {
-  it("fits the first layout and later pane resizes while the camera is free", () => {
+  it("fits the first layout even after a pan, and later resizes only while free", () => {
     assert.equal(
       shouldRefitMindMapCamera({
         ...readyPane,
@@ -48,6 +50,16 @@ describe("shouldRefitMindMapCamera", () => {
         userTookCamera: true,
       }),
       false
+    );
+    assert.equal(
+      shouldRefitMindMapCamera({
+        ...readyPane,
+        isFirstLayout: true,
+        sizeChanged: false,
+        nodesChanged: false,
+        userTookCamera: true,
+      }),
+      true
     );
   });
 
@@ -170,6 +182,17 @@ describe("shouldCommitMindMapCameraMemory", () => {
       }),
       true
     );
+  });
+});
+
+describe("didUserTakeMindMapCamera", () => {
+  it("drops a pan when the stacked breakpoint flips the tree", () => {
+    const wide = mindMapCameraLayoutKey(false, false);
+    const stacked = mindMapCameraLayoutKey(false, true);
+    assert.notEqual(wide, stacked);
+    assert.equal(didUserTakeMindMapCamera(wide, wide), true);
+    assert.equal(didUserTakeMindMapCamera(wide, stacked), false);
+    assert.equal(didUserTakeMindMapCamera(null, stacked), false);
   });
 });
 

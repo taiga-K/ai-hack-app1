@@ -35,6 +35,8 @@ import { cn } from "cn";
 import {
   didMindMapPaneHeightRefit,
   didMindMapPaneWidthChange,
+  didUserTakeMindMapCamera,
+  mindMapCameraLayoutKey,
   mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
@@ -199,7 +201,7 @@ function MindMapFlow({
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
-  const [userTookCamera, setUserTookCamera] = useState(false);
+  const [takenCameraKey, setTakenCameraKey] = useState<string | null>(null);
   const [measuredPane, setMeasuredPane] = useState({ width: 0, height: 0 });
   const paneRef = useRef<HTMLDivElement>(null);
   const { setViewport } = useReactFlow();
@@ -211,6 +213,8 @@ function MindMapFlow({
   const width = measuredPane.width > 8 ? measuredPane.width : storeWidth;
   const height = measuredPane.height > 8 ? measuredPane.height : storeHeight;
   const stacked = usesStackedMindMapLayout(width, compact);
+  const layoutKey = mindMapCameraLayoutKey(compact, stacked);
+  const userTookCamera = didUserTakeMindMapCamera(takenCameraKey, layoutKey);
   const layout = useMemo(
     () =>
       layoutMindMap(visibility.visible, {
@@ -469,7 +473,7 @@ function MindMapFlow({
         if (userTookCamera) {
           return;
         }
-        setUserTookCamera(true);
+        setTakenCameraKey(layoutKey);
       }}
     >
       {userTookCamera ? (
@@ -479,7 +483,7 @@ function MindMapFlow({
           size="sm"
           className="absolute right-2 top-2 z-10"
           onClick={() => {
-            setUserTookCamera(false);
+            setTakenCameraKey(null);
             const visible = readVisiblePaneSize(paneRef.current, width, height);
             const viewport = viewportFromMindMapLayout(
               layout.nodes,
@@ -490,7 +494,6 @@ function MindMapFlow({
               fitMaxZoom(stacked)
             );
             if (viewport === null) {
-              setUserTookCamera(false);
               return;
             }
             isFittingRef.current = true;
@@ -523,7 +526,7 @@ function MindMapFlow({
           if (event === null || isFittingRef.current || userTookCamera) {
             return;
           }
-          setUserTookCamera(true);
+          setTakenCameraKey(layoutKey);
         }}
       >
         <Background gap={22} size={1} color="var(--border)" />

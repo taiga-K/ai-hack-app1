@@ -20,7 +20,8 @@ export function shouldRefitMindMapCamera(
   ) {
     return false;
   }
-  if (input.userTookCamera) {
+  // A stacked/LR flip clears the first-fit flag. The old pan is in dead space.
+  if (input.userTookCamera && !input.isFirstLayout) {
     return false;
   }
   return input.isFirstLayout || input.sizeChanged || input.nodesChanged;
@@ -42,6 +43,21 @@ export function usesStackedMindMapLayout(
     return true;
   }
   return width > 0 && width < 560;
+}
+
+/** A pan is only kept for the stacked/wide layout that the user actually moved. */
+export function mindMapCameraLayoutKey(
+  compact: boolean,
+  stacked: boolean
+): string {
+  return `${compact ? "c" : "f"}:${stacked ? "tb" : "lr"}`;
+}
+
+export function didUserTakeMindMapCamera(
+  takenLayoutKey: string | null,
+  layoutKey: string
+): boolean {
+  return takenLayoutKey === layoutKey;
 }
 
 /** Snapshot growth only. Expand/collapse must not look like new nodes. */
