@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Advice } from "@/entities/advice";
@@ -24,6 +24,7 @@ import { MeetingFloor } from "@/widgets/meeting-floor";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { cn } from "@/shared/lib";
 import { Button, Toaster, buttonVariants } from "@/shared/ui";
+import { stopCaptureWhenAlreadyOver } from "../model/stop-capture-when-already-over";
 import { useCompletedSummaryLookup } from "../model/use-completed-summary-lookup";
 import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
@@ -156,6 +157,9 @@ export function MeetingRoomPage({
     hasSessionDocument: documentHref !== null,
     phase,
   });
+  useEffect(() => {
+    stopCaptureWhenAlreadyOver(meetingAlreadyOver, stopCapture);
+  }, [meetingAlreadyOver, stopCapture]);
   const listening =
     !meetingAlreadyOver && (audio.isRecording || (preview && phase === "live"));
   const oursSpeaking = listening && audio.micVolume > 0.08;
