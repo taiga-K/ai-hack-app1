@@ -26,22 +26,35 @@ export function findOpenIssuesSection(
   return byHeading ?? null;
 }
 
+function parseMarkdownHeading(
+  line: string
+): { level: number; text: string } | null {
+  const headingMatch = /^(#{1,6})\s+(.+)$/.exec(line.trim());
+  if (headingMatch === null) {
+    return null;
+  }
+  return {
+    level: headingMatch[1]?.length ?? 0,
+    text: headingMatch[2]?.trim() ?? "",
+  };
+}
+
 export function findOpenIssuesSectionFromMarkdown(
   markdown: string
 ): RequirementSection | null {
   const lines = markdown.split("\n");
   let heading = "";
+  let headingLevel = 0;
   let bodyStart = -1;
 
   for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(line.trim());
-    if (headingMatch === null) {
+    const parsed = parseMarkdownHeading(lines[index] ?? "");
+    if (parsed === null) {
       continue;
     }
-    const text = headingMatch[2]?.trim() ?? "";
-    if (isOpenIssuesHeading(text)) {
-      heading = text;
+    if (isOpenIssuesHeading(parsed.text)) {
+      heading = parsed.text;
+      headingLevel = parsed.level;
       bodyStart = index + 1;
       break;
     }
@@ -54,7 +67,8 @@ export function findOpenIssuesSectionFromMarkdown(
   const bodyLines: string[] = [];
   for (let index = bodyStart; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
-    if (/^#{1,6}\s+/.test(line.trim())) {
+    const parsed = parseMarkdownHeading(line);
+    if (parsed !== null && parsed.level <= headingLevel) {
       break;
     }
     bodyLines.push(line);

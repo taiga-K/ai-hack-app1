@@ -84,4 +84,26 @@ describe("open issues helpers", () => {
       []
     );
   });
+
+  it("keeps todos after a lower-level heading inside the open issues section", () => {
+    const markdown = `# まとめ
+
+## 6. 未決事項（ToDo / 宿題）・確認中リスク一覧
+
+- 先に確認すること
+
+### リスク
+
+- H3のあとの確認事項
+
+## 7. 発話ログ要約・変更履歴
+
+- これは未決ではない
+`;
+
+    assert.deepEqual(listOpenIssueItemsFromMarkdown(markdown), [
+      "先に確認すること",
+      "H3のあとの確認事項",
+    ]);
+  });
 });
