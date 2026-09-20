@@ -23,11 +23,12 @@ from app.application.use_cases import (
 )
 from app.domain.exceptions import STTServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
-from app.domain.models.transcript import Speaker
+from app.domain.models.transcript import Speaker, Utterance
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.infrastructure.persistence.in_memory_meeting_store import (
     InMemoryMeetingSessionStore,
 )
+from app.presentation.api.v1.websocket import AudioStreamSession
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
@@ -513,3 +514,66 @@ async def test_websocket_mindmap_broadcast_on_manual_analyze() -> None:
             mock_mind_map.execute.assert_awaited()
     finally:
         app.dependency_overrides.clear()
+
+
+def _session_utterance(meeting_id: str, utterance_id: str, text: str) -> Utterance:
+    return Utterance(
+        id=utterance_id,
+        meeting_id=meeting_id,
+        speaker=Speaker.REMOTE_CLIENT,
+        text=text,
+        start_ms=0,
+        end_ms=1000,
+        is_final=True,
+        created_at=datetime.now(UTC),
+    )
+
+
+@pytest.mark.asyncio
+async def test_session_empty_mindmap_delta_persists_watermark() -> None:
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-empty",
+        revision=1,
+        upserts=[],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            )
+        ],
+        source_utterance_count=2,
+        changed=False,
+    )
+    websocket = AsyncMock()
+    session = AudioStreamSession(
+        meeting_id="meet-map-empty",
+        websocket=websocket,
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+    )
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-empty", "u-1", "了解です。そこはお任せします。")
+    )
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-empty", "u-2", "現場も同じ認識です。")
+    )
+
+    await session._trigger_mind_map(force=True)
+
+    assert session._mind_map.source_utterance_count == 2
+    assert session._mind_map.revision == 1
+    websocket.send_text.assert_not_awaited()
+    first_current = mock_mind_map.execute.await_args_list[0].kwargs["current"]
+    assert first_current.source_utterance_count == 0
+
+    await session._trigger_mind_map(force=True)
+
+    assert mock_mind_map.execute.await_count == 2
+    second_current = mock_mind_map.execute.await_args_list[1].kwargs["current"]
+    assert second_current.source_utterance_count == 2
+    websocket.send_text.assert_not_awaited()

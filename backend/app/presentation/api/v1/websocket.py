@@ -439,39 +439,36 @@ class AudioStreamSession:
                         current=self._mind_map,
                         force=force_to_use,
                     )
-                    if result.changed:
-                        self._mind_map = MindMapSnapshot(
+                    self._mind_map = MindMapSnapshot(
+                        meeting_id=result.meeting_id,
+                        revision=result.revision,
+                        nodes=tuple(
+                            MindMapNode(
+                                id=node.id,
+                                label=node.label,
+                                parent_id=node.parent_id,
+                                source_utterance_ids=tuple(node.source_utterance_ids),
+                            )
+                            for node in result.nodes
+                        ),
+                        source_utterance_count=result.source_utterance_count,
+                    )
+                    if result.changed and not self._is_closed:
+                        message = MindMapMessage(
                             meeting_id=result.meeting_id,
                             revision=result.revision,
-                            nodes=tuple(
-                                MindMapNode(
+                            upserts=[
+                                MindMapNodeMessage(
                                     id=node.id,
                                     label=node.label,
                                     parent_id=node.parent_id,
-                                    source_utterance_ids=tuple(
-                                        node.source_utterance_ids
-                                    ),
+                                    source_utterance_ids=node.source_utterance_ids,
                                 )
-                                for node in result.nodes
-                            ),
-                            source_utterance_count=result.source_utterance_count,
+                                for node in result.upserts
+                            ],
+                            removes=result.removes,
                         )
-                        if not self._is_closed:
-                            message = MindMapMessage(
-                                meeting_id=result.meeting_id,
-                                revision=result.revision,
-                                upserts=[
-                                    MindMapNodeMessage(
-                                        id=node.id,
-                                        label=node.label,
-                                        parent_id=node.parent_id,
-                                        source_utterance_ids=node.source_utterance_ids,
-                                    )
-                                    for node in result.upserts
-                                ],
-                                removes=result.removes,
-                            )
-                            await self._safe_send_text(message.model_dump_json())
+                        await self._safe_send_text(message.model_dump_json())
                 except Exception as exc:
                     logger.error("Failed to update mind map: %s", exc)
 

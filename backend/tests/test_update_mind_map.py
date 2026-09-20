@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.application.use_cases.update_mind_map import UpdateMindMapUseCase
+from app.application.use_cases.update_mind_map import (
+    UpdateMindMapUseCase,
+    _slugify_node_id,
+)
 from app.domain.models.llm import ChatCompletionResponse
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.mind_map import (
@@ -29,6 +32,16 @@ def _utterance(meeting_id: str, utterance_id: str, text: str) -> Utterance:
         is_final=True,
         created_at=datetime.now(UTC),
     )
+
+
+def test_slugify_node_id_is_stable_for_non_ascii() -> None:
+    first = _slugify_node_id("対象範囲")
+    second = _slugify_node_id("対象範囲")
+
+    assert first == second
+    assert first.startswith("topic-")
+    assert first != _slugify_node_id("雑談")
+    assert _slugify_node_id(" 対象範囲 ") == first
 
 
 def test_apply_mind_map_delta_upserts_and_removes() -> None:
@@ -128,3 +141,91 @@ async def test_update_mind_map_parses_delta_from_llm() -> None:
     assert [node.id for node in result.upserts] == ["root", "scope"]
     assert result.upserts[1].source_utterance_ids == ["u-1"]
     mock_llm.chat_completion.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_mind_map_empty_delta_advances_watermark() -> None:
+    mock_llm = AsyncMock(spec=LLMService)
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content=json.dumps({"upserts": [], "removes": []}),
+        model="openai/gpt-4o-mini",
+    )
+    use_case = UpdateMindMapUseCase(llm_service=mock_llm)
+    ctx = MeetingDialogueContext(meeting_id="meet-empty-delta")
+    ctx.add_utterance(
+        _utterance("meet-empty-delta", "u-1", "了解です。そこはお任せします。")
+    )
+    ctx.add_utterance(_utterance("meet-empty-delta", "u-2", "現場も同じ認識です。"))
+    current = MindMapSnapshot(
+        meeting_id="meet-empty-delta",
+        revision=1,
+        nodes=(MindMapNode(id="root", label="今日の会議", parent_id=None),),
+        source_utterance_count=0,
+    )
+
+    result = await use_case.execute(ctx, current)
+
+    assert result.changed is False
+    assert result.revision == 1
+    assert result.source_utterance_count == 2
+    mock_llm.chat_completion.assert_awaited_once()
+
+    skipped = await use_case.execute(
+        ctx,
+        MindMapSnapshot(
+            meeting_id=result.meeting_id,
+            revision=result.revision,
+            nodes=current.nodes,
+            source_utterance_count=result.source_utterance_count,
+        ),
+    )
+    assert skipped.changed is False
+    assert skipped.source_utterance_count == 2
+    mock_llm.chat_completion.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_mind_map_slugifies_parent_and_remove_ids() -> None:
+    root_id = _slugify_node_id("今日の会議")
+    scope_id = _slugify_node_id("対象範囲")
+    chatter_id = _slugify_node_id("雑談")
+    mock_llm = AsyncMock(spec=LLMService)
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content=json.dumps(
+            {
+                "upserts": [
+                    {
+                        "id": "対象範囲",
+                        "label": "対象範囲",
+                        "parent_id": "今日の会議",
+                        "source_utterance_ids": ["u-1"],
+                    },
+                ],
+                "removes": ["雑談"],
+            }
+        ),
+        model="openai/gpt-4o-mini",
+    )
+    use_case = UpdateMindMapUseCase(llm_service=mock_llm)
+    ctx = MeetingDialogueContext(meeting_id="meet-slug")
+    ctx.add_utterance(_utterance("meet-slug", "u-1", "更新申請だけが対象です。"))
+    current = MindMapSnapshot(
+        meeting_id="meet-slug",
+        revision=1,
+        nodes=(
+            MindMapNode(id=root_id, label="今日の会議", parent_id=None),
+            MindMapNode(id=chatter_id, label="雑談", parent_id=root_id),
+        ),
+        source_utterance_count=0,
+    )
+
+    result = await use_case.execute(ctx, current)
+
+    assert root_id.startswith("topic-")
+    assert result.changed is True
+    assert [node.id for node in result.upserts] == [scope_id]
+    assert result.upserts[0].parent_id == root_id
+    assert result.removes == [chatter_id]
+    assert {node.id for node in result.nodes} == {root_id, scope_id}
+    scope_node = next(node for node in result.nodes if node.id == scope_id)
+    assert scope_node.parent_id == root_id

@@ -1,5 +1,6 @@
 """Realtime mind-map update use case (Orca Router via LLM port)."""
 
+import hashlib
 import json
 import logging
 import re
@@ -82,11 +83,13 @@ SYSTEM_PROMPT = """【未信頼データ規則】
 _SLUG_PATTERN = re.compile(r"[^a-z0-9-]+")
 
 
-def _slugify_node_id(raw: str, fallback: str) -> str:
-    cleaned = _SLUG_PATTERN.sub("-", raw.strip().lower()).strip("-")
-    if not cleaned:
-        return fallback
-    return cleaned[:48]
+def _slugify_node_id(raw: str) -> str:
+    text = raw.strip()
+    cleaned = _SLUG_PATTERN.sub("-", text.lower()).strip("-")
+    if cleaned:
+        return cleaned[:48]
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+    return f"topic-{digest}"
 
 
 def _node_to_dto(node: MindMapNode) -> MindMapNodeDTO:
@@ -238,10 +241,10 @@ class UpdateMindMapUseCase:
         upserts: list[MindMapNode] = []
         seen: set[str] = set()
 
-        for index, item in enumerate(raw_upserts):
+        for item in raw_upserts:
             if not isinstance(item, dict):
                 continue
-            node_id = _slugify_node_id(str(item.get("id", "")), f"topic-{index + 1}")
+            node_id = _slugify_node_id(str(item.get("id", "")))
             if node_id in seen:
                 continue
             label = str(item.get("label", "")).strip()
@@ -250,7 +253,7 @@ class UpdateMindMapUseCase:
             parent_raw = item.get("parent_id")
             parent_id = None
             if isinstance(parent_raw, str) and parent_raw.strip():
-                parent_id = _slugify_node_id(parent_raw, parent_raw.strip())
+                parent_id = _slugify_node_id(parent_raw)
             source_raw = item.get("source_utterance_ids", [])
             source_ids = (
                 tuple(
@@ -272,7 +275,7 @@ class UpdateMindMapUseCase:
             )
 
         removes = tuple(
-            _slugify_node_id(str(item_id), str(item_id))
+            _slugify_node_id(str(item_id))
             for item_id in raw_removes
             if isinstance(item_id, str) and item_id
         )
