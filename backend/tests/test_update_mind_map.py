@@ -275,6 +275,28 @@ def test_apply_delta_makes_first_parented_add_the_root_of_an_empty_map() -> None
     assert set(result.changed_node_ids) == {"budget", "travel", "release"}
 
 
+def test_apply_delta_does_not_invert_out_of_order_adds_on_empty_map() -> None:
+    result = apply_mind_map_delta(
+        MindMapSnapshot(meeting_id="meet-empty-order", revision=0),
+        MindMapDelta(
+            operations=(
+                AddNodeOperation(
+                    MindMapNode(id="child", label="子", parent_id="parent")
+                ),
+                AddNodeOperation(
+                    MindMapNode(id="parent", label="親", parent_id="root")
+                ),
+            )
+        ),
+        source_utterance_count=1,
+    )
+
+    by_id = result.snapshot.node_lookup()
+    assert result.snapshot.root_id() == "parent"
+    assert by_id["parent"].parent_id is None
+    assert by_id["child"].parent_id == "parent"
+
+
 def test_apply_delta_supersedes_and_respects_pinned() -> None:
     pinned = MindMapNode(
         id="fixed",
