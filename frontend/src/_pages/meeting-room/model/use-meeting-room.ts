@@ -27,7 +27,8 @@ import {
   createPreviewUtterances,
 } from "./preview-events";
 
-const FINALIZE_ABORT_MS = 60_000;
+// Matches backend `orcarouter_requirements_timeout_seconds` (120s).
+const FINALIZE_ABORT_MS = 120_000;
 
 function isTerminalPhase(phase: MeetingPhase): boolean {
   return phase === "ended" || phase === "finalizing";
