@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  didMindMapPaneHeightRefit,
   didMindMapPaneWidthChange,
   mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
@@ -186,6 +187,14 @@ describe("didMindMapPaneWidthChange", () => {
     assert.equal(didMindMapPaneWidthChange(640, 500), true);
     assert.equal(didMindMapPaneWidthChange(640, 640), false);
     assert.equal(didMindMapPaneWidthChange(0, 640), false);
+  });
+});
+
+describe("didMindMapPaneHeightRefit", () => {
+  it("refits a phone pane switch, not a branch-detail shrink", () => {
+    assert.equal(didMindMapPaneHeightRefit(560, 224), true);
+    assert.equal(didMindMapPaneHeightRefit(536, 440), false);
+    assert.equal(didMindMapPaneHeightRefit(0, 224), false);
   });
 });
 

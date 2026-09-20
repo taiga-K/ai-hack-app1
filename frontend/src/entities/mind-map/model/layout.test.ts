@@ -75,6 +75,29 @@ describe("layoutMindMap", () => {
     });
   }
 
+  it("stacks children under the root on a tall phone pane", () => {
+    const layout = layoutMindMap(previewTree, { direction: "TB" });
+    const byId = new Map(layout.nodes.map((node) => [node.id, node]));
+    const root = byId.get("root");
+    const scope = byId.get("scope");
+    const exceptions = byId.get("exceptions");
+    const sideways = layoutMindMap(previewTree);
+    const stackedWidth = Math.max(
+      ...layout.nodes.map((node) => node.x + node.width)
+    );
+    const sidewaysWidth = Math.max(
+      ...sideways.nodes.map((node) => node.x + node.width)
+    );
+
+    assert.ok(root);
+    assert.ok(scope);
+    assert.ok(exceptions);
+    assert.ok(scope.y >= root.y + root.height);
+    assert.ok(exceptions.y >= scope.y + scope.height);
+    assert.ok(stackedWidth < sidewaysWidth);
+    assert.ok(stackedWidth < 320);
+  });
+
   it("keeps a compact tree left-to-right like the full map", () => {
     const layout = layoutMindMap(sampleNodes, { compact: true });
     const root = layout.nodes.find((node) => node.id === "root");

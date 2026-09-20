@@ -33,6 +33,7 @@ import {
 import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
+  didMindMapPaneHeightRefit,
   didMindMapPaneWidthChange,
   mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
@@ -57,6 +58,7 @@ interface TopicNodeData extends Record<string, unknown> {
   hasChildren: boolean;
   expanded: boolean;
   selected: boolean;
+  stacked: boolean;
 }
 
 const PILL_TONE: Record<MindMapNodeTone, string> = {
@@ -89,7 +91,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
     <div className="motion-safe:animate-cute-label-enter relative h-full w-full">
       <Handle
         type="target"
-        position={Position.Left}
+        position={data.stacked ? Position.Top : Position.Left}
         className="!size-2 !border-0 !bg-transparent"
       />
       <button
@@ -102,7 +104,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
             : data.label
         }
         className={cn(
-          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ours",
+          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-ours",
           toneClass,
           data.selected &&
             "ring-2 ring-ring ring-offset-2 ring-offset-background"
@@ -130,7 +132,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
       </button>
       <Handle
         type="source"
-        position={Position.Right}
+        position={data.stacked ? Position.Bottom : Position.Right}
         className="!size-2 !border-0 !bg-transparent"
       />
     </div>
@@ -213,6 +215,7 @@ function MindMapFlow({
     () =>
       layoutMindMap(visibility.visible, {
         compact: stacked,
+        direction: stacked ? "TB" : "LR",
         decorationFor: (node) => decorationForMindMapNode(node, visibility),
       }),
     [visibility, stacked]
@@ -254,6 +257,7 @@ function MindMapFlow({
               hasChildren: parentIds.has(placed.id),
               expanded: expandedIds.has(placed.id),
               selected: placed.id === selectedId,
+              stacked,
             },
             width: placed.width,
             height: placed.height,
@@ -263,7 +267,15 @@ function MindMapFlow({
           },
         ];
       }),
-    [layout.nodes, nodeById, parentIds, visibility, expandedIds, selectedId]
+    [
+      layout.nodes,
+      nodeById,
+      parentIds,
+      visibility,
+      expandedIds,
+      selectedId,
+      stacked,
+    ]
   );
   const edges: Edge[] = useMemo(
     () =>
@@ -306,8 +318,14 @@ function MindMapFlow({
     (widest, node) => Math.max(widest, node.x + node.width),
     0
   );
-  const overflowsPane =
-    stacked && width > 8 && layoutWidth * fitMinZoom(stacked) > width;
+  const layoutHeight = layout.nodes.reduce(
+    (tallest, node) => Math.max(tallest, node.y + node.height),
+    0
+  );
+  const minFitZoom = fitMinZoom(stacked);
+  const overflowsX = stacked && width > 8 && layoutWidth * minFitZoom > width;
+  const overflowsY =
+    stacked && height > 8 && layoutHeight * minFitZoom > height;
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -355,6 +373,10 @@ function MindMapFlow({
       previous.width,
       visible.width
     );
+    const heightRefit = didMindMapPaneHeightRefit(
+      previous.height,
+      visible.height
+    );
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
@@ -365,7 +387,7 @@ function MindMapFlow({
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged: widthChanged,
+      sizeChanged: widthChanged || heightRefit,
       nodesChanged,
       userTookCamera,
     });
@@ -383,7 +405,7 @@ function MindMapFlow({
       return;
     }
     const deferResize = shouldDeferMindMapResizeFit({
-      sizeChanged: widthChanged,
+      sizeChanged: widthChanged || heightRefit,
       isFirstLayout,
       nodesChanged,
     });
@@ -505,9 +527,9 @@ function MindMapFlow({
       >
         <Background gap={22} size={1} color="var(--border)" />
       </ReactFlow>
-      {overflowsPane && !userTookCamera ? (
+      {(overflowsX || overflowsY) && !userTookCamera ? (
         <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
-          地図は横にうごかせます
+          {overflowsX ? "地図は横にうごかせます" : "地図はたてにうごかせます"}
         </p>
       ) : null}
     </div>

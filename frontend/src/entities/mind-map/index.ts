@@ -22,6 +22,7 @@ export type {
   MindMapEdgeKind,
   MindMapLayout,
   MindMapLayoutAlgorithm,
+  MindMapLayoutDirection,
   MindMapNodeDecoration,
 } from "./model/layout";
 export { createEmptyMindMap, createMindMapNode } from "./model/types";
