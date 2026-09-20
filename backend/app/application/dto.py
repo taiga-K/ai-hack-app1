@@ -51,27 +51,53 @@ class AnalysisResultDTO:
 
 
 @dataclass(frozen=True)
+class MindMapRelationDTO:
+    """DTO for one directed relation between meeting-map nodes."""
+
+    kind: str
+    target_id: str
+
+
+@dataclass(frozen=True)
 class MindMapNodeDTO:
-    """DTO for one mind-map topic."""
+    """DTO for one meeting-map claim."""
 
     id: str
     label: str
     parent_id: str | None
+    kind: str = "topic"
+    status: str = "open"
+    detail: str = ""
+    relations: list[MindMapRelationDTO] = field(default_factory=list)
+    history: list[str] = field(default_factory=list)
+    pinned: bool = False
+    source_utterance_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MindMapPendingDTO:
+    """DTO for a held fragment carried to the next analysis window."""
+
+    text: str
     source_utterance_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class MindMapUpdateDTO:
-    """DTO for an incremental mind-map update."""
+    """DTO for an incremental meeting-map update.
+
+    ``analyzed`` is False when the window could not be analyzed (LLM or parse
+    failure); the caller must keep that window for a later pass.
+    """
 
     meeting_id: str
     revision: int
     upserts: list[MindMapNodeDTO] = field(default_factory=list)
-    removes: list[str] = field(default_factory=list)
+    pending: list[MindMapPendingDTO] = field(default_factory=list)
     nodes: list[MindMapNodeDTO] = field(default_factory=list)
     source_utterance_count: int = 0
     changed: bool = False
-    consumed: bool = True
+    analyzed: bool = True
 
 
 @dataclass(frozen=True)
