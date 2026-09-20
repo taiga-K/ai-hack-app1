@@ -185,9 +185,27 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await page.setViewportSize({ width: 390, height: 844 });
   await startUiPreview(page, "E2Eモバイル会議");
 
-  await expect(page.getByText("今日の会議").first()).toBeVisible({
+  const mapRegion = page.getByRole("region", { name: "話の地図" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
     timeout: 4000,
   });
+  const lastTopic = mapRegion.getByText("来月末の本番");
+  await expect(lastTopic).toBeVisible({ timeout: 4000 });
+  await expect
+    .poll(async () => {
+      const mapBox = await mapRegion.boundingBox();
+      const nodeBox = await lastTopic.boundingBox();
+      if (mapBox === null || nodeBox === null) {
+        return false;
+      }
+      return (
+        nodeBox.x >= mapBox.x - 8 &&
+        nodeBox.y >= mapBox.y - 8 &&
+        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
+        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
+      );
+    })
+    .toBe(true);
   const whispersTab = page.getByRole("tab", { name: /ささやき/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
