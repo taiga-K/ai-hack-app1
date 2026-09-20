@@ -1,31 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { toast } from "sonner";
 import { ExportMarkdownActions } from "@/features/export-markdown";
+import {
+  BackToMeeting,
+  buildMeetingHref,
+  type BackTarget,
+} from "@/features/return-to-meeting";
 import { Header } from "@/widgets/header";
 import { DocumentEditor, MarkdownPreview } from "@/widgets/document-editor";
-import { cn } from "@/shared/lib";
-import { Button, Skeleton, Toaster, buttonVariants } from "@/shared/ui";
+import { Button, Skeleton, Toaster } from "@/shared/ui";
 import { useDocumentView } from "../model/use-document-view";
 
 export interface DocumentViewPageProps {
   meetingId: string;
   title?: string;
   preview?: boolean;
-}
-
-function buildMeetingHref(
-  meetingId: string,
-  title: string,
-  preview: boolean
-): string {
-  const params = new URLSearchParams();
-  params.set("title", title);
-  if (preview) {
-    params.set("demo", "1");
-  }
-  return `/meetings/${meetingId}?${params.toString()}`;
 }
 
 export function DocumentViewPage({
@@ -49,7 +39,13 @@ export function DocumentViewPage({
     downloadMarkdown,
   } = useDocumentView({ meetingId, title, preview });
 
-  const meetingHref = buildMeetingHref(meetingId, meetingTitle, preview);
+  const backTarget: BackTarget = {
+    kind: "meeting",
+    meetingId,
+    title: meetingTitle,
+    preview,
+  };
+  const meetingHref = buildMeetingHref(backTarget);
 
   async function handleCopy() {
     const copied = await copyMarkdown();
@@ -74,15 +70,10 @@ export function DocumentViewPage({
       <Header
         title={meetingTitle}
         badge={preview ? "おためし" : "できたまとめ"}
+        leading={<BackToMeeting href={meetingHref} />}
       />
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-2 sm:px-8">
-        <Link
-          href={meetingHref}
-          className={cn(buttonVariants({ variant: "ghost" }))}
-        >
-          会議に戻る
-        </Link>
         <ExportMarkdownActions
           copyDisabled={status !== "ready" || markdown.length === 0}
           downloadDisabled={status !== "ready" || markdown.length === 0}
@@ -129,12 +120,6 @@ export function DocumentViewPage({
           <p className="text-sm text-muted-foreground">
             {errorMessage ?? "会議をおわると、まとめが出来ます。"}
           </p>
-          <Link
-            href={meetingHref}
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            会議に戻る
-          </Link>
         </div>
       ) : null}
 
@@ -142,21 +127,13 @@ export function DocumentViewPage({
         <div className="flex min-h-0 flex-1 flex-col items-start justify-center gap-3 px-5 sm:px-8">
           <p className="text-lg font-medium">まとめを開けませんでした</p>
           <p className="text-sm text-muted-foreground">{errorMessage}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                void reload();
-              }}
-            >
-              もういちど
-            </Button>
-            <Link
-              href={meetingHref}
-              className={cn(buttonVariants({ variant: "outline" }))}
-            >
-              会議に戻る
-            </Link>
-          </div>
+          <Button
+            onClick={() => {
+              void reload();
+            }}
+          >
+            もういちど
+          </Button>
         </div>
       ) : null}
 

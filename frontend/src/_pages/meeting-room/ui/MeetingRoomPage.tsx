@@ -1,15 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Advice } from "@/entities/advice";
 import type { Utterance } from "@/entities/utterance";
 import { MeetingControls } from "@/features/meeting-control";
+import {
+  BackToMeeting,
+  buildDocumentHref,
+  decideAfterFinalize,
+  decideAfterReadyPause,
+  type BackTarget,
+} from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
 import { Header } from "@/widgets/header";
 import { MeetingFloor } from "@/widgets/meeting-floor";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
-import { Button, Toaster } from "@/shared/ui";
+import { cn } from "@/shared/lib";
+import { Button, Toaster, buttonVariants } from "@/shared/ui";
 import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
 
@@ -21,19 +30,6 @@ export interface MeetingRoomPageProps {
 
 type MobilePane = "notes" | "whispers";
 type Handoff = "none" | "making" | "ready";
-
-function buildDocumentHref(
-  meetingId: string,
-  title: string,
-  preview: boolean
-): string {
-  const params = new URLSearchParams();
-  params.set("title", title);
-  if (preview) {
-    params.set("demo", "1");
-  }
-  return `/meetings/${meetingId}/document?${params.toString()}`;
-}
 
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -50,7 +46,15 @@ export function MeetingRoomPage({
   const meetingTitle = title?.trim() || "今日の会議";
   const [mobilePane, setMobilePane] = useState<MobilePane>("notes");
   const [handoff, setHandoff] = useState<Handoff>("none");
+  const [documentHref, setDocumentHref] = useState<string | null>(null);
+  const stayOnFloorRef = useRef(false);
   const layout = useMeetingLayout();
+  const backTarget: BackTarget = {
+    kind: "meeting",
+    meetingId,
+    title: meetingTitle,
+    preview,
+  };
   const {
     phase,
     utterances,
@@ -65,21 +69,62 @@ export function MeetingRoomPage({
   } = useMeetingRoom({ meetingId, title: meetingTitle, preview });
 
   async function handleEndMeeting() {
+    stayOnFloorRef.current = false;
+    setDocumentHref(null);
     setHandoff("making");
     const result = await endMeeting();
     if (!result.ok) {
       setHandoff("none");
       return;
     }
-    setHandoff("ready");
+    const nextDocumentHref = buildDocumentHref({
+      ...backTarget,
+      preview: result.preview,
+    });
+    setDocumentHref(nextDocumentHref);
+
+    const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
+    switch (afterFinalize) {
+      case "stay-on-floor":
+        return;
+      case "announce-ready":
+        setHandoff("ready");
+        break;
+      default: {
+        const _exhaustiveCheck: never = afterFinalize;
+        throw new Error(`Unhandled finalize decision: ${_exhaustiveCheck}`);
+      }
+    }
+
     await waitMs(780);
-    router.push(buildDocumentHref(meetingId, meetingTitle, result.preview));
+    const afterReady = decideAfterReadyPause(stayOnFloorRef.current);
+    switch (afterReady) {
+      case "stay-on-floor":
+        setHandoff("none");
+        return;
+      case "open-document":
+        router.push(nextDocumentHref);
+        return;
+      default: {
+        const _exhaustiveCheck: never = afterReady;
+        throw new Error(`Unhandled ready decision: ${_exhaustiveCheck}`);
+      }
+    }
+  }
+
+  function handleBackFromAfterEnd() {
+    stayOnFloorRef.current = true;
+    setHandoff("none");
   }
 
   const listening = audio.isRecording || (preview && phase === "live");
   const oursSpeaking = listening && audio.micVolume > 0.08;
   const theirsSpeaking = listening && audio.tabVolume > 0.08;
-  const showControls = handoff === "none" && phase !== "finalizing";
+  const showAfterEnd = handoff === "making" || handoff === "ready";
+  const showOpenDocument =
+    documentHref !== null && !showAfterEnd && phase === "ended";
+  const showControls =
+    !showAfterEnd && phase !== "finalizing" && !showOpenDocument;
 
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
@@ -145,7 +190,7 @@ export function MeetingRoomPage({
     </div>
   );
 
-  if (handoff !== "none" || phase === "finalizing") {
+  if (showAfterEnd) {
     workspace = (
       <div className="motion-safe:animate-cute-aftertaste flex min-h-0 flex-1 flex-col items-start justify-center gap-2">
         <p className="font-heading text-2xl font-medium">
@@ -164,11 +209,34 @@ export function MeetingRoomPage({
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
-      <Header title={meetingTitle} badge={preview ? "おためし" : undefined} />
+      <Header
+        title={meetingTitle}
+        badge={preview ? "おためし" : undefined}
+        leading={
+          showAfterEnd ? (
+            <BackToMeeting onClick={handleBackFromAfterEnd} />
+          ) : undefined
+        }
+        actions={
+          showOpenDocument && documentHref !== null ? (
+            <Link
+              href={documentHref}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              まとめを見る
+            </Link>
+          ) : undefined
+        }
+      />
 
       {audio.errorMessage ? (
         <p className="px-5 text-sm text-destructive sm:px-8" role="alert">
           うまく聞けませんでした。もういちど、ききはじめるを押してください。
+        </p>
+      ) : null}
+      {phase === "finalizing" && !showAfterEnd ? (
+        <p className="px-5 text-sm text-foreground sm:px-8">
+          まとめをつくっています
         </p>
       ) : null}
       {phase === "ended" && finalizeError ? (

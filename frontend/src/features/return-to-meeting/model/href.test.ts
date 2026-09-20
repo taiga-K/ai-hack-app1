@@ -1,0 +1,36 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { buildDocumentHref, buildMeetingHref } from "./href.ts";
+import type { BackTarget } from "./types.ts";
+
+const target: BackTarget = {
+  kind: "meeting",
+  meetingId: "meet-1",
+  title: "今日の会議",
+  preview: false,
+};
+
+describe("buildMeetingHref", () => {
+  it("returns the meeting floor with the title", () => {
+    assert.equal(
+      buildMeetingHref(target),
+      "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0"
+    );
+  });
+
+  it("keeps the preview flag so notes stay visible", () => {
+    assert.equal(
+      buildMeetingHref({ ...target, preview: true }),
+      "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1"
+    );
+  });
+});
+
+describe("buildDocumentHref", () => {
+  it("opens the same meeting's summary", () => {
+    assert.equal(
+      buildDocumentHref({ ...target, preview: true }),
+      "/meetings/meet-1/document?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1"
+    );
+  });
+});
