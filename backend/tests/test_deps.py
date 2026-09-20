@@ -9,6 +9,7 @@ from app.application.use_cases import (
     GenerateRequirementsDocUseCase,
     GetRequirementsDocUseCase,
     TranscribeAudioUseCase,
+    UpdateMindMapUseCase,
 )
 from app.domain.services.llm_service import LLMService
 from app.domain.services.meeting_session_repository import MeetingSessionRepository
@@ -28,6 +29,7 @@ from app.presentation.deps import (
     get_requirements_doc_use_case,
     get_stt_service,
     get_transcribe_audio_use_case,
+    get_update_mind_map_use_case,
 )
 
 
@@ -121,6 +123,26 @@ def test_get_analyze_dialogue_use_case_unconfigured(
     response = client.get("/test-analyze-none")
     assert response.status_code == 200
     assert response.json() == {"status": "none"}
+
+
+def test_get_update_mind_map_use_case_dependency_injection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "test-key")
+    test_app = FastAPI()
+
+    @test_app.get("/test-mind-map-di")
+    def sample_mind_map_endpoint(
+        use_case: UpdateMindMapUseCase | None = Depends(get_update_mind_map_use_case),
+    ) -> dict[str, str]:
+        assert isinstance(use_case, UpdateMindMapUseCase)
+        assert isinstance(use_case._llm_service, OrcaRouterClient)
+        return {"status": "ok"}
+
+    client = TestClient(test_app)
+    response = client.get("/test-mind-map-di")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 def test_get_generate_requirements_doc_use_case_dependency_injection(

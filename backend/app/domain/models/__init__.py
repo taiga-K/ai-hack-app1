@@ -16,6 +16,11 @@ from app.domain.models.llm import (
 )
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.meeting_session import MeetingSessionRecord
+from app.domain.models.mind_map import (
+    MindMapNode,
+    MindMapSnapshot,
+    apply_mind_map_delta,
+)
 from app.domain.models.requirement_doc import (
     RequirementsDocument,
     RequirementsSection,
@@ -42,6 +47,9 @@ __all__ = [
     "IssueCategory",
     "MeetingDialogueContext",
     "MeetingSessionRecord",
+    "MindMapNode",
+    "MindMapSnapshot",
+    "apply_mind_map_delta",
     "RequirementsDocument",
     "RequirementsSection",
     "RequirementsSectionId",

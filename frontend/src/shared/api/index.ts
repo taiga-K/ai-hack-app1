@@ -9,6 +9,8 @@ export type {
   AdviceEvent,
   AdvicePriority,
   MeetingServerEvent,
+  MindMapEvent,
+  MindMapNodePayload,
   PongEvent,
   SpeakerId,
   UtteranceEvent,

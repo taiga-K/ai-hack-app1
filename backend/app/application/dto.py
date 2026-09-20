@@ -51,6 +51,29 @@ class AnalysisResultDTO:
 
 
 @dataclass(frozen=True)
+class MindMapNodeDTO:
+    """DTO for one mind-map topic."""
+
+    id: str
+    label: str
+    parent_id: str | None
+    source_utterance_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class MindMapUpdateDTO:
+    """DTO for an incremental mind-map update."""
+
+    meeting_id: str
+    revision: int
+    upserts: list[MindMapNodeDTO] = field(default_factory=list)
+    removes: list[str] = field(default_factory=list)
+    nodes: list[MindMapNodeDTO] = field(default_factory=list)
+    source_utterance_count: int = 0
+    changed: bool = False
+
+
+@dataclass(frozen=True)
 class RequirementsSectionDTO:
     """DTO for one requirements document section."""
 
