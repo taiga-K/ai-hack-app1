@@ -1,5 +1,7 @@
 export type AfterEndScreen = "making" | "ready" | "document";
 
+export type AfterEndHandoff = "none" | "making" | "ready";
+
 export type CompletedSummaryStatus = "checking" | "found" | "missing" | "error";
 
 export type CompletedSummaryLookup =

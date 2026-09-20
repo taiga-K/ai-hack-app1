@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Advice } from "@/entities/advice";
@@ -10,14 +10,15 @@ import { MeetingControls } from "@/features/meeting-control";
 import {
   BackToMeeting,
   buildDocumentHref,
+  buildMeetingHref,
   completedSummaryHref,
-  decideAfterFinalize,
-  decideAfterReadyPause,
   isMeetingAlreadyOver,
   rememberCompletedSummary,
+  shouldShowAfterEndBack,
   useRememberedCompletedSummary,
   replaceEndedMeetingUrl,
   shouldReopenLiveFloor,
+  type AfterEndHandoff,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -58,7 +59,7 @@ export interface MeetingRoomPageProps {
   completedSummaryHint?: boolean;
 }
 
-type Handoff = "none" | "making" | "ready";
+type Handoff = AfterEndHandoff;
 
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -80,7 +81,6 @@ export function MeetingRoomPage({
   const [sessionDocumentHref, setSessionDocumentHref] = useState<string | null>(
     null
   );
-  const stayOnFloorRef = useRef(false);
   const layout = useMeetingLayout();
   const backTarget: BackTarget = {
     kind: "meeting",
@@ -117,7 +117,6 @@ export function MeetingRoomPage({
   });
 
   async function handleEndMeeting() {
-    stayOnFloorRef.current = false;
     setSessionDocumentHref(null);
     setHandoff("making");
     if (preview) {
@@ -143,38 +142,9 @@ export function MeetingRoomPage({
       hasCompletedSummary: true,
     });
 
-    const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
-    switch (afterFinalize) {
-      case "stay-on-floor":
-        return;
-      case "announce-ready":
-        setHandoff("ready");
-        break;
-      default: {
-        const _exhaustiveCheck: never = afterFinalize;
-        throw new Error(`Unhandled finalize decision: ${_exhaustiveCheck}`);
-      }
-    }
-
+    setHandoff("ready");
     await waitMs(780);
-    const afterReady = decideAfterReadyPause(stayOnFloorRef.current);
-    switch (afterReady) {
-      case "stay-on-floor":
-        setHandoff("none");
-        return;
-      case "open-document":
-        router.push(nextDocumentHref);
-        return;
-      default: {
-        const _exhaustiveCheck: never = afterReady;
-        throw new Error(`Unhandled ready decision: ${_exhaustiveCheck}`);
-      }
-    }
-  }
-
-  function handleBackFromAfterEnd() {
-    stayOnFloorRef.current = true;
-    setHandoff("none");
+    router.push(nextDocumentHref);
   }
 
   const meetingAlreadyOver = isMeetingAlreadyOver({
@@ -343,8 +313,8 @@ export function MeetingRoomPage({
         title={meetingTitle}
         badge={preview ? "おためし" : undefined}
         leading={
-          showAfterEnd ? (
-            <BackToMeeting onClick={handleBackFromAfterEnd} />
+          shouldShowAfterEndBack(handoff) ? (
+            <BackToMeeting href={buildMeetingHref(backTarget)} />
           ) : undefined
         }
         actions={
