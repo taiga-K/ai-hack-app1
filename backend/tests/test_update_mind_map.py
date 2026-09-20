@@ -131,7 +131,14 @@ def test_apply_mind_map_delta_rejects_depth_six() -> None:
         source_utterance_count=4,
     )
 
-    assert {node.id for node in next_map.nodes} == {"root", "d2", "d3", "d4", "d5", "d5b"}
+    assert {node.id for node in next_map.nodes} == {
+        "root",
+        "d2",
+        "d3",
+        "d4",
+        "d5",
+        "d5b",
+    }
     assert mind_map_node_depth("d5b", next_map.node_lookup()) == MIND_MAP_MAX_DEPTH
     assert "d6" not in next_map.node_lookup()
 
@@ -350,7 +357,9 @@ async def test_update_mind_map_drops_depth_six_from_llm() -> None:
     )
     use_case = UpdateMindMapUseCase(llm_service=mock_llm)
     ctx = MeetingDialogueContext(meeting_id="meet-cap")
-    ctx.add_utterance(_utterance("meet-cap", "u-1", "例外の例外の例外まで決めたいです。"))
+    ctx.add_utterance(
+        _utterance("meet-cap", "u-1", "例外の例外の例外まで決めたいです。")
+    )
     current = MindMapSnapshot(
         meeting_id="meet-cap",
         revision=1,

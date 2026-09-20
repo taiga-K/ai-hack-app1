@@ -54,7 +54,9 @@ class MindMapSilenceBuffer:
             silence_ms=self.silence_ms,
         )
 
-    def observe_audio(self, *, speech: bool, duration_ms: int) -> "MindMapSilenceBuffer":
+    def observe_audio(
+        self, *, speech: bool, duration_ms: int
+    ) -> "MindMapSilenceBuffer":
         """Advance quiet time from PCM energy. Speech resets the clock."""
         if duration_ms <= 0:
             return self

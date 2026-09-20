@@ -274,9 +274,7 @@ class UpdateMindMapUseCase:
         persisted_ids = {node.id for node in next_snapshot.nodes}
         accepted = tuple(node for node in upserts if node.id in persisted_ids)
         removed_applied = tuple(
-            node_id
-            for node_id in removes
-            if node_id not in persisted_ids
+            node_id for node_id in removes if node_id not in persisted_ids
         )
         if not accepted and not removed_applied:
             return MindMapUpdateDTO(

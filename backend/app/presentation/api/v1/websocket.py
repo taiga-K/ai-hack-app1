@@ -590,7 +590,9 @@ class AudioStreamSession:
     def _accumulate_mind_map_utterance(self, utterance_id: str) -> None:
         self._mind_map_buffer = self._mind_map_buffer.accumulate((utterance_id,))
 
-    def _take_mind_map_window(self, *, include_unprocessed: bool) -> tuple[Utterance, ...]:
+    def _take_mind_map_window(
+        self, *, include_unprocessed: bool
+    ) -> tuple[Utterance, ...]:
         self._mind_map_buffer, pending_ids = self._mind_map_buffer.take()
         known = set(pending_ids)
         window = tuple(
