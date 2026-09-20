@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { layoutMindMap, measureMindMapLabel } from "./layout.ts";
 
 describe("layoutMindMap", () => {
-  it("places children below the root and draws parent links", () => {
+  it("places children to the right of the root and draws parent links", () => {
     const layout = layoutMindMap([
       {
         id: "root",
@@ -35,12 +35,13 @@ describe("layoutMindMap", () => {
     assert.equal(root.depth, 0);
     assert.equal(scope.depth, 1);
     assert.equal(due.depth, 1);
-    assert.ok(scope.y > root.y);
-    assert.notEqual(scope.x, due.x);
+    assert.ok(scope.x > root.x + root.width);
+    assert.ok(due.x > root.x + root.width);
+    assert.notEqual(scope.y, due.y);
     assert.equal(layout.edges.length, 2);
   });
 
-  it("stacks a compact tree so labels stay in one readable column", () => {
+  it("keeps a compact tree left-to-right like the full map", () => {
     const layout = layoutMindMap(
       [
         {
@@ -73,11 +74,9 @@ describe("layoutMindMap", () => {
     assert.ok(scope);
     assert.ok(due);
     assert.equal(root.x, 0);
-    assert.ok(scope.y > root.y);
-    assert.ok(due.y > scope.y);
-    assert.equal(scope.x, due.x);
-    assert.ok(scope.x > root.x);
-    assert.ok(layout.nodes.every((node) => node.x < 80));
+    assert.ok(scope.x > root.x + root.width);
+    assert.ok(due.x > root.x + root.width);
+    assert.notEqual(scope.y, due.y);
     assert.ok(root.width >= 88);
     assert.ok(root.height >= 36);
   });

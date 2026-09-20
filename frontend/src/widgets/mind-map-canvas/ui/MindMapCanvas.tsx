@@ -53,13 +53,13 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
     >
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="!size-2 !border-0 !bg-transparent"
       />
       <span>{data.label}</span>
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         className="!size-2 !border-0 !bg-transparent"
       />
     </div>
