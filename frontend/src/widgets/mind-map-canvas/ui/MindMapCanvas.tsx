@@ -22,6 +22,7 @@ import {
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "../model/should-refit-camera";
+import { viewportFromMindMapLayout } from "../model/viewport-from-layout";
 
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
@@ -44,7 +45,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
   return (
     <div
       className={cn(
-        "flex h-full w-full items-center justify-center rounded-full px-3 text-center text-sm leading-snug",
+        "motion-safe:animate-cute-label-enter flex h-full w-full items-center justify-center rounded-full px-3 text-center text-sm leading-snug",
         tone
       )}
     >
@@ -86,7 +87,7 @@ function MindMapFlow({
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
   const [userTookCamera, setUserTookCamera] = useState(false);
-  const { fitView } = useReactFlow();
+  const { setViewport } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
@@ -107,7 +108,6 @@ function MindMapFlow({
         style: { width: node.width, height: node.height },
         draggable: false,
         selectable: false,
-        className: "motion-safe:animate-cute-enter",
       })),
     [layout.nodes]
   );
@@ -146,35 +146,48 @@ function MindMapFlow({
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
       previousSignature.length > 0 && previousSignature !== nodeSignature;
-    lastSizeRef.current = { width, height };
-    lastNodeSignatureRef.current = nodeSignature;
-    if (
-      !shouldRefitMindMapCamera({
-        hasNodes,
-        nodesInitialized,
-        width,
-        height,
-        isFirstLayout,
-        sizeChanged,
-        nodesChanged,
-        userTookCamera,
-      })
-    ) {
+    const canObserve =
+      hasNodes && nodesInitialized && width >= 8 && height >= 8;
+    const shouldFit = shouldRefitMindMapCamera({
+      hasNodes,
+      nodesInitialized,
+      width,
+      height,
+      isFirstLayout,
+      sizeChanged,
+      nodesChanged,
+      userTookCamera,
+    });
+    if (!shouldFit) {
+      if (canObserve) {
+        lastSizeRef.current = { width, height };
+        lastNodeSignatureRef.current = nodeSignature;
+      }
       return;
     }
+    lastSizeRef.current = { width, height };
+    lastNodeSignatureRef.current = nodeSignature;
     const deferResize = shouldDeferMindMapResizeFit({
       sizeChanged,
       isFirstLayout,
       nodesChanged,
     });
     const runFit = (): void => {
+      const viewport = viewportFromMindMapLayout(
+        layout.nodes,
+        width,
+        height,
+        FIT_PADDING,
+        MIN_ZOOM,
+        MAX_ZOOM
+      );
+      if (viewport === null) {
+        return;
+      }
       isFittingRef.current = true;
       didInitialFit.current = true;
-      void fitView({
-        padding: FIT_PADDING,
+      void setViewport(viewport, {
         duration: deferResize ? 0 : isFirstLayout ? 320 : 200,
-        minZoom: MIN_ZOOM,
-        maxZoom: MAX_ZOOM,
       }).finally(() => {
         isFittingRef.current = false;
       });
@@ -192,7 +205,8 @@ function MindMapFlow({
     };
   }, [
     compact,
-    fitView,
+    layout.nodes,
+    setViewport,
     stacked,
     hasNodes,
     height,
@@ -210,13 +224,20 @@ function MindMapFlow({
           className="absolute right-2 top-2 z-10 text-sm text-foreground underline-offset-4 hover:underline"
           onClick={() => {
             setUserTookCamera(false);
+            const viewport = viewportFromMindMapLayout(
+              layout.nodes,
+              width,
+              height,
+              FIT_PADDING,
+              MIN_ZOOM,
+              MAX_ZOOM
+            );
+            if (viewport === null) {
+              setUserTookCamera(false);
+              return;
+            }
             isFittingRef.current = true;
-            void fitView({
-              padding: FIT_PADDING,
-              duration: 280,
-              minZoom: MIN_ZOOM,
-              maxZoom: MAX_ZOOM,
-            }).finally(() => {
+            void setViewport(viewport, { duration: 280 }).finally(() => {
               isFittingRef.current = false;
             });
           }}
