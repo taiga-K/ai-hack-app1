@@ -79,15 +79,17 @@ class AudioStreamSession:
         self.dialogue_context = MeetingDialogueContext(meeting_id=meeting_id)
         self.meeting_session_repository = meeting_session_repository
         self._close_persist_started = False
+        self._mind_map = MindMapSnapshot(meeting_id=meeting_id, revision=0)
         if self.meeting_session_repository is not None:
-            self.meeting_session_repository.get_or_create(meeting_id)
+            record = self.meeting_session_repository.get_or_create(meeting_id)
             self.meeting_session_repository.register_live_session(meeting_id)
+            if record.mind_map is not None:
+                self._mind_map = record.mind_map
         self._analysis_lock = asyncio.Lock()
         self._analysis_pending = False
         self._analysis_pending_force = False
         self._seen_advice_ids: set[str] = set()
         self._background_tasks: set[asyncio.Task[None]] = set()
-        self._mind_map = MindMapSnapshot(meeting_id=meeting_id, revision=0)
         self._mind_map_lock = asyncio.Lock()
         self._mind_map_pending = False
         self._mind_map_pending_force = False
@@ -453,6 +455,7 @@ class AudioStreamSession:
                         ),
                         source_utterance_count=result.source_utterance_count,
                     )
+                    self._persist_mind_map()
                     if result.changed and not self._is_closed:
                         message = MindMapMessage(
                             meeting_id=result.meeting_id,
@@ -476,6 +479,30 @@ class AudioStreamSession:
                     current_force = self._mind_map_pending_force
                     continue
                 break
+
+    def _persist_mind_map(self) -> None:
+        if self.meeting_session_repository is None:
+            return
+        self.meeting_session_repository.save_mind_map(self.meeting_id, self._mind_map)
+
+    async def send_restored_mind_map(self) -> None:
+        if self._mind_map.revision <= 0 or self._is_closed:
+            return
+        message = MindMapMessage(
+            meeting_id=self._mind_map.meeting_id,
+            revision=self._mind_map.revision,
+            upserts=[
+                MindMapNodeMessage(
+                    id=node.id,
+                    label=node.label,
+                    parent_id=node.parent_id,
+                    source_utterance_ids=list(node.source_utterance_ids),
+                )
+                for node in self._mind_map.nodes
+            ],
+            removes=[],
+        )
+        await self._safe_send_text(message.model_dump_json())
 
     def _persist_advice(self, item: AdviceItemDTO) -> None:
         """Store a detection so finalize can include it in the requirements context."""
@@ -524,6 +551,7 @@ async def websocket_audio_endpoint(
         update_mind_map_use_case=update_mind_map_use_case,
         meeting_session_repository=meeting_session_repository,
     )
+    await session.send_restored_mind_map()
 
     try:
         while True:

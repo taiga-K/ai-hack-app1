@@ -112,4 +112,66 @@ describe("applyMindMapEvent", () => {
     assert.equal(other.revision, 2);
     assert.equal(other.nodes.length, 1);
   });
+
+  it("keeps leftover nodes when a restored revision is not newer", () => {
+    const leftover = applyMindMapEvent(createEmptyMindMap("m-1"), {
+      type: "mindmap",
+      meetingId: "m-1",
+      revision: 2,
+      upserts: [
+        {
+          id: "root",
+          label: "今日の会議",
+          parentId: null,
+          sourceUtteranceIds: [],
+        },
+        {
+          id: "scope",
+          label: "対象範囲",
+          parentId: "root",
+          sourceUtteranceIds: ["utt-1"],
+        },
+      ],
+      removes: [],
+    });
+    const replayed = applyMindMapEvent(leftover, {
+      type: "mindmap",
+      meetingId: "m-1",
+      revision: 2,
+      upserts: [
+        {
+          id: "root",
+          label: "今日の会議",
+          parentId: null,
+          sourceUtteranceIds: [],
+        },
+      ],
+      removes: [],
+    });
+    const grown = applyMindMapEvent(replayed, {
+      type: "mindmap",
+      meetingId: "m-1",
+      revision: 3,
+      upserts: [
+        {
+          id: "date",
+          label: "日程",
+          parentId: "scope",
+          sourceUtteranceIds: ["utt-2"],
+        },
+      ],
+      removes: [],
+    });
+
+    assert.equal(replayed.revision, 2);
+    assert.deepEqual(
+      replayed.nodes.map((node) => node.id),
+      ["root", "scope"]
+    );
+    assert.equal(grown.revision, 3);
+    assert.deepEqual(
+      grown.nodes.map((node) => node.id),
+      ["root", "scope", "date"]
+    );
+  });
 });

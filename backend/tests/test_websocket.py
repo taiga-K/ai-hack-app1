@@ -23,6 +23,7 @@ from app.application.use_cases import (
 )
 from app.domain.exceptions import STTServiceError
 from app.domain.models.analysis import AdvicePriority, IssueCategory
+from app.domain.models.mind_map import MindMapNode, MindMapSnapshot
 from app.domain.models.transcript import Speaker, Utterance
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
 from app.infrastructure.persistence.in_memory_meeting_store import (
@@ -577,3 +578,101 @@ async def test_session_empty_mindmap_delta_persists_watermark() -> None:
     second_current = mock_mind_map.execute.await_args_list[1].kwargs["current"]
     assert second_current.source_utterance_count == 2
     websocket.send_text.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_new_audio_session_restores_mind_map_revision() -> None:
+    store = InMemoryMeetingSessionStore()
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-restore",
+        revision=2,
+        upserts=[
+            MindMapNodeDTO(
+                id="child",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-2"],
+            )
+        ],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            ),
+            MindMapNodeDTO(
+                id="child",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-2"],
+            ),
+        ],
+        source_utterance_count=2,
+        changed=True,
+    )
+    store.save_mind_map(
+        "meet-map-restore",
+        MindMapSnapshot(
+            meeting_id="meet-map-restore",
+            revision=1,
+            nodes=(
+                MindMapNode(
+                    id="root",
+                    label="今日の会議",
+                    parent_id=None,
+                ),
+            ),
+            source_utterance_count=1,
+        ),
+    )
+    websocket = AsyncMock()
+    session = AudioStreamSession(
+        meeting_id="meet-map-restore",
+        websocket=websocket,
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+        meeting_session_repository=store,
+    )
+
+    assert session._mind_map.revision == 1
+    assert [node.id for node in session._mind_map.nodes] == ["root"]
+
+    await session.send_restored_mind_map()
+    websocket.send_text.assert_awaited()
+    restored = json.loads(websocket.send_text.await_args.args[0])
+    assert restored["type"] == "mindmap"
+    assert restored["revision"] == 1
+    assert [node["id"] for node in restored["upserts"]] == ["root"]
+
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-restore", "u-2", "対象範囲を決めたいです。")
+    )
+    await session._trigger_mind_map(force=True)
+
+    current = mock_mind_map.execute.await_args.kwargs["current"]
+    assert current.revision == 1
+    assert session._mind_map.revision == 2
+    reloaded = store.get("meet-map-restore")
+    assert reloaded is not None
+    assert reloaded.mind_map is not None
+    assert reloaded.mind_map.revision == 2
+
+
+@pytest.mark.asyncio
+async def test_restored_empty_mind_map_does_not_emit() -> None:
+    websocket = AsyncMock()
+    session = AudioStreamSession(
+        meeting_id="meet-map-empty-restore",
+        websocket=websocket,
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+    )
+
+    await session.send_restored_mind_map()
+
+    websocket.send_text.assert_not_awaited()
+    assert session._mind_map.revision == 0

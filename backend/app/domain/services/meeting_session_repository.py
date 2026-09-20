@@ -4,6 +4,7 @@ from typing import Protocol, runtime_checkable
 
 from app.domain.models.analysis import AdviceItem
 from app.domain.models.meeting_session import MeetingSessionRecord
+from app.domain.models.mind_map import MindMapSnapshot
 from app.domain.models.requirement_doc import RequirementsDocument
 from app.domain.models.transcript import Utterance
 
@@ -30,6 +31,10 @@ class MeetingSessionRepository(Protocol):
 
     def add_advice(self, meeting_id: str, item: AdviceItem) -> None:
         """Append a detection/advice item, ignoring duplicates by id."""
+        ...
+
+    def save_mind_map(self, meeting_id: str, snapshot: MindMapSnapshot) -> None:
+        """Persist the latest mind-map revision for a later audio session."""
         ...
 
     def register_live_session(self, meeting_id: str) -> None:
