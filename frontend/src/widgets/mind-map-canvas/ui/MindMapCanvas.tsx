@@ -511,6 +511,7 @@ function MindMapFlow({
         nodesDraggable={false}
         nodesConnectable={false}
         nodesFocusable={false}
+        edgesFocusable={false}
         elementsSelectable={false}
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
