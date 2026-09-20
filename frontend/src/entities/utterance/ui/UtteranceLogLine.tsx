@@ -27,8 +27,8 @@ export function UtteranceLogLine({ utterance }: UtteranceLogLineProps) {
       </time>
       <span
         className={cn(
-          "mt-0.5 inline-flex h-6 items-center rounded-full px-2.5 text-[11px] font-medium",
-          side === "ours" ? "bg-ours/20 text-ours" : "bg-theirs/20 text-theirs"
+          "mt-0.5 inline-flex h-6 items-center rounded-full px-2.5 text-xs font-medium",
+          side === "ours" ? "bg-ours/15 text-ours" : "bg-theirs/15 text-theirs"
         )}
       >
         {label}

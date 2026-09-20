@@ -24,7 +24,7 @@ export function TranscriptFeed({ utterances }: TranscriptFeedProps) {
             まだ、だれも話していません
           </p>
         ) : (
-          <div className="divide-y divide-border/60 px-1">
+          <div className="flex flex-col gap-1 px-1">
             {utterances.map((utterance) => (
               <UtteranceLogLine key={utterance.id} utterance={utterance} />
             ))}

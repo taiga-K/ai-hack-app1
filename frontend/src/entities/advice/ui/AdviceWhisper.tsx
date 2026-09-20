@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check } from "lucide-react";
 import { useState } from "react";
 import { copyTextToClipboard } from "@/shared/lib";
 import { Button } from "@/shared/ui";
@@ -9,10 +9,15 @@ import type { Advice } from "../model/types";
 
 export interface AdviceWhisperProps {
   advice: Advice;
+  appearDelayMs?: number;
   onCopied?: (question: string) => void;
 }
 
-export function AdviceWhisper({ advice, onCopied }: AdviceWhisperProps) {
+export function AdviceWhisper({
+  advice,
+  appearDelayMs = 0,
+  onCopied,
+}: AdviceWhisperProps) {
   const [copied, setCopied] = useState(false);
   const category = getAdviceCategoryPresentation(advice.category);
 
@@ -29,26 +34,23 @@ export function AdviceWhisper({ advice, onCopied }: AdviceWhisperProps) {
   }
 
   return (
-    <article className="motion-safe:animate-cute-whisper relative">
-      <span
-        aria-hidden
-        className="motion-safe:animate-cute-kira pointer-events-none absolute -top-1 right-4 size-3 rounded-full bg-primary"
-      />
-      <p className="text-[11px] font-medium text-ours">{category.badge}</p>
-      <h3 className="mt-1 text-sm font-medium leading-snug">{advice.title}</h3>
-      <p className="mt-2 text-sm leading-relaxed">{advice.suggestedQuestion}</p>
+    <article
+      className="motion-safe:animate-cute-whisper"
+      style={{ animationDelay: `${String(appearDelayMs)}ms` }}
+    >
+      <p className="text-xs font-medium text-ours">{category.badge}</p>
+      <p className="mt-2 text-base leading-relaxed font-medium">
+        {advice.suggestedQuestion}
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">{advice.title}</p>
       <Button
-        className="mt-3"
+        className="mt-2"
         size="sm"
-        variant="secondary"
+        variant="ghost"
         onClick={() => void handleCopy()}
       >
-        {copied ? (
-          <Check data-icon="inline-start" />
-        ) : (
-          <Copy data-icon="inline-start" />
-        )}
-        {copied ? "コピーしたよ" : "この質問をコピー"}
+        {copied ? <Check data-icon="inline-start" /> : null}
+        {copied ? "コピーしました" : "コピー"}
       </Button>
     </article>
   );

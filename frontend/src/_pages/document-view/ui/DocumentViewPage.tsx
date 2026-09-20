@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { ExportMarkdownActions } from "@/features/export-markdown";
 import { Header } from "@/widgets/header";
 import { DocumentEditor, MarkdownPreview } from "@/widgets/document-editor";
-import { Button, Skeleton, Toaster } from "@/shared/ui";
+import { cn } from "@/shared/lib";
+import { Button, Skeleton, Toaster, buttonVariants } from "@/shared/ui";
 import { useDocumentView } from "../model/use-document-view";
 
 export interface DocumentViewPageProps {
@@ -63,7 +64,7 @@ export function DocumentViewPage({
   async function handleDownload() {
     const downloaded = await downloadMarkdown();
     if (downloaded) {
-      toast.success("保存しました");
+      toast.success("ファイルに保存しました");
       return;
     }
     toast.error("保存できませんでした");
@@ -77,9 +78,12 @@ export function DocumentViewPage({
       />
 
       <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-2 sm:px-8">
-        <Button variant="ghost" render={<Link href={meetingHref} />}>
+        <Link
+          href={meetingHref}
+          className={cn(buttonVariants({ variant: "ghost" }))}
+        >
           会議に戻る
-        </Button>
+        </Link>
         <ExportMarkdownActions
           copyDisabled={status !== "ready" || markdown.length === 0}
           downloadDisabled={status !== "ready" || markdown.length === 0}
@@ -118,9 +122,12 @@ export function DocumentViewPage({
           <p className="text-sm text-muted-foreground">
             {errorMessage ?? "会議をおわると、まとめが出来ます。"}
           </p>
-          <Button variant="outline" render={<Link href={meetingHref} />}>
+          <Link
+            href={meetingHref}
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
             会議に戻る
-          </Button>
+          </Link>
         </div>
       ) : null}
 
@@ -136,9 +143,12 @@ export function DocumentViewPage({
             >
               もういちど
             </Button>
-            <Button variant="outline" render={<Link href={meetingHref} />}>
+            <Link
+              href={meetingHref}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
               会議に戻る
-            </Button>
+            </Link>
           </div>
         </div>
       ) : null}

@@ -36,7 +36,7 @@ export function ExportMarkdownActions({
         disabled={downloadDisabled || downloading}
       >
         {downloading ? <Spinner data-icon="inline-start" /> : null}
-        保存
+        ファイルに保存
       </Button>
     </div>
   );

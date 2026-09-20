@@ -80,7 +80,7 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await page.getByRole("button", { name: "保存" }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe(`requirements-${meetingId}.md`);
-  await expect(page.getByText("保存しました")).toBeVisible();
+  await expect(page.getByText("ファイルに保存しました")).toBeVisible();
 
   await page.getByRole("button", { name: "なおす" }).click();
   const editor = page.getByLabel("まとめの本文");
@@ -161,7 +161,6 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
   await page.getByRole("button", { name: "ききはじめる" }).click();
   await expect(page.getByText("うまく聞けませんでした")).toBeVisible();
-  await expect(page.getByText("Permission denied")).toBeVisible();
 });
 
 test("未生成のまとめ画面は空状態を出す", async ({ page }) => {

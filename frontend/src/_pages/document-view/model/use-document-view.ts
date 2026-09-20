@@ -16,6 +16,7 @@ import {
 } from "@/features/export-markdown";
 import { copyTextToClipboard } from "@/shared/lib";
 import type { DocumentEditorView } from "@/widgets/document-editor";
+import { readDocumentDraft, writeDocumentDraft } from "./document-draft";
 import { createPreviewRequirementDocument } from "./preview-document";
 
 export type DocumentViewStatus = "loading" | "ready" | "empty" | "error";
@@ -49,21 +50,37 @@ export function useDocumentView({
   const [document, setDocument] = useState<RequirementDocument | null>(() =>
     createInitialDocument(meetingId, meetingTitle, preview)
   );
-  const [markdown, setMarkdown] = useState(() => {
+  const [markdown, setMarkdownState] = useState(() => {
+    const draft = readDocumentDraft(meetingId);
+    if (draft) {
+      return draft;
+    }
     const initial = createInitialDocument(meetingId, meetingTitle, preview);
     return initial?.markdown ?? "";
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [view, setView] = useState<DocumentEditorView>("split");
+  const [view, setView] = useState<DocumentEditorView>("preview");
   const [copying, setCopying] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  const applyDocument = useCallback((next: RequirementDocument) => {
-    setDocument(next);
-    setMarkdown(next.markdown);
-    setErrorMessage(null);
-    setStatus("ready");
-  }, []);
+  const setMarkdown = useCallback(
+    (next: string) => {
+      setMarkdownState(next);
+      writeDocumentDraft(meetingId, next);
+    },
+    [meetingId]
+  );
+
+  const applyDocument = useCallback(
+    (next: RequirementDocument) => {
+      const draft = readDocumentDraft(meetingId);
+      setDocument(next);
+      setMarkdownState(draft ?? next.markdown);
+      setErrorMessage(null);
+      setStatus("ready");
+    },
+    [meetingId]
+  );
 
   const loadFromApi = useCallback(async () => {
     try {
@@ -72,7 +89,7 @@ export function useDocumentView({
     } catch (error) {
       if (error instanceof BackendHttpError && error.code === "not_found") {
         setDocument(null);
-        setMarkdown("");
+        setMarkdownState("");
         setStatus("empty");
         setErrorMessage(error.message);
         return;
@@ -83,7 +100,7 @@ export function useDocumentView({
           ? error.message
           : toUserFacingHttpErrorMessage("unknown");
       setDocument(null);
-      setMarkdown("");
+      setMarkdownState("");
       setStatus("error");
       setErrorMessage(message);
     }
@@ -119,7 +136,7 @@ export function useDocumentView({
         }
         if (error instanceof BackendHttpError && error.code === "not_found") {
           setDocument(null);
-          setMarkdown("");
+          setMarkdownState("");
           setStatus("empty");
           setErrorMessage(error.message);
           return;
@@ -130,7 +147,7 @@ export function useDocumentView({
             ? error.message
             : toUserFacingHttpErrorMessage("unknown");
         setDocument(null);
-        setMarkdown("");
+        setMarkdownState("");
         setStatus("error");
         setErrorMessage(message);
       });

@@ -26,8 +26,13 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
               いまは、ささやくことがありません
             </p>
           ) : (
-            adviceItems.map((item) => (
-              <AdviceWhisper key={item.id} advice={item} onCopied={onCopied} />
+            adviceItems.map((item, index) => (
+              <AdviceWhisper
+                key={item.id}
+                advice={item}
+                appearDelayMs={index * 140}
+                onCopied={onCopied}
+              />
             ))
           )}
         </div>

@@ -42,7 +42,7 @@ export function StartMeetingForm() {
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="lg"
           onClick={() => router.push(buildMeetingPath(true))}
         >

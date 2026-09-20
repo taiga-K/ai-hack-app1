@@ -72,14 +72,14 @@ export function MeetingControls({
         >
           おわる
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent showCloseButton={false} className="rounded-3xl ring-0">
           <DialogHeader>
             <DialogTitle>おわりますか？</DialogTitle>
             <DialogDescription>
               おわると、いままでの話からまとめが出来ます。
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="rounded-none border-0 bg-transparent">
             <Button variant="outline" onClick={() => setEndDialogOpen(false)}>
               まだつづける
             </Button>

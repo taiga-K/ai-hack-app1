@@ -1,29 +1,33 @@
-import type { ReactNode } from "react";
 import { SideCluster } from "./SideCluster";
 
 export interface MeetingFloorProps {
+  oursListening: boolean;
+  theirsListening: boolean;
   oursSpeaking: boolean;
   theirsSpeaking: boolean;
   oursVolume: number;
   theirsVolume: number;
-  whispers: ReactNode;
 }
 
 export function MeetingFloor({
+  oursListening,
+  theirsListening,
   oursSpeaking,
   theirsSpeaking,
   oursVolume,
   theirsVolume,
-  whispers,
 }: MeetingFloorProps) {
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
-      <div className="flex min-h-0 flex-col gap-4">
-        <SideCluster side="ours" speaking={oursSpeaking} volume={oursVolume} />
-        <div className="min-h-0 flex-1">{whispers}</div>
-      </div>
+    <div className="grid grid-cols-2 gap-6">
+      <SideCluster
+        side="ours"
+        listening={oursListening}
+        speaking={oursSpeaking}
+        volume={oursVolume}
+      />
       <SideCluster
         side="theirs"
+        listening={theirsListening}
         speaking={theirsSpeaking}
         volume={theirsVolume}
       />

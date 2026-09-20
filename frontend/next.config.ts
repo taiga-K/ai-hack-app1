@@ -7,6 +7,7 @@ const backendHttpOrigin = (
 ).replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   async rewrites() {
     return [
       {
