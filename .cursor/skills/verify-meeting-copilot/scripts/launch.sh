@@ -13,13 +13,31 @@ VERIFY_WITH_BACKEND=${VERIFY_WITH_BACKEND:-0}
 FRONTEND_URL="http://${VERIFY_FRONTEND_HOST}:${VERIFY_FRONTEND_PORT}"
 BACKEND_URL="http://127.0.0.1:${VERIFY_BACKEND_PORT}"
 
-listening_pid() {
+port_is_listening() {
   local port=$1
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | head -n1 || true
-    return
-  fi
-  ss -lptn "sport = :${port}" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | head -n1 || true
+  python3 - "${port}" <<'PY'
+import os
+import sys
+
+port_hex = f"{int(sys.argv[1]):04X}"
+for path in ("/proc/net/tcp", "/proc/net/tcp6"):
+    if not os.path.exists(path):
+        continue
+    with open(path, encoding="utf-8") as handle:
+        next(handle, None)
+        for line in handle:
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            local = parts[1]
+            state = parts[3]
+            if state != "0A":
+                continue
+            _ip, listen_port = local.split(":")
+            if listen_port.upper() == port_hex:
+                sys.exit(0)
+sys.exit(1)
+PY
 }
 
 is_alive() {
@@ -35,16 +53,14 @@ if [[ -f "${VERIFY_RUN_DIR}/launch.json" ]]; then
   exit 1
 fi
 
-occupied_frontend=$(listening_pid "${VERIFY_FRONTEND_PORT}")
-if [[ -n "${occupied_frontend}" ]]; then
-  echo "Port ${VERIFY_FRONTEND_PORT} is already owned by PID ${occupied_frontend}. Refusing to share that instance." >&2
+if port_is_listening "${VERIFY_FRONTEND_PORT}"; then
+  echo "Port ${VERIFY_FRONTEND_PORT} is already listening. Refusing to share that instance. Run cleanup.sh if it is ours." >&2
   exit 1
 fi
 
 if [[ "${VERIFY_WITH_BACKEND}" == "1" ]]; then
-  occupied_backend=$(listening_pid "${VERIFY_BACKEND_PORT}")
-  if [[ -n "${occupied_backend}" ]]; then
-    echo "Port ${VERIFY_BACKEND_PORT} is already owned by PID ${occupied_backend}. Refusing to share that instance." >&2
+  if port_is_listening "${VERIFY_BACKEND_PORT}"; then
+    echo "Port ${VERIFY_BACKEND_PORT} is already listening. Refusing to share that instance. Run cleanup.sh if it is ours." >&2
     exit 1
   fi
 fi

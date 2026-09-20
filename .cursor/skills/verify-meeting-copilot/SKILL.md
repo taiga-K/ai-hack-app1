@@ -50,7 +50,7 @@ export VERIFY_RUN_DIR=/tmp/verify-meeting-copilot
 Pass requires all of:
 
 1. `$VERIFY_RUN_DIR/launch.json` exists and was written by Launch.
-2. The recorded frontend PID is alive (`kill -0`) and owns `VERIFY_FRONTEND_PORT` (via `lsof` or `ss`). If another PID owns the port, stop — that is not our instance.
+2. The recorded frontend PID is alive (`kill -0`) and the listening socket on `VERIFY_FRONTEND_PORT` belongs to that PID or a descendant (`next-server` is a child of `pnpm exec next`). Check `/proc/net/tcp` plus `/proc/<pid>/fd` — `lsof` is often empty in this environment. If another tree owns the port, stop.
 3. `GET $frontend_url/` is HTTP 200 and the body contains `会議がおわると` and `おためし`.
 4. If `VERIFY_WITH_BACKEND=1`, the recorded backend PID is alive, owns `VERIFY_BACKEND_PORT`, and `GET http://127.0.0.1:$VERIFY_BACKEND_PORT/api/v1/health` returns JSON `"status":"healthy"` and `"version":"0.1.0"` (or the `APP_VERSION` from `backend/.env.example`).
 
