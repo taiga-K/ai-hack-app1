@@ -102,15 +102,6 @@ async function driveMeetingFloor(page) {
   });
   await whispers.waitFor({ state: "visible" });
   await page.getByText(PREVIEW_QUESTION).waitFor({ state: "visible" });
-  await whispers.getByRole("button", { name: "聞けた" }).first().waitFor({
-    state: "visible",
-  });
-  await whispers.getByRole("button", { name: "あとで" }).first().waitFor({
-    state: "visible",
-  });
-  await whispers.getByRole("button", { name: "不要" }).first().waitFor({
-    state: "visible",
-  });
   await whispers.getByText("くわしく").first().click();
   await page.getByText(PREVIEW_ADVICE_TITLE).waitFor({ state: "visible" });
 

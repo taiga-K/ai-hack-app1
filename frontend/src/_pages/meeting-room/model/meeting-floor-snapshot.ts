@@ -35,7 +35,6 @@ export interface MeetingFloorSnapshot {
   ended: boolean;
   utterances: FloorUtterance[];
   adviceItems: FloorAdvice[];
-  laterAdviceItems: FloorAdvice[];
 }
 
 export function floorSnapshotStorageKey(meetingId: string): string {
@@ -214,21 +213,10 @@ export function parseMeetingFloorSnapshot(
       }
     }
 
-    const laterAdviceItems: FloorAdvice[] = [];
-    if (Array.isArray(parsed.laterAdviceItems)) {
-      for (const item of parsed.laterAdviceItems) {
-        const advice = parseAdvice(item);
-        if (advice !== null) {
-          laterAdviceItems.push(advice);
-        }
-      }
-    }
-
     return {
       ended: parsed.ended === true,
       utterances,
       adviceItems,
-      laterAdviceItems,
     };
   } catch {
     return null;

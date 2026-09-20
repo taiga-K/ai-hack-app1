@@ -5,10 +5,6 @@ const PREVIEW_UTTERANCE =
 const PREVIEW_ADVICE_TITLE = "専門用語が説明なく使われています";
 const PREVIEW_QUESTION =
   "『API連携でリアルタイム同期』は、今ある画面を見るだけですか？";
-const PREVIEW_LATER_QUESTION =
-  "新規顧客の申請や一括更新は、今回の対象外で間違いないでしょうか？";
-const PREVIEW_UNNEEDED_QUESTION =
-  "来月末の本番は、参照のみの暫定連携でも成立しますか？それとも双方向同期が必須ですか？";
 
 async function startUiPreview(page: Page, title: string): Promise<void> {
   await page.goto("/");
@@ -76,17 +72,10 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(
     page.getByRole("complementary", { name: "こちらのアドバイス" })
   ).toBeVisible();
-  const whispers = page.getByRole("complementary", {
-    name: "こちらのアドバイス",
-  });
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
   await expect(page.getByText("❓ 専門用語の確認")).toBeHidden();
-  await expect(whispers.getByRole("button", { name: "コピー" })).toHaveCount(0);
-  await expect(whispers.getByRole("button", { name: "聞けた" })).toHaveCount(3);
-  await expect(whispers.getByRole("button", { name: "あとで" })).toHaveCount(3);
-  await expect(whispers.getByRole("button", { name: "不要" })).toHaveCount(3);
-  await whispers.getByText("くわしく").first().click();
+  await page.getByText("くわしく").first().click();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText("❓ 専門用語の確認")).toBeVisible();
   await expect(
@@ -97,43 +86,19 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   );
 });
 
-test("アドバイスを聞けた・あとで・不要に分けられる", async ({ page }) => {
-  await startUiPreview(page, "E2Eアドバイス操作");
+test("アドバイスのくわしくは最初閉じてクリックで開く", async ({ page }) => {
+  await startUiPreview(page, "E2Eくわしく折りたたみ");
   const whispers = page.getByRole("complementary", {
     name: "こちらのアドバイス",
   });
+  const first = whispers.getByRole("article").first();
 
-  await whispers
-    .getByRole("article")
-    .filter({ hasText: PREVIEW_QUESTION })
-    .getByRole("button", { name: "聞けた" })
-    .click();
-  await expect(whispers.getByText(PREVIEW_QUESTION)).toHaveCount(0);
-
-  await whispers
-    .getByRole("article")
-    .filter({ hasText: PREVIEW_LATER_QUESTION })
-    .getByRole("button", { name: "あとで" })
-    .click();
-  const laterPile = whispers.getByRole("region", { name: "あとで聞く" });
-  await expect(laterPile).toBeVisible();
-  await expect(laterPile.getByText(PREVIEW_LATER_QUESTION)).toBeVisible();
-  await expect(laterPile.getByRole("button", { name: "あとで" })).toHaveCount(
-    0
-  );
-
-  await whispers
-    .getByRole("article")
-    .filter({ hasText: PREVIEW_UNNEEDED_QUESTION })
-    .getByRole("button", { name: "不要" })
-    .click();
-  await expect(whispers.getByText(PREVIEW_UNNEEDED_QUESTION)).toHaveCount(0);
-
-  await laterPile.getByRole("button", { name: "聞けた" }).click();
-  await expect(whispers.getByText(PREVIEW_LATER_QUESTION)).toHaveCount(0);
-  await expect(
-    whispers.getByText("いまは、アドバイスがありません")
-  ).toBeVisible();
+  await expect(first.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
+  await expect(first.getByRole("button", { name: "コピー" })).toBeVisible();
+  await first.getByText("くわしく").click();
+  await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
+  await expect(first.getByText("❓ 専門用語の確認")).toBeVisible();
 });
 
 test("地図は動かさなければ成長しても画面内に収まる", async ({ page }) => {
@@ -282,9 +247,6 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
   await expect(page.getByRole("heading", { name: "アドバイス" })).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
-  await expect(
-    page.getByRole("button", { name: "聞けた" }).first()
-  ).toBeVisible();
   await page.getByText("くわしく").first().click();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();

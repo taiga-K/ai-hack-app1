@@ -26,7 +26,7 @@ Preconditions:
 - Start from home unless proving a deep link.
 
 - **Enter preview floor.** From `/`, fill `検証フロア` and choose **おためし**. `scripts/drive.mjs meeting-floor` performs this path. URL has `demo=1`. Regions **こちら** and **むこう** are visible. Text `きいている` is visible. Button **おためしちゅう** is visible. **ききはじめる** count is `0`.
-- **Whispers.** Complementary **こちらのアドバイス** is visible. Suggested question `『API連携でリアルタイム同期』は、今ある画面を見るだけですか？` is visible. Buttons **聞けた** / **あとで** / **不要** are visible. Copy is gone. Text `専門用語が説明なく使われています` and `❓ 専門用語の確認` stay folded until **くわしく** is opened. **あとで** moves the item into region **あとで聞く**.
+- **Whispers.** Complementary **こちらのアドバイス** is visible. Suggested question `『API連携でリアルタイム同期』は、今ある画面を見るだけですか？` is visible. Text `専門用語が説明なく使われています` and `❓ 専門用語の確認` stay folded until **くわしく** is opened.
 - **Map grows.** Tab **話の地図** has `aria-selected=true`. Region **話の地図** shows `今日の会議`, then `対象範囲`, then `来月末の本番`, then `例外は宿題` (wait up to 4s). Text `React Flow` count is `0`. Button **ぜんぶ見る** count is `0` until the user moves the camera.
 - **Memos.** Choose **会議のメモ**. `page.getByRole("tab", { name: "会議のメモ" }).click()`. Region **会議のメモ** shows `今回の対象範囲は、既存顧客向けの更新申請だけと考えてよいですか？` and `了解です。そこはお任せします。`.
 - **Splitter.** Drag `page.getByRole("separator", { name: "左右の幅を変える" })` about 90px to the right. Complementary **こちらのアドバイス** width changes by more than 20px. Map node `例外は宿題` stays inside the map region (±8px).
