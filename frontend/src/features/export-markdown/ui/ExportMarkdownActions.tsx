@@ -43,7 +43,9 @@ export function ExportMarkdownActions({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="コピー"
+        className="export-action"
+        aria-label="まとめをコピー"
+        data-tooltip="まとめをコピー"
         aria-busy={copying}
         onClick={onCopy}
         disabled={copyDisabled || copying}
@@ -54,7 +56,9 @@ export function ExportMarkdownActions({
         type="button"
         variant="ghost"
         size="icon-sm"
+        className="export-action"
         aria-label="ファイルに保存"
+        data-tooltip="ファイルに保存"
         aria-busy={downloading}
         onClick={onDownload}
         disabled={downloadDisabled || downloading}

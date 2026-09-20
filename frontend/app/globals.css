@@ -382,16 +382,45 @@
   left: 0;
 }
 
+.export-action {
+  position: relative;
+}
+
+.export-action::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background-color: var(--foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  color: var(--background);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.export-action:is(:hover, :focus-visible)::after {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .export-save-icon__arrow {
+  .export-action:is(:hover, :focus-visible):not(:disabled)
+    .export-save-icon__arrow {
     animation: export-save-arrow 1s ease-in-out infinite;
   }
 
-  .export-save-icon__tray {
+  .export-action:is(:hover, :focus-visible):not(:disabled)
+    .export-save-icon__tray {
     animation: export-save-tray 1s ease-in-out infinite;
   }
 
-  .export-copy-icon__front {
+  .export-action:is(:hover, :focus-visible):not(:disabled)
+    .export-copy-icon__front {
     animation: export-copy-sheet 1s ease-in-out infinite;
   }
 }

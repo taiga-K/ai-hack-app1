@@ -44,4 +44,4 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Meeting floor](./meeting-floor.md) covers こちら / むこう, アドバイス, 話の地図, 会議のメモ, and the splitter.
 - [End meeting and まとめ](./end-meeting-document.md) covers **おわる** through the requirements document screen.
 - [Return to the meeting](./return-to-meeting.md) covers **戻る** and **まとめを見る**.
-- [Export markdown](./export-markdown.md) covers title-row icon **コピー** / **ファイルに保存**, and 見る / なおす.
+- [Export markdown](./export-markdown.md) covers title-row icon **まとめをコピー** / **ファイルに保存**, and 見る / なおす.

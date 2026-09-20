@@ -280,12 +280,14 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   const meetingId = new URL(page.url()).pathname.split("/")[2] ?? "unknown";
   const titleRow = page.locator("header");
   await expect(titleRow.getByText("E2E要件書会議")).toBeVisible();
-  await expect(titleRow.getByRole("button", { name: "コピー" })).toBeVisible();
+  await expect(
+    titleRow.getByRole("button", { name: "まとめをコピー" })
+  ).toBeVisible();
   await expect(
     titleRow.getByRole("button", { name: "ファイルに保存" })
   ).toBeVisible();
 
-  await titleRow.getByRole("button", { name: "コピー" }).click();
+  await titleRow.getByRole("button", { name: "まとめをコピー" }).click();
   await expect(page.getByText("コピーしました")).toBeVisible();
   await expect
     .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
@@ -521,7 +523,7 @@ test("読込中のまとめから戻ってもおわるは出ない", async ({ pa
 
   await page.goto("/meetings/e2e-loading-doc/document?title=読込中会議");
   await expect(
-    page.locator("header").getByRole("button", { name: "コピー" })
+    page.locator("header").getByRole("button", { name: "まとめをコピー" })
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "ホーム" })).toHaveCount(0);
   await expect(page.getByText("遅延したまとめです。")).toHaveCount(0);

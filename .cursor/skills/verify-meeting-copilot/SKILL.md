@@ -89,7 +89,7 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | After end | text `まとめをつくっています` then `/document` |
 | Back | `getByRole("link", { name: "戻る" })` or `getByRole("button", { name: "戻る" })` |
 | Reopen まとめ | `getByRole("link", { name: "まとめを見る" })` |
-| Export | header icon `コピー` / `ファイルに保存` |
+| Export | header icon `まとめをコピー` / `ファイルに保存` |
 | Editor modes | `見る` / `ならべて` / `なおす` (`#requirements-markdown`) |
 
 One-off Playwright in `frontend/` (same selectors as the spec):
