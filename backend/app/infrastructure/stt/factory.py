@@ -18,9 +18,7 @@ def build_stt_service(settings: Settings) -> STTService:
         delay = settings.openai_stt_delay.strip().lower()
         if delay not in OPENAI_STT_DELAYS:
             allowed = ", ".join(sorted(OPENAI_STT_DELAYS))
-            raise STTConfigurationError(
-                f"OPENAI_STT_DELAY must be one of: {allowed}."
-            )
+            raise STTConfigurationError(f"OPENAI_STT_DELAY must be one of: {allowed}.")
         return OpenAIRealtimeWhisperSTTService(
             api_key=settings.openai_api_key,
             model=settings.openai_stt_model,

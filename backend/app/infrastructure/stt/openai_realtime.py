@@ -327,9 +327,7 @@ class PersistentOpenAIRealtimeSession:
             self._fail_start(
                 STTServiceError("OpenAI Realtime transcription timed out.")
             )
-            raise STTServiceError(
-                "OpenAI Realtime transcription timed out."
-            ) from exc
+            raise STTServiceError("OpenAI Realtime transcription timed out.") from exc
         except (OSError, WebSocketException) as exc:
             if self._closed:
                 return
@@ -395,6 +393,7 @@ class PersistentOpenAIRealtimeSession:
         if websocket is None:
             raise STTServiceError("OpenAI Realtime connection is not open.")
         return websocket
+
 
 class _BufferedTransportSession:
     """Test double path. Buffer appends and commit once on close."""

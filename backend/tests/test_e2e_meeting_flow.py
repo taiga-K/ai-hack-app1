@@ -55,6 +55,7 @@ def bind_stream_to_execute(mock_use_case: AsyncMock) -> AsyncMock:
     mock_use_case.open_stream.side_effect = open_stream
     return mock_use_case
 
+
 MEETING_ID = "e2e-meet-flow-1"
 
 
