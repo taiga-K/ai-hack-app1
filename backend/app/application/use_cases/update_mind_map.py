@@ -162,7 +162,7 @@ def _watermark_after_window(
     last_id = window[-1].id
     for index, item in enumerate(context.utterances, start=1):
         if item.id == last_id:
-            return index
+            return max(current_count, index)
     return max(current_count, len(window))
 
 
@@ -305,6 +305,7 @@ class UpdateMindMapUseCase:
             nodes=[_node_to_dto(node) for node in current.nodes],
             source_utterance_count=current.source_utterance_count,
             changed=False,
+            consumed=False,
         )
 
     def _parse_response(

@@ -71,6 +71,7 @@ class MindMapUpdateDTO:
     nodes: list[MindMapNodeDTO] = field(default_factory=list)
     source_utterance_count: int = 0
     changed: bool = False
+    consumed: bool = True
 
 
 @dataclass(frozen=True)

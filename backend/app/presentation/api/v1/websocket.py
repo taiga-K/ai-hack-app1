@@ -721,42 +721,45 @@ class AudioStreamSession:
                         force=force_to_use,
                         window=window_to_use,
                     )
-                    if (
-                        window_to_use
-                        and result.source_utterance_count <= previous_watermark
-                    ):
+                    if window_to_use and not result.consumed:
                         self._requeue_mind_map_window(window_to_use)
-                    self._mind_map = MindMapSnapshot(
-                        meeting_id=result.meeting_id,
-                        revision=result.revision,
-                        nodes=tuple(
-                            MindMapNode(
-                                id=node.id,
-                                label=node.label,
-                                parent_id=node.parent_id,
-                                source_utterance_ids=tuple(node.source_utterance_ids),
-                            )
-                            for node in result.nodes
-                        ),
-                        source_utterance_count=result.source_utterance_count,
-                    )
-                    self._persist_mind_map()
-                    if result.changed and not self._is_closed:
-                        message = MindMapMessage(
+                    else:
+                        self._mind_map = MindMapSnapshot(
                             meeting_id=result.meeting_id,
                             revision=result.revision,
-                            upserts=[
-                                MindMapNodeMessage(
+                            nodes=tuple(
+                                MindMapNode(
                                     id=node.id,
                                     label=node.label,
                                     parent_id=node.parent_id,
-                                    source_utterance_ids=node.source_utterance_ids,
+                                    source_utterance_ids=tuple(
+                                        node.source_utterance_ids
+                                    ),
                                 )
-                                for node in result.upserts
-                            ],
-                            removes=result.removes,
+                                for node in result.nodes
+                            ),
+                            source_utterance_count=max(
+                                previous_watermark,
+                                result.source_utterance_count,
+                            ),
                         )
-                        await self._safe_send_text(message.model_dump_json())
+                        self._persist_mind_map()
+                        if result.changed and not self._is_closed:
+                            message = MindMapMessage(
+                                meeting_id=result.meeting_id,
+                                revision=result.revision,
+                                upserts=[
+                                    MindMapNodeMessage(
+                                        id=node.id,
+                                        label=node.label,
+                                        parent_id=node.parent_id,
+                                        source_utterance_ids=node.source_utterance_ids,
+                                    )
+                                    for node in result.upserts
+                                ],
+                                removes=result.removes,
+                            )
+                            await self._safe_send_text(message.model_dump_json())
                 except Exception as exc:
                     logger.error("Failed to update mind map: %s", exc)
                     if window_to_use:
