@@ -41,7 +41,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 ## Features
 
 - [Start a meeting](./start-meeting.md) covers home, **はじめる**, and **おためし** with no auth.
-- [Meeting floor](./meeting-floor.md) covers こちら / むこう, アドバイス, 話の地図, 会議のメモ, and the splitter.
+- [Meeting floor](./meeting-floor.md) covers アドバイス, マインドマップ, 会議のメモ, and the splitter. No microphone volume bar.
 - [End meeting and まとめ](./end-meeting-document.md) covers **おわる** through the requirements document screen.
 - [Return to the meeting](./return-to-meeting.md) covers **戻る** and **まとめを見る**.
 - [Export markdown](./export-markdown.md) covers title-row icon **まとめをコピー** / **ファイルに保存**, and 見る / なおす.

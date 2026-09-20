@@ -25,7 +25,7 @@ Preconditions:
 - Do not require `ORCAROUTER_API_KEY` for `demo=1`.
 
 - **Open confirm.** On the preview floor, `page.getByRole("button", { name: "おわる" }).click()`. Heading `おわりますか？` is visible. Description mentions that a まとめ will be built.
-- **Stay.** Choose **まだつづける**. The dialog closes. Regions **こちら** / **むこう** remain. **おわる** is still present.
+- **Stay.** Choose **まだつづける**. The dialog closes. Complementary **こちらのアドバイス** remains. **おわる** is still present.
 - **Confirm end.** Choose **おわる** then **はい、おわる**. `page.getByRole("button", { name: "はい、おわる" }).click()`. Text `まとめをつくっています` appears (preview waits ~720ms). Then URL matches `/\/meetings\/.+\/document\?.*demo=1/`.
 - **Document ready.** Badge `おためし` (preview) or `できたまとめ` (live). Heading or title `検証…` matches the meeting name. Text `あとで確認すること` is visible. Open-issue line `『API連携でリアルタイム同期』の対象データ` is visible. Region **要件定義書エディタ** is visible. Heading `/未決事項（ToDo \/ 宿題）/` is visible after expanding the body.
 - **Editor modes.** **見る** is the default preview. **なおす** reveals `#requirements-markdown` with value matching `/プロジェクト\/会議概要/`. **ならべて** shows both.
