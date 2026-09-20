@@ -2,6 +2,18 @@
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.domain.exceptions import STTConfigurationError
+
+
+def require_wss_openai_stt_url(url: str) -> str:
+    """Reject any OPENAI_STT_URL that is not a TLS WebSocket endpoint."""
+    normalized = url.strip()
+    if not normalized.startswith("wss://"):
+        raise STTConfigurationError(
+            f"OPENAI_STT_URL must use the wss:// scheme, got: {url!r}"
+        )
+    return normalized
+
 
 class Settings(BaseSettings):
     """Application configuration."""
@@ -17,10 +29,12 @@ class Settings(BaseSettings):
     orcarouter_requirements_fallback_models: str = ""
     orcarouter_requirements_timeout_seconds: float = 120.0
 
-    whisper_model_size: str = "base"
-    whisper_device: str = "cpu"
-    whisper_compute_type: str = "int8"
-    whisper_language: str = "ja"
+    stt_provider: str = "openai"
+    openai_api_key: str = ""
+    openai_stt_model: str = "gpt-realtime-whisper"
+    openai_stt_url: str = "wss://api.openai.com/v1/realtime"
+    openai_stt_language: str = "ja"
+    openai_stt_timeout_seconds: float = 30.0
     audio_sample_rate: int = 16000
 
     model_config = SettingsConfigDict(
@@ -28,6 +42,10 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    def openai_stt_wss_url(self) -> str:
+        """Return OPENAI_STT_URL only when it uses wss://."""
+        return require_wss_openai_stt_url(self.openai_stt_url)
 
 
 settings = Settings()

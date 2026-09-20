@@ -76,10 +76,12 @@ ai-hack-app1/
 | `ORCAROUTER_REQUIREMENTS_MODEL`           | 任意           | 要件書生成モデル。デフォルトは無料モデル `deepseek/deepseek-v4-flash-free`                      |
 | `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS` | 任意           | カンマ区切りフォールバック。デフォルトは空（`-free` は fallback 先にできないため）              |
 | `ORCAROUTER_REQUIREMENTS_TIMEOUT_SECONDS` | 任意           | 要件書生成タイムアウト秒。デフォルト `120.0`                                                    |
-| `WHISPER_MODEL_SIZE`                      | 任意           | faster-whisper サイズ。デフォルト `base`                                                        |
-| `WHISPER_DEVICE`                          | 任意           | デフォルト `cpu`                                                                                |
-| `WHISPER_COMPUTE_TYPE`                    | 任意           | デフォルト `int8`                                                                               |
-| `WHISPER_LANGUAGE`                        | 任意           | デフォルト `ja`                                                                                 |
+| `STT_PROVIDER`                            | 任意           | 文字起こしアダプタ。デフォルト `openai`。`azure` は未実装のため起動時に失敗します               |
+| `OPENAI_API_KEY`                          | 実運用時は必須 | GPT-Realtime-Whisper 用。バックエンドのみ。`ORCAROUTER_API_KEY` とは別です                      |
+| `OPENAI_STT_MODEL`                        | 任意           | デフォルト `gpt-realtime-whisper`                                                               |
+| `OPENAI_STT_URL`                          | 任意           | デフォルト `wss://api.openai.com/v1/realtime`                                                   |
+| `OPENAI_STT_LANGUAGE`                     | 任意           | デフォルト `ja`                                                                                 |
+| `OPENAI_STT_TIMEOUT_SECONDS`              | 任意           | デフォルト `30.0`                                                                               |
 | `AUDIO_SAMPLE_RATE`                       | 任意           | デフォルト `16000`                                                                              |
 | `APP_NAME`                                | 任意           | プロセス表示名。デフォルト `AI HACK APP1 API`                                                   |
 | `APP_VERSION`                             | 任意           | デフォルト `0.1.0`                                                                              |
@@ -104,7 +106,7 @@ ai-hack-app1/
 cd backend
 uv sync
 cp .env.example .env
-# 実助言・要件書生成を使う場合は .env の ORCAROUTER_API_KEY を入れる
+# 実文字起こしは OPENAI_API_KEY、助言・要件書は ORCAROUTER_API_KEY
 uv run uvicorn main:app --reload --port 8000
 ```
 

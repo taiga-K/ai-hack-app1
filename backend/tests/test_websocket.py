@@ -219,7 +219,7 @@ async def test_websocket_advice_deduplication() -> None:
 async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
     """Verify STTServiceError or AudioProcessingError does not crash WebSocket."""
     mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
-    mock_use_case.execute.side_effect = STTServiceError("Whisper transient failure")
+    mock_use_case.execute.side_effect = STTServiceError("STT transient failure")
 
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
     app.dependency_overrides[get_update_mind_map_use_case] = lambda: None

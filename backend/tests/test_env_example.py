@@ -58,3 +58,23 @@ def test_settings_model_defaults_are_free_models() -> None:
     assert example_values["ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS"] == (
         fields["orcarouter_requirements_fallback_models"].default
     )
+
+
+def test_settings_stt_defaults_match_env_example() -> None:
+    settings_cls = _load_settings_class()
+    fields = settings_cls.model_fields
+    example_values = {
+        line.split("=", 1)[0]: line.split("=", 1)[1]
+        for line in ENV_EXAMPLE_PATH.read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#") and "=" in line
+    }
+
+    assert fields["stt_provider"].default == "openai"
+    assert fields["openai_stt_model"].default == "gpt-realtime-whisper"
+    assert fields["openai_stt_url"].default == "wss://api.openai.com/v1/realtime"
+    assert fields["openai_stt_language"].default == "ja"
+    assert example_values["STT_PROVIDER"] == fields["stt_provider"].default
+    assert example_values["OPENAI_STT_MODEL"] == fields["openai_stt_model"].default
+    assert example_values["OPENAI_STT_URL"] == fields["openai_stt_url"].default
+    assert "WHISPER_MODEL_SIZE" not in example_values
+    assert "faster-whisper" not in ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
