@@ -32,7 +32,8 @@ async function parseDocumentResponse(
 
 export async function finalizeRequirementDocument(
   meetingId: string,
-  input: FinalizeRequirementDocumentInput
+  input: FinalizeRequirementDocumentInput,
+  options?: { signal?: AbortSignal }
 ): Promise<RequirementDocument> {
   const payload = await requestJson(getMeetingFinalizeUrl(meetingId), {
     method: "POST",
@@ -40,6 +41,7 @@ export async function finalizeRequirementDocument(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(toFinalizeRequestBody(input)),
+    signal: options?.signal,
   });
   return parseDocumentResponse(payload);
 }

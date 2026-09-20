@@ -579,6 +579,36 @@ test("実会議の生成中は戻るが出ずまとめが開く", async ({ page 
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
+test("実会議の生成が長いときつくるのをやめでやり直せる", async ({ page }) => {
+  await installClosedWebSocket(page);
+  await page.route("**/api/v1/meetings/**/finalize", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 30_000);
+    });
+    await route.abort();
+  });
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements document not found" }),
+    });
+  });
+
+  await page.goto("/meetings/e2e-gen-stop?title=生成中止会議");
+  await confirmEndMeeting(page);
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "つくるのをやめる" })
+  ).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "つくるのをやめる" }).click();
+  await expect(page.getByText("まとめを作れませんでした。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "もういちど" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+});
+
 test("未生成のまとめ画面は空状態を出す", async ({ page }) => {
   await page.route("**/api/v1/meetings/**/requirements", async (route) => {
     await route.fulfill({

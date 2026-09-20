@@ -108,6 +108,10 @@ export async function readResponseJson(response: Response): Promise<unknown> {
   }
 }
 
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
 export async function requestJson(
   url: string,
   init?: RequestInit
@@ -115,7 +119,14 @@ export async function requestJson(
   let response: Response;
   try {
     response = await fetch(url, init);
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw new BackendHttpError(
+        "generation_failed",
+        toUserFacingHttpErrorMessage("generation_failed"),
+        0
+      );
+    }
     throw new BackendHttpError(
       "network",
       toUserFacingHttpErrorMessage("network"),

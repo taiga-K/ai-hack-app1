@@ -18,6 +18,4 @@ export type BackTarget = {
   hasCompletedSummary?: boolean;
 };
 
-export type AfterFinalizeDecision = "stay-on-floor" | "announce-ready";
-
-export type AfterReadyPauseDecision = "stay-on-floor" | "open-document";
+export type AfterEndNavigation = "open-document" | "stay-put";

@@ -13,9 +13,9 @@ export {
 } from "./model/completed-summary";
 export type { DocumentBackStatus } from "./model/completed-summary";
 export {
-  decideAfterFinalize,
-  decideAfterReadyPause,
+  decideAfterEndNavigation,
   shouldShowAfterEndBack,
+  SHOW_STOP_WAITING_AFTER_MS,
 } from "./model/after-end";
 export {
   buildDocumentHref,
@@ -26,9 +26,8 @@ export {
 } from "./model/href";
 export type {
   AfterEndHandoff,
+  AfterEndNavigation,
   AfterEndScreen,
-  AfterFinalizeDecision,
-  AfterReadyPauseDecision,
   BackTarget,
   CompletedSummaryLookup,
   CompletedSummaryStatus,
