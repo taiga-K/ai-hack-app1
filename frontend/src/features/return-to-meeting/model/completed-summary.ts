@@ -124,7 +124,13 @@ export function mergeCompletedSummaryLookup(
     case "checking":
       return immediate;
     case "error":
-      return immediate.status === "found" ? immediate : fetched;
+      if (immediate.status === "found") {
+        return immediate;
+      }
+      if (immediate.status === "checking") {
+        return fetched;
+      }
+      return immediate;
     default: {
       const _exhaustiveCheck: never = fetched;
       throw new Error(`Unhandled lookup status: ${_exhaustiveCheck}`);

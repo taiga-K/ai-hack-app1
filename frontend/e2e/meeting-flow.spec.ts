@@ -364,7 +364,9 @@ test("実会議の生成中に戻るとフロアで完了を待ち同じまと�
   });
   await page.getByRole("link", { name: "まとめを見る" }).click();
   await expect(page).toHaveURL(/\/document/);
-  await expect(page.getByText("遅延したまとめです。")).toBeVisible();
+  await expect(
+    page.getByText("遅延したまとめです。", { exact: true })
+  ).toBeVisible();
   await page.getByRole("link", { name: "戻る" }).click();
   await expect(page).toHaveURL(/summary=1/);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();

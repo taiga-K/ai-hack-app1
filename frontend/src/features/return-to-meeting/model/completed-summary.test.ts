@@ -126,6 +126,13 @@ describe("mergeCompletedSummaryLookup", () => {
     );
   });
 
+  it("does not lock a live meeting when the background fetch fails", () => {
+    assert.deepEqual(
+      mergeCompletedSummaryLookup({ status: "missing" }, { status: "error" }),
+      { status: "missing" }
+    );
+  });
+
   it("lets a 404 clear a stale hint", () => {
     assert.deepEqual(
       mergeCompletedSummaryLookup(
