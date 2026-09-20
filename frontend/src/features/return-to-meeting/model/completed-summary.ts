@@ -23,47 +23,52 @@ function readWebStorage(
   }
 }
 
-function completedSummaryStorages(): Storage[] {
-  const storages: Storage[] = [];
-  const session = readWebStorage("sessionStorage");
+function sessionStorageOrNull(): Storage | null {
+  return readWebStorage("sessionStorage");
+}
+
+function forgetLocalCompletedSummary(meetingId: string): void {
   const local = readWebStorage("localStorage");
-  if (session !== null) {
-    storages.push(session);
+  if (local === null) {
+    return;
   }
-  if (local !== null) {
-    storages.push(local);
+  try {
+    local.removeItem(completedSummaryStorageKey(meetingId));
+  } catch {
+    return;
   }
-  return storages;
 }
 
 export function rememberCompletedSummary(
   target: BackTarget,
   href: string
 ): void {
-  const key = completedSummaryStorageKey(target.meetingId);
-  for (const storage of completedSummaryStorages()) {
-    storage.setItem(key, href);
+  forgetLocalCompletedSummary(target.meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return;
   }
+  session.setItem(completedSummaryStorageKey(target.meetingId), href);
 }
 
 export function readRememberedCompletedSummary(
   meetingId: string
 ): string | null {
-  const key = completedSummaryStorageKey(meetingId);
-  for (const storage of completedSummaryStorages()) {
-    const href = storage.getItem(key);
-    if (href !== null) {
-      return href;
-    }
+  forgetLocalCompletedSummary(meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return null;
   }
-  return null;
+  return session.getItem(completedSummaryStorageKey(meetingId));
 }
 
 export function forgetCompletedSummary(meetingId: string): void {
-  const key = completedSummaryStorageKey(meetingId);
-  for (const storage of completedSummaryStorages()) {
-    storage.removeItem(key);
+  forgetLocalCompletedSummary(meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return;
   }
+  session.removeItem(completedSummaryStorageKey(meetingId));
 }
 
 function readErrorStatus(error: unknown): number | null {

@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   completedSummaryHref,
+  forgetCompletedSummary,
   isMeetingAlreadyOver,
   isMissingCompletedSummaryError,
   lookupCompletedSummary,
   mergeCompletedSummaryLookup,
+  readRememberedCompletedSummary,
+  rememberCompletedSummary,
   resolveImmediateCompletedSummary,
   shouldHintCompletedSummaryOnBack,
   syncCompletedSummaryMemory,
@@ -277,9 +280,28 @@ describe("syncCompletedSummaryMemory", () => {
 
     syncCompletedSummaryMemory("ready", target, documentHref);
     assert.equal(globalThis.sessionStorage.getItem(key), documentHref);
-    assert.equal(globalThis.localStorage.getItem(key), documentHref);
+    assert.equal(globalThis.localStorage.getItem(key), null);
 
     syncCompletedSummaryMemory("empty", target, documentHref);
+    assert.equal(globalThis.sessionStorage.getItem(key), null);
+    assert.equal(globalThis.localStorage.getItem(key), null);
+  });
+
+  it("keeps remembered hrefs in sessionStorage and deletes leftover local keys", () => {
+    installMemoryStorages();
+    const key = "return-to-meeting:completed-summary:meet-1";
+    globalThis.localStorage.setItem(key, documentHref);
+
+    rememberCompletedSummary(target, documentHref);
+    assert.equal(globalThis.sessionStorage.getItem(key), documentHref);
+    assert.equal(globalThis.localStorage.getItem(key), null);
+
+    globalThis.localStorage.setItem(key, "/stale");
+    assert.equal(readRememberedCompletedSummary("meet-1"), documentHref);
+    assert.equal(globalThis.localStorage.getItem(key), null);
+
+    globalThis.localStorage.setItem(key, "/stale");
+    forgetCompletedSummary("meet-1");
     assert.equal(globalThis.sessionStorage.getItem(key), null);
     assert.equal(globalThis.localStorage.getItem(key), null);
   });
