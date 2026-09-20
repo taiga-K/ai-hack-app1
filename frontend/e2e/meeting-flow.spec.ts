@@ -294,9 +294,9 @@ test("アドバイスは聞けた・不要・あとでで一覧から外せる",
     .filter({ hasText: PREVIEW_LATER_QUESTION });
   await expect(parked).toBeVisible();
   await expect(parked.getByRole("button", { name: "あとで" })).toHaveCount(0);
-  await expect(
-    sidebar.getByText("いまは、アドバイスがありません")
-  ).toBeVisible();
+  await expect(sidebar.getByText("いまは、アドバイスがありません")).toHaveCount(
+    0
+  );
 
   await parked.getByRole("button", { name: "聞けた" }).click();
   await expect(sidebar.getByText(PREVIEW_LATER_QUESTION)).toHaveCount(0);

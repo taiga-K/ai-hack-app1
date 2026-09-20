@@ -40,10 +40,6 @@ export function AdviceWhisper({
       <p className="mt-2 text-base leading-relaxed font-medium text-foreground">
         {advice.suggestedQuestion}
       </p>
-      <p className="mt-2 text-sm text-foreground">{advice.title}</p>
-      <p className="mt-1 text-sm leading-relaxed text-foreground">
-        {advice.reason}
-      </p>
       {onAction !== undefined && availableActions.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
@@ -65,6 +61,10 @@ export function AdviceWhisper({
           ))}
         </div>
       ) : null}
+      <p className="mt-2 text-sm text-foreground">{advice.title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-foreground">
+        {advice.reason}
+      </p>
     </article>
   );
 }

@@ -97,13 +97,14 @@ export function CopilotSidebar({
           aria-live="polite"
           aria-relevant="additions"
         >
-          {adviceItems.length === 0 ? (
+          {adviceItems.length === 0 && laterAdviceItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               いまは、アドバイスがありません
             </p>
-          ) : (
-            renderAdviceItems(adviceItems, resolvedMotion, onAdviceAction)
-          )}
+          ) : null}
+          {adviceItems.length > 0
+            ? renderAdviceItems(adviceItems, resolvedMotion, onAdviceAction)
+            : null}
           {laterAdviceItems.length > 0 ? (
             <div className="flex flex-col gap-5">
               <h3 className="pt-2 text-sm font-medium">あとで聞く</h3>
