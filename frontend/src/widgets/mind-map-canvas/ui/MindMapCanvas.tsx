@@ -89,6 +89,16 @@ function fitMaxZoom(stacked: boolean): number {
   return stacked ? 1 : MAX_ZOOM;
 }
 
+function isUserCameraMove(event: MouseEvent | TouchEvent): boolean {
+  if ("deltaY" in event) {
+    return true;
+  }
+  if ("touches" in event) {
+    return event.touches.length > 0;
+  }
+  return event.buttons > 0;
+}
+
 function MindMapFlow({
   snapshot,
   compact,
@@ -102,7 +112,6 @@ function MindMapFlow({
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
-  const fittingUntilRef = useRef(0);
   const [userTookCamera, setUserTookCamera] = useState(false);
   const [measuredPane, setMeasuredPane] = useState({ width: 0, height: 0 });
   const paneRef = useRef<HTMLDivElement>(null);
@@ -242,7 +251,6 @@ function MindMapFlow({
       lastSizeRef.current = nextVisible;
       lastNodeSignatureRef.current = nodeSignature;
       isFittingRef.current = true;
-      fittingUntilRef.current = Date.now() + 480;
       didInitialFit.current = true;
       void setViewport(viewport, {
         duration: deferResize ? 0 : isFirstLayout ? 320 : 200,
@@ -296,7 +304,6 @@ function MindMapFlow({
               return;
             }
             isFittingRef.current = true;
-            fittingUntilRef.current = Date.now() + 480;
             void setViewport(viewport, { duration: 280 }).finally(() => {
               isFittingRef.current = false;
             });
@@ -336,7 +343,6 @@ function MindMapFlow({
           }
           lastSizeRef.current = visible;
           isFittingRef.current = true;
-          fittingUntilRef.current = Date.now() + 480;
           void setViewport(viewport, { duration: 0 }).finally(() => {
             isFittingRef.current = false;
           });
@@ -345,8 +351,8 @@ function MindMapFlow({
           if (
             event === null ||
             isFittingRef.current ||
-            Date.now() < fittingUntilRef.current ||
-            userTookCamera
+            userTookCamera ||
+            !isUserCameraMove(event)
           ) {
             return;
           }
