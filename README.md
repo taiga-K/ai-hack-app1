@@ -65,16 +65,25 @@ ai-hack-app1/
 
 ### バックエンド (`backend/.env`)
 
+コピー用の実在名は `backend/.env.example` にあります。`cp backend/.env.example backend/.env` してから値を入れてください。初回認証は追加しません。
+
 | 変数                                      | 必須           | 説明                                                                                            |
 | :---------------------------------------- | :------------- | :---------------------------------------------------------------------------------------------- |
 | `ORCAROUTER_API_KEY`                      | 実運用時は必須 | オルカルーター API キー。未設定でも音声ストリームは動きますが、助言・話の地図・要件書生成は無効になります |
 | `ORCAROUTER_BASE_URL`                     | 任意           | デフォルト `https://api.orcarouter.ai/v1`                                                       |
 | `ORCAROUTER_DEFAULT_MODEL`                | 任意           | リアルタイム助言モデル。デフォルト `openai/gpt-4o-mini`                                         |
+| `ORCAROUTER_TIMEOUT_SECONDS`              | 任意           | 助言呼び出しタイムアウト秒。デフォルト `60.0`                                                   |
 | `ORCAROUTER_REQUIREMENTS_MODEL`           | 任意           | 要件書生成モデル。デフォルト `anthropic/claude-3-5-sonnet`                                      |
 | `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS` | 任意           | カンマ区切りフォールバック。デフォルト `openai/gpt-4o`                                          |
+| `ORCAROUTER_REQUIREMENTS_TIMEOUT_SECONDS` | 任意           | 要件書生成タイムアウト秒。デフォルト `120.0`                                                    |
 | `WHISPER_MODEL_SIZE`                      | 任意           | faster-whisper サイズ。デフォルト `base`                                                        |
 | `WHISPER_DEVICE`                          | 任意           | デフォルト `cpu`                                                                                |
+| `WHISPER_COMPUTE_TYPE`                    | 任意           | デフォルト `int8`                                                                               |
+| `WHISPER_LANGUAGE`                        | 任意           | デフォルト `ja`                                                                                 |
 | `AUDIO_SAMPLE_RATE`                       | 任意           | デフォルト `16000`                                                                              |
+| `APP_NAME`                                | 任意           | プロセス表示名。デフォルト `AI HACK APP1 API`                                                   |
+| `APP_VERSION`                             | 任意           | デフォルト `0.1.0`                                                                              |
+| `DEBUG`                                   | 任意           | デフォルト `false`                                                                              |
 
 ### フロントエンド
 
@@ -94,8 +103,8 @@ ai-hack-app1/
 ```bash
 cd backend
 uv sync
-# 実助言・要件書生成を使う場合
-# export ORCAROUTER_API_KEY=...
+cp .env.example .env
+# 実助言・要件書生成を使う場合は .env の ORCAROUTER_API_KEY を入れる
 uv run uvicorn main:app --reload --port 8000
 ```
 
