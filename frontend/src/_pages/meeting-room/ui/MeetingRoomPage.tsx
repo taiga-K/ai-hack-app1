@@ -158,8 +158,8 @@ export function MeetingRoomPage({
     phase,
   });
   useEffect(() => {
-    stopCaptureWhenAlreadyOver(meetingAlreadyOver, stopCapture);
-  }, [meetingAlreadyOver, stopCapture]);
+    stopCaptureWhenAlreadyOver(meetingAlreadyOver, phase, stopCapture);
+  }, [meetingAlreadyOver, phase, stopCapture]);
   const listening =
     !meetingAlreadyOver && (audio.isRecording || (preview && phase === "live"));
   const oursSpeaking = listening && audio.micVolume > 0.08;
