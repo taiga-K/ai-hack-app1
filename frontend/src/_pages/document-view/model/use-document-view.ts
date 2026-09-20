@@ -1,13 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackendHttpError, toUserFacingHttpErrorMessage } from "@/shared/api";
 import {
   downloadRequirementDocumentBlob,
-  findOpenIssuesSection,
   getRequirementDocument,
-  hasConcreteOpenIssues,
-  listOpenIssueItems,
+  listOpenIssueItemsFromMarkdown,
   type RequirementDocument,
 } from "@/entities/requirement-doc";
 import {
@@ -17,7 +15,12 @@ import {
 } from "@/features/export-markdown";
 import { copyTextToClipboard } from "@/shared/lib";
 import type { DocumentEditorView } from "@/widgets/document-editor";
-import { readDocumentDraft, writeDocumentDraft } from "./document-draft";
+import {
+  clearDocumentDraft,
+  draftMatchesSource,
+  readDocumentDraft,
+  writeDocumentDraft,
+} from "./document-draft";
 import { createPreviewRequirementDocument } from "./preview-document";
 
 export type DocumentViewStatus = "loading" | "ready" | "empty" | "error";
@@ -39,6 +42,23 @@ function createInitialDocument(
   return createPreviewRequirementDocument(meetingId, meetingTitle);
 }
 
+function markdownForDocument(
+  meetingId: string,
+  document: RequirementDocument
+): string {
+  const draft = readDocumentDraft(meetingId);
+  if (
+    draftMatchesSource(draft, {
+      documentId: document.id,
+      createdAt: document.createdAt,
+    })
+  ) {
+    return draft?.markdown ?? document.markdown;
+  }
+  clearDocumentDraft(meetingId);
+  return document.markdown;
+}
+
 export function useDocumentView({
   meetingId,
   title,
@@ -52,31 +72,41 @@ export function useDocumentView({
     createInitialDocument(meetingId, meetingTitle, preview)
   );
   const [markdown, setMarkdownState] = useState(() => {
-    const draft = readDocumentDraft(meetingId);
-    if (draft) {
-      return draft;
-    }
     const initial = createInitialDocument(meetingId, meetingTitle, preview);
-    return initial?.markdown ?? "";
+    if (initial === null) {
+      return "";
+    }
+    return markdownForDocument(meetingId, initial);
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [view, setView] = useState<DocumentEditorView>("preview");
   const [copying, setCopying] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const documentRef = useRef<RequirementDocument | null>(document);
+
+  useEffect(() => {
+    documentRef.current = document;
+  }, [document]);
 
   const setMarkdown = useCallback(
     (next: string) => {
       setMarkdownState(next);
-      writeDocumentDraft(meetingId, next);
+      const current = documentRef.current;
+      if (current === null) {
+        return;
+      }
+      writeDocumentDraft(meetingId, next, {
+        documentId: current.id,
+        createdAt: current.createdAt,
+      });
     },
     [meetingId]
   );
 
   const applyDocument = useCallback(
     (next: RequirementDocument) => {
-      const draft = readDocumentDraft(meetingId);
       setDocument(next);
-      setMarkdownState(draft ?? next.markdown);
+      setMarkdownState(markdownForDocument(meetingId, next));
       setErrorMessage(null);
       setStatus("ready");
     },
@@ -93,6 +123,7 @@ export function useDocumentView({
         setMarkdownState("");
         setStatus("empty");
         setErrorMessage(error.message);
+        clearDocumentDraft(meetingId);
         return;
       }
 
@@ -140,6 +171,7 @@ export function useDocumentView({
           setMarkdownState("");
           setStatus("empty");
           setErrorMessage(error.message);
+          clearDocumentDraft(meetingId);
           return;
         }
 
@@ -158,15 +190,10 @@ export function useDocumentView({
     };
   }, [applyDocument, meetingId, preview]);
 
-  const openIssues = useMemo(
-    () => (document ? findOpenIssuesSection(document) : null),
-    [document]
-  );
   const openIssueItems = useMemo(
-    () => listOpenIssueItems(openIssues),
-    [openIssues]
+    () => listOpenIssueItemsFromMarkdown(markdown),
+    [markdown]
   );
-  const showOpenIssuesCallout = hasConcreteOpenIssues(openIssues);
 
   const copyMarkdown = useCallback(async (): Promise<boolean> => {
     if (markdown.length === 0) {
@@ -216,9 +243,7 @@ export function useDocumentView({
     errorMessage,
     view,
     setView,
-    openIssues,
     openIssueItems,
-    showOpenIssuesCallout,
     copying,
     downloading,
     reload,

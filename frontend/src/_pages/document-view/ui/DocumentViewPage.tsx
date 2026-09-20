@@ -167,7 +167,7 @@ export function DocumentViewPage({
             view={view}
             onMarkdownChange={setMarkdown}
             onViewChange={setView}
-            preview={<MarkdownPreview markdown={markdown} key={markdown} />}
+            preview={<MarkdownPreview markdown={markdown} />}
           />
         </div>
       ) : null}

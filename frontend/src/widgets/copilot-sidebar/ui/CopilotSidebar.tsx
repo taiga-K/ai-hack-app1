@@ -9,10 +9,44 @@ export interface CopilotSidebarProps {
   onCopied?: (question: string) => void;
 }
 
-export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
-  const [mountedIds] = useState(
-    () => new Set(adviceItems.map((item) => item.id))
+interface WhisperMotion {
+  enter: boolean;
+  delayMs: number;
+}
+
+function createInitialMotion(
+  adviceItems: Advice[]
+): ReadonlyMap<string, WhisperMotion> {
+  return new Map(
+    adviceItems.map((item) => [item.id, { enter: false, delayMs: 0 }])
   );
+}
+
+function mergeNewWhisperMotion(
+  current: ReadonlyMap<string, WhisperMotion>,
+  adviceItems: Advice[]
+): ReadonlyMap<string, WhisperMotion> {
+  let changed = false;
+  const next = new Map(current);
+  let stagger = 0;
+  for (const item of adviceItems) {
+    if (!next.has(item.id)) {
+      next.set(item.id, { enter: true, delayMs: stagger * 140 });
+      stagger += 1;
+      changed = true;
+    }
+  }
+  return changed ? next : current;
+}
+
+export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
+  const [motionById, setMotionById] = useState(() =>
+    createInitialMotion(adviceItems)
+  );
+  const resolvedMotion = mergeNewWhisperMotion(motionById, adviceItems);
+  if (resolvedMotion !== motionById) {
+    setMotionById(resolvedMotion);
+  }
 
   return (
     <aside
@@ -32,13 +66,16 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
             </p>
           ) : (
             adviceItems.map((item, index) => {
-              const isNew = !mountedIds.has(item.id);
+              const motion = resolvedMotion.get(item.id) ?? {
+                enter: true,
+                delayMs: index * 140,
+              };
               return (
                 <AdviceWhisper
                   key={item.id}
                   advice={item}
-                  appearDelayMs={isNew ? index * 140 : 0}
-                  enterMotion={isNew}
+                  appearDelayMs={motion.delayMs}
+                  enterMotion={motion.enter}
                   onCopied={onCopied}
                 />
               );

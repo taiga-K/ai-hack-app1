@@ -5,6 +5,7 @@ import {
   hasConcreteOpenIssues,
   isOpenIssuesHeading,
   listOpenIssueItems,
+  listOpenIssueItemsFromMarkdown,
 } from "./open-issues.ts";
 import type { RequirementDocument } from "./types.ts";
 
@@ -58,6 +59,29 @@ describe("open issues helpers", () => {
     assert.equal(
       isOpenIssuesHeading("6. 未決事項（ToDo / 宿題）・確認中リスク一覧"),
       true
+    );
+  });
+
+  it("reads open issue items from the current markdown body", () => {
+    const markdown = `# まとめ
+
+## 6. 未決事項（ToDo / 宿題）・確認中リスク一覧
+
+- 直した確認事項
+- もう一件
+
+## 7. 発話ログ要約・変更履歴
+
+- これは未決ではない
+`;
+
+    assert.deepEqual(listOpenIssueItemsFromMarkdown(markdown), [
+      "直した確認事項",
+      "もう一件",
+    ]);
+    assert.deepEqual(
+      listOpenIssueItemsFromMarkdown("# まとめ\n\n本文だけです。"),
+      []
     );
   });
 });

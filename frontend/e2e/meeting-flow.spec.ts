@@ -124,6 +124,7 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(
     page.getByRole("heading", { name: "編集後の要件定義書" })
   ).toBeVisible();
+  await expect(page.getByText("確認することは、ありません")).toBeVisible();
 
   await page.getByRole("link", { name: "会議に戻る" }).click();
   await expect(page).toHaveURL(/\/meetings\/.+\?.*demo=1/);
