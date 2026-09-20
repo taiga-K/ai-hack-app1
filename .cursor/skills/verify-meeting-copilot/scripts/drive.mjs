@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createRequire } from "node:module";
+import { realpathSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,10 +11,55 @@ const frontendDir = path.join(repoRoot, "frontend");
 const require = createRequire(path.join(frontendDir, "package.json"));
 const { chromium } = require("@playwright/test");
 
+function resolveStrict(raw) {
+  const absolute = path.resolve(raw);
+  const root = path.parse(absolute).root;
+  const segments = absolute.split(path.sep).filter(Boolean);
+  let current = root;
+  for (const segment of segments) {
+    const next = path.join(current, segment);
+    try {
+      current = realpathSync(next);
+    } catch {
+      current = path.normalize(next);
+    }
+  }
+  return current;
+}
+
+function isTmpChild(resolved) {
+  return resolved.startsWith("/tmp/") && resolved !== "/tmp";
+}
+
+function isStoreMedia(resolved) {
+  const parts = resolved.split(path.sep).filter(Boolean);
+  return (
+    parts.length >= 5 &&
+    parts[0] === "cursor" &&
+    parts[1] === "stores" &&
+    parts[2] !== "." &&
+    parts[2] !== ".." &&
+    parts[3] === "media" &&
+    parts[4] !== "." &&
+    parts[4] !== ".."
+  );
+}
+
+function requireAllowedEvidenceDir(raw) {
+  const resolved = resolveStrict(raw);
+  if (isTmpChild(resolved) || isStoreMedia(resolved)) {
+    return resolved;
+  }
+  throw new Error(
+    `VERIFY_EVIDENCE_DIR must resolve under /tmp/<name> or /cursor/stores/<id>/media/<name>, got: ${resolved}`
+  );
+}
+
 const feature = process.argv[2] ?? "meeting-floor";
 const baseURL = process.env.VERIFY_FRONTEND_URL ?? "http://127.0.0.1:3100";
-const evidenceDir =
-  process.env.VERIFY_EVIDENCE_DIR ?? "/tmp/verify-meeting-copilot-evidence";
+const evidenceDir = requireAllowedEvidenceDir(
+  process.env.VERIFY_EVIDENCE_DIR ?? "/tmp/verify-meeting-copilot-evidence"
+);
 
 const PREVIEW_UTTERANCE =
   "今回の対象範囲は、既存顧客向けの更新申請だけと考えてよいですか？";

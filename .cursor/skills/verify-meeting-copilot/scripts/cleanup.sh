@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 VERIFY_RUN_DIR=${VERIFY_RUN_DIR:-/tmp/verify-meeting-copilot}
+VERIFY_RUN_DIR=$("${SCRIPT_DIR}/path-guard.py" --run "${VERIFY_RUN_DIR}")
 LAUNCH_JSON="${VERIFY_RUN_DIR}/launch.json"
 
 is_alive() {
