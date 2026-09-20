@@ -43,7 +43,4 @@ export {
   selectedMindMapNode,
   toggleMindMapBranch,
 } from "./model/visibility";
-export type {
-  MindMapVisibility,
-  MindMapVisibilityOptions,
-} from "./model/visibility";
+export type { MindMapVisibility } from "./model/visibility";

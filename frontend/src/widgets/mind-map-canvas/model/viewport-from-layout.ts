@@ -46,9 +46,17 @@ export function viewportFromMindMapLayout(
       )
     )
   );
+  // When the zoom floor keeps the tree wider or taller than the pane, anchor
+  // the root at the top-left so the start of the map is what the user sees.
+  const overflowsX = contentWidth * zoom > paneWidth - padX * 2;
+  const overflowsY = contentHeight * zoom > paneHeight - padY * 2;
   return {
-    x: (paneWidth - contentWidth * zoom) / 2 - minX * zoom,
-    y: (paneHeight - contentHeight * zoom) / 2 - minY * zoom,
+    x: overflowsX
+      ? padX - minX * zoom
+      : (paneWidth - contentWidth * zoom) / 2 - minX * zoom,
+    y: overflowsY
+      ? padY - minY * zoom
+      : (paneHeight - contentHeight * zoom) / 2 - minY * zoom,
     zoom,
   };
 }

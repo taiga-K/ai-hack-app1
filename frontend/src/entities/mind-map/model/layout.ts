@@ -62,7 +62,7 @@ const LABEL_MAX_WIDTH = 240;
 const LABEL_MAX_LINES = 3;
 const CHIP_CHAR_PX = 10;
 const CHIP_PAD_PX = 22;
-const BADGE_PX = 36;
+const BADGE_PX = 50;
 
 export function measureMindMapDecoration(
   decoration: MindMapNodeDecoration | undefined

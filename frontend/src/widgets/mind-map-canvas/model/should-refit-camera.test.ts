@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   didMindMapPaneWidthChange,
-  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
-  shouldPinMindMapDecisions,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "./should-refit-camera.ts";
@@ -179,33 +177,6 @@ describe("usesStackedMindMapLayout", () => {
     assert.equal(usesStackedMindMapLayout(400, false), true);
     assert.equal(usesStackedMindMapLayout(700, false), false);
     assert.equal(usesStackedMindMapLayout(0, false), false);
-  });
-});
-
-describe("shouldPinMindMapDecisions", () => {
-  it("matches the stacked tree so pills and branch detail agree", () => {
-    assert.equal(shouldPinMindMapDecisions(800, false), true);
-    assert.equal(shouldPinMindMapDecisions(400, false), false);
-    assert.equal(shouldPinMindMapDecisions(800, true), false);
-    assert.equal(shouldPinMindMapDecisions(0, false), true);
-  });
-});
-
-describe("mindMapGrowthSignature", () => {
-  it("stays stable when only the visible branch changes", () => {
-    const snapshotIds = ["root", "scope", "release", "homework"];
-    assert.equal(
-      mindMapGrowthSignature(3, snapshotIds),
-      mindMapGrowthSignature(3, snapshotIds)
-    );
-    assert.notEqual(
-      mindMapGrowthSignature(3, snapshotIds),
-      mindMapGrowthSignature(4, snapshotIds)
-    );
-    assert.notEqual(
-      mindMapGrowthSignature(3, ["root", "scope"]),
-      mindMapGrowthSignature(3, snapshotIds)
-    );
   });
 });
 

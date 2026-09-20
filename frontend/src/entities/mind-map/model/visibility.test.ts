@@ -88,18 +88,6 @@ describe("resolveMindMapVisibility", () => {
     assert.equal(closed.has("budget"), false);
   });
 
-  it("starts flatter when decisions are not pinned (phones)", () => {
-    const visibility = resolveMindMapVisibility(tree, new Set(), {
-      pinDecisions: false,
-    });
-    assert.deepEqual(
-      visibility.visible.map((node) => node.id),
-      ["root", "budget", "release"]
-    );
-    assert.equal(visibility.hiddenChildCount.get("budget"), 2);
-    assert.equal(visibility.hiddenChildCount.get("release"), 1);
-  });
-
   it("does not show children of a hidden branch even if marked expanded", () => {
     const visibility = resolveMindMapVisibility(tree, new Set(["budget-old"]));
     const ids = visibility.visible.map((node) => node.id);

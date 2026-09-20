@@ -131,9 +131,12 @@ test("地図は浅く始まり、枝をおすとくわしい話と関係が見�
   await expect(
     mapRegion.getByText("例外は宿題", { exact: true })
   ).toBeVisible();
-  await expect(page.getByText(/保留中: 同期の対象データ/)).toBeVisible({
-    timeout: 6000,
-  });
+  await expect(
+    page.getByText(/まだ地図に置けていない話: 同期の対象データ/)
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    page.getByText("枝をおすと、くわしい話がひらきます。")
+  ).toBeVisible();
   await expect(mapRegion.getByText("決定", { exact: true })).toBeVisible();
   await expect(
     mapRegion.getByText("つぎにやること", { exact: true })

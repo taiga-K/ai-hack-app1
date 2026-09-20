@@ -34,10 +34,8 @@ import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   didMindMapPaneWidthChange,
-  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
-  shouldPinMindMapDecisions,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "../model/should-refit-camera";
@@ -103,7 +101,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
             : data.label
         }
         className={cn(
-          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          "flex h-full w-full cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-center text-sm leading-5 break-words whitespace-normal outline-none transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ours",
           toneClass,
           data.selected &&
             "ring-2 ring-ring ring-offset-2 ring-offset-background"
@@ -125,7 +123,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
             aria-hidden="true"
             className="shrink-0 rounded-full bg-background/80 px-1.5 text-xs leading-4 text-muted-foreground"
           >
-            +{String(data.hiddenChildren)}
+            +{String(data.hiddenChildren)}件
           </span>
         ) : null}
       </button>
@@ -145,13 +143,14 @@ const nodeTypes = {
 const MIN_ZOOM = 0.12;
 const MAX_ZOOM = 1.45;
 const FIT_MAX_ZOOM = 1.2;
-const STACKED_FIT_MIN_ZOOM = 0.55;
+/** 14px labels stay about 12px on a phone; the map pans instead of shrinking. */
+const STACKED_FIT_MIN_ZOOM = 0.85;
 const FIT_PADDING = 0.12;
 const RESIZE_FIT_MS = 220;
 
 const EDGE_STYLE: Record<MindMapEdgeKind, { stroke: string; dash?: string }> = {
   tree: { stroke: "var(--border)" },
-  supports: { stroke: "var(--chart-2)" },
+  supports: { stroke: "var(--accent-foreground)", dash: "6 4" },
   opposes: { stroke: "var(--destructive)", dash: "6 4" },
   supersedes: { stroke: "var(--muted-foreground)", dash: "2 4" },
 };
@@ -179,7 +178,6 @@ function fitMinZoom(stacked: boolean): number {
 function MindMapFlow({
   snapshot,
   compact,
-  stacked,
   visibility,
   expandedIds,
   selectedId,
@@ -187,7 +185,6 @@ function MindMapFlow({
 }: {
   snapshot: MindMapSnapshot;
   compact: boolean;
-  stacked: boolean;
   visibility: MindMapVisibility;
   expandedIds: ReadonlySet<string>;
   selectedId: string | null;
@@ -210,6 +207,7 @@ function MindMapFlow({
   const storeHeight = useStore((state) => state.height);
   const width = measuredPane.width > 8 ? measuredPane.width : storeWidth;
   const height = measuredPane.height > 8 ? measuredPane.height : storeHeight;
+  const stacked = usesStackedMindMapLayout(width, compact);
   const layout = useMemo(
     () =>
       layoutMindMap(visibility.visible, {
@@ -295,10 +293,15 @@ function MindMapFlow({
     [layout.edges]
   );
   const hasNodes = layout.nodes.length > 0;
-  const nodeSignature = mindMapGrowthSignature(
-    snapshot.revision,
-    snapshot.nodes.map((node) => node.id)
+  const nodeSignature = `${String(snapshot.revision)}:${layout.nodes
+    .map((node) => node.id)
+    .join(",")}`;
+  const layoutWidth = layout.nodes.reduce(
+    (widest, node) => Math.max(widest, node.x + node.width),
+    0
   );
+  const overflowsPane =
+    stacked && width > 8 && layoutWidth * fitMinZoom(stacked) > width;
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -342,21 +345,24 @@ function MindMapFlow({
     }
     const visible = readVisiblePaneSize(paneRef.current, width, height);
     const previous = lastSizeRef.current;
-    const isFirstLayout = !didInitialFit.current;
-    const previousSignature = lastNodeSignatureRef.current;
-    const nodesChanged =
-      previousSignature.length > 0 && previousSignature !== nodeSignature;
     const widthChanged = didMindMapPaneWidthChange(
       previous.width,
       visible.width
     );
+    const heightChanged =
+      previous.height > 0 && Math.abs(previous.height - visible.height) > 2;
+    const sizeChanged = widthChanged || heightChanged;
+    const isFirstLayout = !didInitialFit.current;
+    const previousSignature = lastNodeSignatureRef.current;
+    const nodesChanged =
+      previousSignature.length > 0 && previousSignature !== nodeSignature;
     const shouldFit = shouldRefitMindMapCamera({
       hasNodes,
       nodesInitialized,
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged: widthChanged,
+      sizeChanged,
       nodesChanged,
       userTookCamera,
     });
@@ -373,6 +379,8 @@ function MindMapFlow({
       }
       return;
     }
+    // Splitter drags arrive as a burst, so they wait; the branch detail
+    // opening below the map only changes the height and refits at once.
     const deferResize = shouldDeferMindMapResizeFit({
       sizeChanged: widthChanged,
       isFirstLayout,
@@ -494,6 +502,11 @@ function MindMapFlow({
       >
         <Background gap={22} size={1} color="var(--border)" />
       </ReactFlow>
+      {overflowsPane && !userTookCamera ? (
+        <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
+          地図は横にうごかせます
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -589,45 +602,15 @@ export function MindMapCanvas({
   compact = false,
 }: MindMapCanvasProps) {
   const isEmpty = snapshot.nodes.length === 0;
-  const mapPaneRef = useRef<HTMLDivElement>(null);
-  const [mapPaneWidth, setMapPaneWidth] = useState(0);
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(
     () => new Set()
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = selectedMindMapNode(snapshot.nodes, selectedId);
-  const stacked = usesStackedMindMapLayout(mapPaneWidth, compact);
   const visibility = useMemo(
-    () =>
-      resolveMindMapVisibility(snapshot.nodes, expandedIds, {
-        pinDecisions: shouldPinMindMapDecisions(mapPaneWidth, compact),
-      }),
-    [snapshot.nodes, expandedIds, mapPaneWidth, compact]
+    () => resolveMindMapVisibility(snapshot.nodes, expandedIds),
+    [snapshot.nodes, expandedIds]
   );
-
-  useEffect(() => {
-    const pane = mapPaneRef.current;
-    if (pane === null) {
-      return;
-    }
-    const syncWidth = (nextWidth: number): void => {
-      setMapPaneWidth((current) =>
-        Math.abs(current - nextWidth) <= 4 ? current : nextWidth
-      );
-    };
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry === undefined) {
-        return;
-      }
-      syncWidth(entry.contentRect.width);
-    });
-    observer.observe(pane);
-    syncWidth(pane.clientWidth);
-    return () => {
-      observer.disconnect();
-    };
-  }, [isEmpty]);
 
   const handlePick = useCallback((nodeId: string): void => {
     setSelectedId(nodeId);
@@ -639,7 +622,7 @@ export function MindMapCanvas({
       aria-label="マインドマップ"
       className="flex h-full min-h-0 flex-col overflow-hidden px-6"
     >
-      <div ref={mapPaneRef} className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
           <p className="py-8 text-sm text-muted-foreground">
             マインドマップが作られます
@@ -649,7 +632,6 @@ export function MindMapCanvas({
             <MindMapFlow
               snapshot={snapshot}
               compact={compact}
-              stacked={stacked}
               visibility={visibility}
               expandedIds={expandedIds}
               selectedId={selected?.id ?? null}
@@ -669,9 +651,15 @@ export function MindMapCanvas({
           }}
         />
       ) : null}
+      {selected === null && visibility.hiddenChildCount.size > 0 ? (
+        <p className="shrink-0 pt-2 text-xs text-muted-foreground">
+          枝をおすと、くわしい話がひらきます。
+        </p>
+      ) : null}
       {snapshot.pending.length > 0 ? (
         <p className="shrink-0 pt-2 pb-1 text-xs text-muted-foreground">
-          保留中: {snapshot.pending.map((item) => item.text).join(" ／ ")}
+          まだ地図に置けていない話:{" "}
+          {snapshot.pending.map((item) => item.text).join(" ／ ")}
         </p>
       ) : null}
     </section>

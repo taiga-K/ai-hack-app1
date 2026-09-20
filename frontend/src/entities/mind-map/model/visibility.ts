@@ -61,17 +61,10 @@ export function isAlwaysVisibleMindMapNode(node: MindMapNode): boolean {
   return node.kind === "decision" || node.kind === "action";
 }
 
-export interface MindMapVisibilityOptions {
-  /** Keep decisions and next actions in view on wide screens; phones start flatter. */
-  pinDecisions?: boolean;
-}
-
 export function resolveMindMapVisibility(
   nodes: readonly MindMapNode[],
-  expandedIds: ReadonlySet<string>,
-  options: MindMapVisibilityOptions = {}
+  expandedIds: ReadonlySet<string>
 ): MindMapVisibility {
-  const pinDecisions = options.pinDecisions ?? true;
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const children = childrenByParent(nodes);
   const depthById = computeMindMapDepths(nodes);
@@ -85,7 +78,7 @@ export function resolveMindMapVisibility(
     ) {
       anchors.add(node.id);
     }
-    if (!pinDecisions || !isAlwaysVisibleMindMapNode(node)) {
+    if (!isAlwaysVisibleMindMapNode(node)) {
       continue;
     }
     let current: MindMapNode | undefined = node;
