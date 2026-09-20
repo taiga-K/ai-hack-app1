@@ -467,7 +467,7 @@ class AudioStreamSession:
             if self._is_closed:
                 await self._trigger_mind_map(force=True)
             else:
-                self._schedule_mind_map(force=has_remote_client_speech)
+                self._schedule_mind_map(force=True)
 
     def _schedule_analysis(self, force: bool) -> None:
         """Start analysis without a persist-count gap after STT returns."""

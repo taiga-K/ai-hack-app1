@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.application.use_cases.update_mind_map import (
+    SYSTEM_PROMPT,
     UpdateMindMapUseCase,
     _slugify_node_id,
 )
@@ -86,6 +87,13 @@ async def test_update_mind_map_skips_empty_context() -> None:
     mock_llm.chat_completion.assert_not_awaited()
 
 
+def test_mind_map_prompt_grows_spoken_details_without_inventing() -> None:
+    assert "新しい論点だけ" not in SYSTEM_PROMPT
+    assert "話に出ていない話題は作らない" in SYSTEM_PROMPT
+    assert "新しい枝として足します" in SYSTEM_PROMPT
+    assert "相づちや雑談だけで新しい中身が無いときだけ" in SYSTEM_PROMPT
+
+
 @pytest.mark.asyncio
 async def test_update_mind_map_skips_when_no_new_utterances() -> None:
     mock_llm = AsyncMock(spec=LLMService)
@@ -141,6 +149,11 @@ async def test_update_mind_map_parses_delta_from_llm() -> None:
     assert [node.id for node in result.upserts] == ["root", "scope"]
     assert result.upserts[1].source_utterance_ids == ["u-1"]
     mock_llm.chat_completion.assert_awaited_once()
+    request = mock_llm.chat_completion.await_args.args[0]
+    user_content = request.messages[1].content
+    assert "新しい論点だけ" not in user_content
+    assert "足りない枝として upserts" in user_content
+    assert "話に出ていない話題は作らない" in user_content
 
 
 @pytest.mark.asyncio
@@ -181,6 +194,27 @@ async def test_update_mind_map_empty_delta_advances_watermark() -> None:
     )
     assert skipped.changed is False
     assert skipped.source_utterance_count == 2
+    mock_llm.chat_completion.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_mind_map_skips_short_recent_text_unless_forced() -> None:
+    mock_llm = AsyncMock(spec=LLMService)
+    mock_llm.chat_completion.return_value = ChatCompletionResponse(
+        content='{"upserts": [], "removes": []}',
+        model="openai/gpt-4o-mini",
+    )
+    use_case = UpdateMindMapUseCase(llm_service=mock_llm)
+    ctx = MeetingDialogueContext(meeting_id="meet-short")
+    ctx.add_utterance(_utterance("meet-short", "u-1", "はい。"))
+    current = MindMapSnapshot(meeting_id="meet-short", revision=0)
+
+    skipped = await use_case.execute(ctx, current, force=False)
+    assert skipped.changed is False
+    mock_llm.chat_completion.assert_not_awaited()
+
+    forced = await use_case.execute(ctx, current, force=True)
+    assert forced.changed is False
     mock_llm.chat_completion.assert_awaited_once()
 
 

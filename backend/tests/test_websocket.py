@@ -541,6 +541,83 @@ async def test_websocket_mindmap_broadcast_on_manual_analyze() -> None:
         app.dependency_overrides.clear()
 
 
+@pytest.mark.asyncio
+async def test_websocket_mindmap_force_true_on_local_only_speech() -> None:
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
+    mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
+    mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
+        meeting_id="meet-map-local",
+        advice_items=[],
+        analyzed_utterance_count=1,
+    )
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-local",
+        revision=1,
+        upserts=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            )
+        ],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            )
+        ],
+        source_utterance_count=1,
+        changed=True,
+    )
+
+    async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
+        if chunk.speaker == Speaker.LOCAL_PM:
+            return [
+                UtteranceDTO(
+                    id="utt-pm-map",
+                    meeting_id=meeting_id,
+                    speaker="local_pm",
+                    text="対象は更新申請だけです。",
+                    start_ms=chunk.timestamp_ms,
+                    end_ms=chunk.timestamp_ms + 1000,
+                    is_final=True,
+                    created_at=datetime.now(UTC),
+                )
+            ]
+        return []
+
+    mock_use_case.execute.side_effect = mock_execute
+
+    app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
+    app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: (
+        mock_analyze_use_case
+    )
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: mock_mind_map
+    app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
+        sample_rate=16000
+    )
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/ws/meetings/meet-map-local/audio") as ws:
+            stereo_bytes = np.zeros(64000, dtype=np.int16).tobytes()
+            ws.send_bytes(stereo_bytes)
+            messages = [ws.receive_json()]
+            if messages[0]["type"] != "mindmap":
+                messages.append(ws.receive_json())
+            mindmap = next(item for item in messages if item["type"] == "mindmap")
+            assert mindmap["revision"] == 1
+            mock_mind_map.execute.assert_awaited()
+            assert mock_mind_map.execute.await_args.kwargs["force"] is True
+    finally:
+        app.dependency_overrides.clear()
+
+
 def _session_utterance(meeting_id: str, utterance_id: str, text: str) -> Utterance:
     return Utterance(
         id=utterance_id,
