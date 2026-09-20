@@ -137,6 +137,9 @@ test("地図は浅く始まり、枝をおすとくわしい話と関係が見�
   await expect(
     page.getByText("枝をおすと、くわしい話がひらきます。")
   ).toBeVisible();
+  const summary = page.getByLabel("決まったことと、つぎにやること");
+  await expect(summary).toContainText("決まったこと: 更新申請に限定で決定");
+  await expect(summary).toContainText("つぎにやること: 例外は宿題");
   await expect(mapRegion.getByText("決定", { exact: true })).toBeVisible();
   await expect(
     mapRegion.getByText("つぎにやること", { exact: true })
@@ -151,16 +154,35 @@ test("地図は浅く始まり、枝をおすとくわしい話と関係が見�
     name: "対象範囲 のくわしい話",
   });
   await expect(scopeDetail).toBeVisible();
-  await expect(scopeDetail.getByText("話題・まだ決まっていない")).toBeVisible();
+  await expect(
+    scopeDetail.getByText(
+      "この枝で決まったこと: 更新申請に限定で決定 ／ 更新申請だけ"
+    )
+  ).toBeVisible();
+  await expect(scopeDetail.getByText("まだ決まっていない")).toHaveCount(0);
   await expect(
     scopeDetail.getByText(
       "既存顧客向けの更新申請だけでよいか、はじめに確認した。"
     )
   ).toBeVisible();
   await expect(
+    scopeDetail.getByText(/00:04 こちら「今回の対象範囲は/)
+  ).toBeVisible();
+  await expect(
     mapRegion.getByText("更新申請だけ", { exact: true })
   ).toBeVisible();
   await expect(mapRegion.getByText("採用", { exact: true })).toBeVisible();
+
+  // A second click re-reads the claim; it never folds the branch.
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toBeVisible();
+  await scopeDetail.getByRole("button", { name: "枝をたたむ" }).click();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toHaveCount(0);
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
 
   await mapRegion
     .getByRole("button", { name: /^更新申請に限定で決定/ })
@@ -170,6 +192,9 @@ test("地図は浅く始まり、枝をおすとくわしい話と関係が見�
   });
   await expect(decisionDetail.getByText("賛成: 更新申請だけ")).toBeVisible();
   await expect(decisionDetail.getByText("決定・決定")).toHaveCount(0);
+  await expect(
+    decisionDetail.getByText(/00:33 こちら「では更新申請に限定して/)
+  ).toBeVisible();
 
   await mapRegion.getByRole("button", { name: /^システムのつなぎ/ }).click();
   await mapRegion.getByRole("button", { name: /^まず参照だけ反映/ }).click();
@@ -178,10 +203,18 @@ test("地図は浅く始まり、枝をおすとくわしい話と関係が見�
   ).toBeVisible();
 
   await mapRegion.getByRole("button", { name: /^来月末の本番/ }).click();
+  const resolved = mapRegion.getByText("来月末に間に合うか", { exact: true });
+  await expect(resolved).toBeVisible();
   await expect(
-    mapRegion.getByText("来月末に間に合うか", { exact: true })
+    mapRegion.getByText("いまは対象外", { exact: true })
   ).toBeVisible();
-  await expect(mapRegion.getByText("反対", { exact: true })).toBeVisible();
+  await expect(mapRegion.getByText("懸念", { exact: true })).toHaveCount(0);
+  await mapRegion.getByRole("button", { name: /^来月末に間に合うか/ }).click();
+  await expect(
+    page.getByText(
+      /懸念: まず参照だけ反映（言いなおし前は「すぐ反映したい」）（いまは対象外）/
+    )
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "とじる" }).click();
   await expect(page.getByRole("region", { name: /のくわしい話/ })).toHaveCount(

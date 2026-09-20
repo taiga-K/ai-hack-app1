@@ -240,10 +240,14 @@ function edgesFor(
 ): MindMapEdge[] {
   const edges: MindMapEdge[] = [];
   const seen = new Set<string>();
+  const superseded = new Set(
+    nodes.filter((node) => node.status === "superseded").map((node) => node.id)
+  );
   for (const node of nodes) {
-    const toParent = node.relations.find(
-      (relation) => relation.targetId === node.parentId
-    );
+    const stands = !superseded.has(node.id);
+    const toParent = stands
+      ? node.relations.find((relation) => relation.targetId === node.parentId)
+      : undefined;
     if (node.parentId !== null && knownIds.has(node.parentId)) {
       const id = `${node.parentId}-${node.id}`;
       seen.add(id);
@@ -256,9 +260,11 @@ function edgesFor(
     }
     for (const relation of node.relations) {
       if (
+        !stands ||
         relation.targetId === node.parentId ||
         relation.targetId === node.id ||
-        !knownIds.has(relation.targetId)
+        !knownIds.has(relation.targetId) ||
+        superseded.has(relation.targetId)
       ) {
         continue;
       }
