@@ -415,13 +415,19 @@ async function seedRealMeetingFloor(
   page: Page,
   meetingId: string,
   title: string,
-  options?: { rememberSummary?: boolean }
+  options?: { rememberSummary?: boolean; ended?: boolean }
 ): Promise<void> {
   const rememberSummary = options?.rememberSummary ?? true;
+  const ended = options?.ended ?? true;
   await page.addInitScript(
-    ({ meetingId: id, title: meetingTitle, rememberSummary: remember }) => {
+    ({
+      meetingId: id,
+      title: meetingTitle,
+      rememberSummary: remember,
+      ended: alreadyEnded,
+    }) => {
       const snapshot = {
-        ended: true,
+        ended: alreadyEnded,
         utterances: [
           {
             id: "utt-real-1",
@@ -459,7 +465,7 @@ async function seedRealMeetingFloor(
         localStorage.setItem(sumKey, href);
       }
     },
-    { meetingId, title, rememberSummary }
+    { meetingId, title, rememberSummary, ended }
   );
 }
 
@@ -561,5 +567,46 @@ test("読込のあと空のまとめから戻ると会議は続く", async ({ pa
   await expect(
     page.getByRole("button", { name: "ききはじめる" })
   ).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
+});
+
+test("実会議の生成失敗後に開き直すとやり直せる", async ({ page }) => {
+  await installClosedWebSocket(page);
+  await seedRealMeetingFloor(page, "e2e-fail-finalize", "失敗会議", {
+    rememberSummary: false,
+    ended: false,
+  });
+  await page.route("**/api/v1/meetings/**/finalize", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "finalize failed" }),
+    });
+  });
+  await stubMissingRequirements(page);
+
+  await page.goto("/meetings/e2e-fail-finalize?title=失敗会議");
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
+  await confirmEndMeeting(page);
+  await expect(page.getByText("まとめを作れませんでした。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "もういちど" })).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = sessionStorage.getItem(
+          "return-to-meeting:floor-snapshot:e2e-fail-finalize"
+        );
+        return raw === null
+          ? null
+          : (JSON.parse(raw) as { ended: boolean }).ended;
+      })
+    )
+    .toBe(false);
+
+  await page.reload();
+  await expect(page.getByText(REAL_MEMO)).toBeVisible();
+  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "もういちど" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
 });

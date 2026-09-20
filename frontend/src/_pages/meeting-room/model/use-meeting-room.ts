@@ -229,7 +229,7 @@ export function useMeetingRoom({
           : toUserFacingHttpErrorMessage("unknown");
       phaseRef.current = "ended";
       setPhase("ended");
-      persistFloor(true);
+      persistFloor(false);
       setFinalizeError(message);
       return { ok: false, message };
     }

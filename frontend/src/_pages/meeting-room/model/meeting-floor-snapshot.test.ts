@@ -98,6 +98,17 @@ describe("meeting floor snapshot", () => {
     assert.deepEqual(readMeetingFloorSnapshot("meet-1"), snapshot);
   });
 
+  it("does not treat a failed finalize as ended", () => {
+    installMemoryStorages();
+    writeMeetingFloorSnapshot("meet-1", {
+      ...snapshot,
+      ended: false,
+    });
+    const restored = readMeetingFloorSnapshot("meet-1");
+    assert.equal(restored?.ended, false);
+    assert.equal(restored?.utterances[0]?.text, "実会議の残ったメモです。");
+  });
+
   it("ignores broken JSON", () => {
     assert.equal(parseMeetingFloorSnapshot("{"), null);
     assert.equal(parseMeetingFloorSnapshot(""), null);
