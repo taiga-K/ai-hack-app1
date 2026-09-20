@@ -372,14 +372,10 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
 
   await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]+\?title=/);
   await expect(page).not.toHaveURL(/demo=1/);
-  await expect(
-    page.getByText("マインドマップが作られます")
-  ).toBeVisible();
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
-  await expect(
-    page.getByText("いまは、アドバイスがありません")
-  ).toBeVisible();
+  await expect(page.getByText("いまは、アドバイスがありません")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "ききはじめる" })
   ).toBeVisible();
@@ -445,9 +441,7 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
   });
 
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
-  await expect(
-    page.getByText("マインドマップが作られます")
-  ).toBeVisible();
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await page.getByRole("button", { name: "ききはじめる" }).click();
