@@ -40,6 +40,30 @@ from app.presentation.deps import (
 from main import app
 
 
+def bind_stream_to_execute(mock_use_case: AsyncMock) -> AsyncMock:
+    """Route live append/close through the existing execute mock."""
+
+    def open_stream(
+        speaker: Speaker,
+        meeting_id: str,
+        start_offset_ms: int = 0,
+    ) -> object:
+        class _Stream:
+            async def append(self, audio_chunk: object) -> object:
+                return await mock_use_case.execute(audio_chunk, meeting_id)
+
+            async def commit(self, *, wait: bool = False) -> list[object]:
+                return []
+
+            async def close(self) -> list[object]:
+                return []
+
+        return _Stream()
+
+    mock_use_case.open_stream.side_effect = open_stream
+    return mock_use_case
+
+
 @pytest.mark.asyncio
 async def test_websocket_ping_pong() -> None:
     client = TestClient(app)
@@ -51,7 +75,7 @@ async def test_websocket_ping_pong() -> None:
 
 @pytest.mark.asyncio
 async def test_websocket_audio_streaming() -> None:
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
     mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
         meeting_id="meet-test",
@@ -117,7 +141,7 @@ async def test_websocket_audio_streaming() -> None:
 @pytest.mark.asyncio
 async def test_websocket_advice_broadcast_on_manual_analyze() -> None:
     """Verify manual analyze action via WebSocket triggers analysis and broadcasts advice."""
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     advice_item = AdviceItemDTO(
@@ -162,7 +186,7 @@ async def test_websocket_advice_broadcast_on_manual_analyze() -> None:
 @pytest.mark.asyncio
 async def test_websocket_advice_deduplication() -> None:
     """Verify duplicate advice items with same ID are not rebroadcast."""
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     advice_item = AdviceItemDTO(
@@ -218,7 +242,7 @@ async def test_websocket_advice_deduplication() -> None:
 @pytest.mark.asyncio
 async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
     """Verify STTServiceError or AudioProcessingError does not crash WebSocket."""
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_use_case.execute.side_effect = STTServiceError("STT transient failure")
 
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: mock_use_case
@@ -244,7 +268,7 @@ async def test_websocket_skips_audio_chunk_on_processing_error() -> None:
 @pytest.mark.asyncio
 async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -> None:
     """Verify manual analyze triggers analysis in background without blocking receive loop."""
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     # Simulate an in-flight LLM call that takes some time or waits for an event
@@ -306,7 +330,7 @@ async def test_websocket_manual_analyze_is_non_blocking_during_in_flight_llm() -
 @pytest.mark.asyncio
 async def test_websocket_disconnect_flushes_safely_without_send_error() -> None:
     store = InMemoryMeetingSessionStore()
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
@@ -381,7 +405,7 @@ async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize
 ):
     """Verify live session detections are stored for requirements generation."""
     store = InMemoryMeetingSessionStore()
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
 
     async def mock_execute(chunk, meeting_id):  # type: ignore[no-untyped-def]
@@ -461,7 +485,7 @@ async def test_websocket_persists_utterances_and_unexplained_jargon_for_finalize
 
 @pytest.mark.asyncio
 async def test_websocket_mindmap_broadcast_on_manual_analyze() -> None:
-    mock_use_case = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_use_case = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze_use_case = AsyncMock(spec=AnalyzeDialogueUseCase)
     mock_analyze_use_case.execute.return_value = AnalysisResultDTO(
         meeting_id="meet-map",

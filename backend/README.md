@@ -29,6 +29,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `OPENAI_STT_MODEL`: 文字起こしモデル（デフォルト: `gpt-realtime-whisper`）
 - `OPENAI_STT_URL`: Realtime WebSocket URL（デフォルト: `wss://api.openai.com/v1/realtime`）
 - `OPENAI_STT_LANGUAGE`: 文字起こし言語（デフォルト: `ja`）
+- `OPENAI_STT_DELAY`: Realtime の精度/遅延（デフォルト: `high`。`minimal` / `low` / `medium` / `high` / `xhigh`）
 - `OPENAI_STT_TIMEOUT_SECONDS`: 文字起こしタイムアウト秒数（デフォルト: `30.0`）
 - `AUDIO_SAMPLE_RATE`: 音声サンプルレート（デフォルト: `16000`）
 - `APP_NAME`: プロセス表示名（デフォルト: `AI HACK APP1 API`）

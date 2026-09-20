@@ -33,6 +33,29 @@ from app.presentation.deps import (
 )
 from main import app
 
+
+def bind_stream_to_execute(mock_use_case: AsyncMock) -> AsyncMock:
+    def open_stream(
+        speaker: Speaker,
+        meeting_id: str,
+        start_offset_ms: int = 0,
+    ) -> object:
+        class _Stream:
+            async def append(self, audio_chunk: object) -> object:
+                return await mock_use_case.execute(audio_chunk, meeting_id)
+
+            async def commit(self, *, wait: bool = False) -> list[object]:
+                return []
+
+            async def close(self) -> list[object]:
+                return []
+
+        return _Stream()
+
+    mock_use_case.open_stream.side_effect = open_stream
+    return mock_use_case
+
+
 MEETING_ID = "e2e-meet-flow-1"
 
 
@@ -71,7 +94,7 @@ def _override_meeting_flow(
 @pytest.mark.asyncio
 async def test_e2e_audio_advice_finalize_and_download() -> None:
     store = InMemoryMeetingSessionStore()
-    mock_transcribe = AsyncMock(spec=TranscribeAudioUseCase)
+    mock_transcribe = bind_stream_to_execute(AsyncMock(spec=TranscribeAudioUseCase))
     mock_analyze = AsyncMock(spec=AnalyzeDialogueUseCase)
     mock_llm = AsyncMock(spec=LLMService)
     mock_llm.chat_completion.return_value = ChatCompletionResponse(
