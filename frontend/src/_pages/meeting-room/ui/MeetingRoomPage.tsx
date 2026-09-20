@@ -101,8 +101,7 @@ export function MeetingRoomPage({
           <CopilotSidebar adviceItems={adviceItems} />
           <TranscriptFeed utterances={utterances} />
         </div>
-      ) : null}
-      {layout === "mobile" ? (
+      ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
             role="tablist"
@@ -142,7 +141,7 @@ export function MeetingRoomPage({
             {renderMobilePane(mobilePane, utterances, adviceItems)}
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 

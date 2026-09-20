@@ -98,7 +98,7 @@ export function useAudioCapture({
 
   const startCapture = useCallback(async (): Promise<boolean> => {
     if (!audioServiceRef.current) {
-      return false;
+      audioServiceRef.current = new DualAudioCaptureService(16000);
     }
 
     const sessionId = ++sessionRef.current;

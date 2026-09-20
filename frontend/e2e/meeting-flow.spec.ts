@@ -14,11 +14,7 @@ async function startUiPreview(page: Page, title: string): Promise<void> {
   await page.getByPlaceholder(/なまえ/).fill(title);
   await page.getByRole("button", { name: "おためし" }).click();
   await expect(page).toHaveURL(/\/meetings\/.+[?&]demo=1/);
-  await expect(
-    page
-      .getByRole("region", { name: "会議のメモ" })
-      .or(page.getByRole("tab", { name: "メモ" }))
-  ).toBeVisible();
+  await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
 }
 
 async function confirmEndMeeting(page: Page): Promise<void> {
@@ -62,6 +58,7 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await startUiPreview(page, "E2Eモバイル会議");
 
   const whispersTab = page.getByRole("tab", { name: /ささやき/ });
+  await expect(whispersTab).toBeVisible();
   await whispersTab.click();
   await expect(whispersTab).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("tab", { name: "メモ" })).toHaveAttribute(
@@ -188,6 +185,8 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
   });
 
   await page.goto("/meetings/e2e-capture-denied?title=キャプチャ拒否");
+  await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await page.getByRole("button", { name: "ききはじめる" }).click();
   await expect(page.getByText("うまく聞けませんでした")).toBeVisible();
 });

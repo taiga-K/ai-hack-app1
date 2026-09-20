@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 
 export type MeetingLayout = "desktop" | "mobile";
 
-export function useMeetingLayout(): MeetingLayout | null {
-  const [layout, setLayout] = useState<MeetingLayout | null>(null);
+export function useMeetingLayout(): MeetingLayout {
+  const [layout, setLayout] = useState<MeetingLayout>("desktop");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const media = window.matchMedia("(min-width: 1024px)");
     const sync = () => {
       setLayout(media.matches ? "desktop" : "mobile");
