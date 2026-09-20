@@ -151,7 +151,7 @@ def test_get_generate_requirements_doc_use_case_dependency_injection(
     monkeypatch.setattr("app.presentation.deps.settings.orcarouter_api_key", "test-key")
     monkeypatch.setattr(
         "app.presentation.deps.settings.orcarouter_requirements_model",
-        "anthropic/claude-3-5-sonnet",
+        "deepseek/deepseek-v4-flash-free",
     )
     test_app = FastAPI()
 
@@ -165,7 +165,7 @@ def test_get_generate_requirements_doc_use_case_dependency_injection(
     ) -> dict[str, str]:
         assert isinstance(use_case, GenerateRequirementsDocUseCase)
         assert isinstance(use_case._llm_service, OrcaRouterClient)
-        assert use_case._model == "anthropic/claude-3-5-sonnet"
+        assert use_case._model == "deepseek/deepseek-v4-flash-free"
         assert isinstance(getter, GetRequirementsDocUseCase)
         assert isinstance(store, InMemoryMeetingSessionStore)
         return {"status": "ok"}

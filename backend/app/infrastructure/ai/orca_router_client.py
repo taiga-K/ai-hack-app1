@@ -1,5 +1,6 @@
 """Orca Router AI Gateway client implementation (Clean Architecture Adapter)."""
 
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -23,6 +24,31 @@ from app.domain.models.llm import (
 )
 from app.domain.services.llm_service import LLMService
 
+# Orca structured-outputs table: OpenAI / Grok / Gemini honor json_schema.
+# DeepSeek documents json_object only. Free-catalog chat models
+# (deepseek-*-free, z-ai/*-free, tencent/*-free) have no json_schema support.
+_JSON_SCHEMA_PROVIDER_PREFIXES = frozenset({"openai", "grok", "google", "gemini"})
+
+
+def _provider_prefix(model: str) -> str:
+    return model.split("/", 1)[0]
+
+
+def _supports_json_schema(model: str) -> bool:
+    return _provider_prefix(model) in _JSON_SCHEMA_PROVIDER_PREFIXES
+
+
+def _paid_fallback_models(selected_model: str, fallback_models: list[str]) -> list[str]:
+    """Keep only usable fallback targets.
+
+    Orca drops `-free` ids from extra_body.models after the primary, silently.
+    """
+    return [
+        model
+        for model in fallback_models
+        if model and model != selected_model and not model.endswith("-free")
+    ]
+
 
 class OrcaRouterClient(LLMService):
     """Adapter implementing LLMService via Orca Router OpenAI-compatible API.
@@ -35,7 +61,7 @@ class OrcaRouterClient(LLMService):
         self,
         api_key: str,
         base_url: str = "https://api.orcarouter.ai/v1",
-        default_model: str = "openai/gpt-4o-mini",
+        default_model: str = "deepseek/deepseek-v4-flash-free",
         timeout: float = 60.0,
         client: AsyncOpenAI | None = None,
     ) -> None:
@@ -67,24 +93,38 @@ class OrcaRouterClient(LLMService):
         if request.max_tokens is not None:
             payload["max_tokens"] = request.max_tokens
 
-        # Orca Router fallback / routing configuration
-        if request.fallback_models:
-            # According to Orca Router docs:
-            # extra_body={"models": [primary, fallback1, ...], "route": "fallback"}
-            all_models = [selected_model] + [
-                m for m in request.fallback_models if m != selected_model
-            ]
+        # Orca Router fallback: omit extra_body when the chain is empty or
+        # only contains `-free` ids (those cannot be fallback targets).
+        paid_fallbacks = _paid_fallback_models(selected_model, request.fallback_models)
+        if paid_fallbacks:
             payload["extra_body"] = {
-                "models": all_models,
+                "models": [selected_model, *paid_fallbacks],
                 "route": "fallback",
             }
 
-        # Structured Outputs (response_format / json_schema) if provided
         if request.response_schema is not None:
-            payload["response_format"] = {
-                "type": "json_schema",
-                "json_schema": request.response_schema,
-            }
+            if _supports_json_schema(selected_model):
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": request.response_schema,
+                }
+            else:
+                # Keep the schema as prompt guidance. Do not drop it.
+                payload["response_format"] = {"type": "json_object"}
+                schema_for_prompt = request.response_schema.get(
+                    "schema", request.response_schema
+                )
+                payload["messages"] = [
+                    *messages,
+                    {
+                        "role": "user",
+                        "content": (
+                            "Return a single JSON object that conforms to this "
+                            "json schema. Output JSON only.\n"
+                            f"{json.dumps(schema_for_prompt, ensure_ascii=False)}"
+                        ),
+                    },
+                ]
 
         return payload
 

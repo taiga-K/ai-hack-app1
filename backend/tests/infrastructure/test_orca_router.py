@@ -150,6 +150,63 @@ def test_build_payload_with_response_schema() -> None:
     }
 
 
+def test_build_payload_uses_json_object_for_deepseek_schema() -> None:
+    """DeepSeek documents json_object, not json_schema. Keep the schema in-prompt."""
+    client = OrcaRouterClient(api_key="test-key")
+    schema: dict[str, Any] = {
+        "name": "analysis_output",
+        "strict": True,
+        "schema": {"type": "object", "properties": {"items": {"type": "array"}}},
+    }
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Analyze")],
+        model="deepseek/deepseek-v4-flash-free",
+        response_schema=schema,
+    )
+    payload = client._build_payload(request)
+    assert payload["response_format"] == {"type": "json_object"}
+    assert payload["messages"][-1]["role"] == "user"
+    assert "json schema" in payload["messages"][-1]["content"]
+    assert '"items"' in payload["messages"][-1]["content"]
+    assert payload["messages"][0] == {"role": "user", "content": "Analyze"}
+
+
+def test_build_payload_omits_fallback_when_list_is_empty() -> None:
+    client = OrcaRouterClient(api_key="test-key")
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Hi")],
+        model="deepseek/deepseek-v4-flash-free",
+        fallback_models=[],
+    )
+    payload = client._build_payload(request)
+    assert "extra_body" not in payload
+
+
+def test_build_payload_drops_free_fallback_targets() -> None:
+    client = OrcaRouterClient(api_key="test-key")
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Hi")],
+        model="deepseek/deepseek-v4-flash-free",
+        fallback_models=["z-ai/glm-5.3-flash-free", "tencent/hy3-free"],
+    )
+    payload = client._build_payload(request)
+    assert "extra_body" not in payload
+
+
+def test_build_payload_keeps_paid_fallback_after_dropping_free() -> None:
+    client = OrcaRouterClient(api_key="test-key")
+    request = ChatCompletionRequest(
+        messages=[ChatMessage(role=ChatRole.USER, content="Hi")],
+        model="deepseek/deepseek-v4-flash-free",
+        fallback_models=["z-ai/glm-5.3-flash-free", "openai/gpt-4o"],
+    )
+    payload = client._build_payload(request)
+    assert payload["extra_body"] == {
+        "models": ["deepseek/deepseek-v4-flash-free", "openai/gpt-4o"],
+        "route": "fallback",
+    }
+
+
 @pytest.mark.asyncio
 async def test_chat_completion_success() -> None:
     """Verify successful non-streaming chat completion."""
