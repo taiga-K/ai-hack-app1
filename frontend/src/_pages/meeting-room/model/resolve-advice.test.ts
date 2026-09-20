@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyAdviceAction,
+  bindAdviceUndo,
   captureAdviceUndo,
   collectSeenAdviceIds,
   undoAdviceAction,
@@ -86,6 +87,48 @@ describe("undoAdviceAction", () => {
       active: [advice("a"), advice("b")],
       later: [],
     });
+  });
+
+  it("lets an earlier undo restore its own item after a later action", () => {
+    const start = {
+      active: [advice("a"), advice("b")],
+      later: [],
+    };
+    const undoA = captureAdviceUndo(start, "a", "heard");
+    assert.ok(undoA);
+    const afterA = applyAdviceAction(start, "a", "heard");
+    const undoB = captureAdviceUndo(afterA, "b", "unneeded");
+    assert.ok(undoB);
+    const afterB = applyAdviceAction(afterA, "b", "unneeded");
+
+    const restoredA = undoAdviceAction(afterB, undoA);
+    assert.deepEqual(
+      restoredA.active.map((item) => item.id),
+      ["a"]
+    );
+    assert.deepEqual(restoredA.later, []);
+
+    const restoredBoth = undoAdviceAction(restoredA, undoB);
+    assert.deepEqual(restoredBoth.active.map((item) => item.id).sort(), [
+      "a",
+      "b",
+    ]);
+  });
+});
+
+describe("bindAdviceUndo", () => {
+  it("keeps each binder on its own run and ignores a second tap", () => {
+    const applied: string[] = [];
+    const undoA = bindAdviceUndo(() => {
+      applied.push("a");
+    });
+    const undoB = bindAdviceUndo(() => {
+      applied.push("b");
+    });
+    undoA();
+    undoB();
+    undoA();
+    assert.deepEqual(applied, ["a", "b"]);
   });
 });
 

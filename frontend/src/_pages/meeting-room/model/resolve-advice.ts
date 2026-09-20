@@ -99,6 +99,17 @@ export function undoAdviceAction<T extends { id: string }>(
   }
 }
 
+export function bindAdviceUndo(run: () => void): () => void {
+  let consumed = false;
+  return () => {
+    if (consumed) {
+      return;
+    }
+    consumed = true;
+    run();
+  };
+}
+
 export function collectSeenAdviceIds(
   active: readonly { id: string }[],
   later: readonly { id: string }[],

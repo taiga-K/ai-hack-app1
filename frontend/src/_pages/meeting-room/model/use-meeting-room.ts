@@ -28,10 +28,10 @@ import {
 } from "./preview-events";
 import {
   applyAdviceAction,
+  bindAdviceUndo,
   captureAdviceUndo,
   collectSeenAdviceIds,
   undoAdviceAction,
-  type AdviceUndoState,
 } from "./resolve-advice";
 
 function isTerminalPhase(phase: MeetingPhase): boolean {
@@ -116,7 +116,6 @@ export function useMeetingRoom({
   const adviceItemsRef = useRef<Advice[]>(adviceItems);
   const laterAdviceItemsRef = useRef<Advice[]>([]);
   const resolvedAdviceIdsRef = useRef<string[]>([]);
-  const lastAdviceUndoRef = useRef<AdviceUndoState<Advice> | null>(null);
   const seenAdviceIdsRef = useRef<Set<string>>(
     collectSeenAdviceIds(adviceItems, [], [])
   );
@@ -345,7 +344,7 @@ export function useMeetingRoom({
   );
 
   const resolveAdvice = useCallback(
-    (adviceId: string, action: AdviceAction) => {
+    (adviceId: string, action: AdviceAction): (() => void) | null => {
       const current = {
         active: adviceItemsRef.current,
         later: laterAdviceItemsRef.current,
@@ -353,9 +352,8 @@ export function useMeetingRoom({
       const undo = captureAdviceUndo(current, adviceId, action);
       const next = applyAdviceAction(current, adviceId, action);
       if (undo === null) {
-        return;
+        return null;
       }
-      lastAdviceUndoRef.current = undo;
       switch (action) {
         case "heard":
         case "unneeded":
@@ -374,39 +372,33 @@ export function useMeetingRoom({
         }
       }
       persistAdviceLists(next.active, next.later);
+      return bindAdviceUndo(() => {
+        switch (undo.action) {
+          case "heard":
+          case "unneeded":
+            resolvedAdviceIdsRef.current = resolvedAdviceIdsRef.current.filter(
+              (id) => id !== undo.item.id
+            );
+            break;
+          case "later":
+            break;
+          default: {
+            const _exhaustiveCheck: never = undo.action;
+            throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
+          }
+        }
+        const restored = undoAdviceAction(
+          {
+            active: adviceItemsRef.current,
+            later: laterAdviceItemsRef.current,
+          },
+          undo
+        );
+        persistAdviceLists(restored.active, restored.later);
+      });
     },
     [persistAdviceLists]
   );
-
-  const undoAdvice = useCallback(() => {
-    const undo = lastAdviceUndoRef.current;
-    if (undo === null) {
-      return;
-    }
-    lastAdviceUndoRef.current = null;
-    switch (undo.action) {
-      case "heard":
-      case "unneeded":
-        resolvedAdviceIdsRef.current = resolvedAdviceIdsRef.current.filter(
-          (id) => id !== undo.item.id
-        );
-        break;
-      case "later":
-        break;
-      default: {
-        const _exhaustiveCheck: never = undo.action;
-        throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
-      }
-    }
-    const next = undoAdviceAction(
-      {
-        active: adviceItemsRef.current,
-        later: laterAdviceItemsRef.current,
-      },
-      undo
-    );
-    persistAdviceLists(next.active, next.later);
-  }, [persistAdviceLists]);
 
   const handleToggleChime = useCallback((enabled: boolean) => {
     chimeEnabledRef.current = enabled;
@@ -431,7 +423,6 @@ export function useMeetingRoom({
     adviceItems,
     laterAdviceItems,
     resolveAdvice,
-    undoAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,

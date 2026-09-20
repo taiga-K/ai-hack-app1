@@ -103,7 +103,6 @@ export function MeetingRoomPage({
     adviceItems,
     laterAdviceItems,
     resolveAdvice,
-    undoAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,
@@ -121,7 +120,10 @@ export function MeetingRoomPage({
   });
 
   function handleAdviceAction(adviceId: string, action: AdviceAction) {
-    resolveAdvice(adviceId, action);
+    const undo = resolveAdvice(adviceId, action);
+    if (undo === null) {
+      return;
+    }
     let message: string;
     switch (action) {
       case "heard":
@@ -137,9 +139,10 @@ export function MeetingRoomPage({
       }
     }
     toast(message, {
+      id: `advice-undo-${adviceId}`,
       action: {
         label: "もどす",
-        onClick: undoAdvice,
+        onClick: undo,
       },
     });
   }
