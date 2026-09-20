@@ -82,8 +82,6 @@ async function driveMeetingFloor(page) {
   await page.getByRole("button", { name: "おためし" }).click();
   await page.waitForURL(/\/meetings\/.+[?&]demo=1/);
 
-  await page.getByRole("region", { name: "こちら" }).waitFor({ state: "visible" });
-  await page.getByRole("region", { name: "むこう" }).waitFor({ state: "visible" });
   await page.getByText("検証フロア").first().waitFor({ state: "visible" });
   await page.getByText("おためし").first().waitFor({ state: "visible" });
   await page.getByRole("button", { name: "おためしちゅう" }).waitFor({

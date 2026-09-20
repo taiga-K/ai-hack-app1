@@ -41,6 +41,80 @@ async function stubMissingRequirements(page: Page): Promise<void> {
   });
 }
 
+async function expectNoVoiceMeter(page: Page): Promise<void> {
+  await expect(page.getByRole("region", { name: "こちら" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "むこう" })).toHaveCount(0);
+}
+
+async function installSuccessfulCapture(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    class ImmediateFailWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+      readonly url: string;
+      binaryType = "arraybuffer";
+      readyState = ImmediateFailWebSocket.CLOSED;
+      onopen: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.onerror?.(new Event("error"));
+          this.onclose?.(new CloseEvent("close"));
+        });
+      }
+
+      send(): void {
+        return undefined;
+      }
+
+      close(): void {
+        return undefined;
+      }
+    }
+
+    Object.defineProperty(window, "WebSocket", {
+      configurable: true,
+      value: ImmediateFailWebSocket,
+    });
+
+    function toneStream(frequency: number): MediaStream {
+      const audioCtx = new AudioContext();
+      const dest = audioCtx.createMediaStreamDestination();
+      const oscillator = audioCtx.createOscillator();
+      oscillator.frequency.value = frequency;
+      oscillator.connect(dest);
+      oscillator.start();
+      return dest.stream;
+    }
+
+    function displayStream(): MediaStream {
+      const canvas = document.createElement("canvas");
+      canvas.width = 16;
+      canvas.height = 16;
+      const videoStream = canvas.captureStream(1);
+      return new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...toneStream(440).getAudioTracks(),
+      ]);
+    }
+
+    Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
+      configurable: true,
+      value: () => Promise.resolve(displayStream()),
+    });
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: () => Promise.resolve(toneStream(330)),
+    });
+  });
+}
+
 test("ホームからおためしで発話と助言を確認できる", async ({ page }) => {
   await startUiPreview(page, "E2Eプレビュー会議");
 
@@ -84,6 +158,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
     0
   );
+  await expectNoVoiceMeter(page);
 });
 
 test("アドバイスのくわしくは最初閉じてクリックで開く", async ({ page }) => {
@@ -403,6 +478,28 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
     page.getByRole("button", { name: "ききはじめる" })
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toBeEnabled();
+  await expectNoVoiceMeter(page);
+});
+
+test("ききはじめても音量バーは出ず操作は続く", async ({ page }) => {
+  await stubMissingRequirements(page);
+  await installSuccessfulCapture(page);
+  await page.goto("/meetings/e2e-listen-no-bar?title=聞く会議");
+
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
+  await expectNoVoiceMeter(page);
+  await page.getByRole("button", { name: "ききはじめる" }).click();
+  await expect(
+    page.getByRole("button", { name: "きくのをやめる" })
+  ).toBeVisible();
+  await expect(page.getByText("うまく聞けませんでした")).toHaveCount(0);
+  await expect(page.getByText("マインドマップが作られます")).toBeVisible();
+  await expectNoVoiceMeter(page);
+  await page.getByRole("button", { name: "きくのをやめる" }).click();
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
+  await expectNoVoiceMeter(page);
 });
 
 test("実会議は要件書GETが失敗しても操作できる", async ({ page }) => {
