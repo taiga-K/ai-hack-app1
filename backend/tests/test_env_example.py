@@ -42,7 +42,9 @@ def test_settings_model_defaults_are_free_models() -> None:
         if line and not line.startswith("#") and "=" in line
     }
 
-    assert fields["orcarouter_default_model"].default == "deepseek/deepseek-v4-flash-free"
+    assert fields["orcarouter_default_model"].default == (
+        "deepseek/deepseek-v4-flash-free"
+    )
     assert fields["orcarouter_requirements_model"].default == (
         "deepseek/deepseek-v4-flash-free"
     )
