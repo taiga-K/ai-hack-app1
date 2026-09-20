@@ -2,6 +2,7 @@ export { applyMindMapEvent } from "./model/apply";
 export { layoutMindMap } from "./model/layout";
 export type {
   LaidOutMindMapNode,
+  LayoutMindMapOptions,
   MindMapEdge,
   MindMapLayout,
 } from "./model/layout";

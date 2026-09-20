@@ -19,9 +19,15 @@ export interface MindMapLayout {
   edges: MindMapEdge[];
 }
 
+export interface LayoutMindMapOptions {
+  compact?: boolean;
+}
+
 const NODE_GAP_X = 36;
 const NODE_GAP_Y = 92;
 const NODE_WIDTH = 168;
+const COMPACT_INDENT = 28;
+const COMPACT_GAP_Y = 70;
 
 function childrenOf(
   nodes: readonly MindMapNode[],
@@ -68,7 +74,64 @@ function placeSubtree(
   }
 }
 
-export function layoutMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
+function layoutCompactMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
+  const knownIds = new Set(nodes.map((node) => node.id));
+  const roots = nodes.filter(
+    (node) => node.parentId === null || !knownIds.has(node.parentId)
+  );
+  const placed: LaidOutMindMapNode[] = [];
+  let row = 0;
+
+  const walk = (node: MindMapNode, depth: number): void => {
+    placed.push({
+      id: node.id,
+      label: node.label,
+      x: depth * COMPACT_INDENT,
+      y: row * COMPACT_GAP_Y,
+      depth,
+    });
+    row += 1;
+    for (const child of childrenOf(nodes, node.id)) {
+      walk(child, depth + 1);
+    }
+  };
+
+  for (const root of roots) {
+    walk(root, 0);
+    row += 1;
+  }
+
+  return {
+    nodes: placed,
+    edges: edgesFor(nodes, knownIds),
+  };
+}
+
+function edgesFor(
+  nodes: readonly MindMapNode[],
+  knownIds: Set<string>
+): MindMapEdge[] {
+  return nodes.flatMap((node) => {
+    if (node.parentId === null || !knownIds.has(node.parentId)) {
+      return [];
+    }
+    return [
+      {
+        id: `${node.parentId}-${node.id}`,
+        source: node.parentId,
+        target: node.id,
+      },
+    ];
+  });
+}
+
+export function layoutMindMap(
+  nodes: readonly MindMapNode[],
+  options: LayoutMindMapOptions = {}
+): MindMapLayout {
+  if (options.compact) {
+    return layoutCompactMindMap(nodes);
+  }
   const knownIds = new Set(nodes.map((node) => node.id));
   const roots = nodes.filter(
     (node) => node.parentId === null || !knownIds.has(node.parentId)
@@ -82,18 +145,5 @@ export function layoutMindMap(nodes: readonly MindMapNode[]): MindMapLayout {
     cursor += width + NODE_GAP_X * 2;
   }
 
-  const edges: MindMapEdge[] = nodes.flatMap((node) => {
-    if (node.parentId === null || !knownIds.has(node.parentId)) {
-      return [];
-    }
-    return [
-      {
-        id: `${node.parentId}-${node.id}`,
-        source: node.parentId,
-        target: node.id,
-      },
-    ];
-  });
-
-  return { nodes: placed, edges };
+  return { nodes: placed, edges: edgesFor(nodes, knownIds) };
 }

@@ -37,9 +37,13 @@ test("ホームからおためしで発話と助言を確認できる", async ({
     "aria-selected",
     "true"
   );
-  await expect(
-    page.getByRole("separator", { name: "左右の幅を変える" })
-  ).toBeVisible();
+  const widthHandle = page.getByRole("separator", { name: "左右の幅を変える" });
+  await expect(widthHandle).toBeVisible();
+  await expect(widthHandle.getByText("幅")).toBeVisible();
+  const handleBox = await widthHandle.boundingBox();
+  expect(handleBox?.width ?? 0).toBeGreaterThanOrEqual(16);
+  await expect(page.getByText("React Flow")).toHaveCount(0);
+  await expect(page.getByText("地図をかいています")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "話の地図" })).toBeVisible();
   await expect(page.getByText("今日の会議").first()).toBeVisible({
     timeout: 4000,
@@ -105,6 +109,9 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await page.setViewportSize({ width: 390, height: 844 });
   await startUiPreview(page, "E2Eモバイル会議");
 
+  await expect(page.getByText("今日の会議").first()).toBeVisible({
+    timeout: 4000,
+  });
   const whispersTab = page.getByRole("tab", { name: /ささやき/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
@@ -120,7 +127,19 @@ test("モバイルのささやきタブは選択と本文が一致する", async
   await expect(page.getByRole("heading", { name: "ささやき" })).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /話の地図は残っています/ })
+  ).toBeVisible();
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "話の地図" }).click();
+  const mapLabel = page.getByText("今日の会議").first();
+  await expect(mapLabel).toBeVisible({ timeout: 4000 });
+  const fontSize = await mapLabel.evaluate((element) =>
+    Number.parseFloat(window.getComputedStyle(element).fontSize)
+  );
+  expect(fontSize).toBeGreaterThanOrEqual(13);
+  await expect(page.getByText("React Flow")).toHaveCount(0);
 });
 
 test("会議終了からまとめの確認・編集・書き出しまで通る", async ({

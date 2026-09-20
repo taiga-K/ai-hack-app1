@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Background,
   Handle,
@@ -18,12 +18,13 @@ import { cn } from "cn";
 
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
-  growing?: boolean;
+  compact?: boolean;
 }
 
 interface TopicNodeData extends Record<string, unknown> {
   label: string;
   depth: number;
+  compact: boolean;
 }
 
 function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
@@ -37,7 +38,8 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
   return (
     <div
       className={cn(
-        "max-w-44 rounded-full px-3 py-1.5 text-center text-sm leading-snug",
+        "rounded-full px-3 py-1.5 text-center text-sm leading-snug",
+        data.compact ? "max-w-52" : "max-w-44",
         tone
       )}
     >
@@ -60,20 +62,33 @@ const nodeTypes = {
   topic: TopicNode,
 };
 
-function MindMapFlow({ snapshot }: { snapshot: MindMapSnapshot }) {
+function MindMapFlow({
+  snapshot,
+  compact,
+}: {
+  snapshot: MindMapSnapshot;
+  compact: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const didInitialFit = useRef(false);
+  const compactRef = useRef(compact);
   const { fitView } = useReactFlow();
-  const layout = useMemo(() => layoutMindMap(snapshot.nodes), [snapshot.nodes]);
+  const layout = useMemo(
+    () => layoutMindMap(snapshot.nodes, { compact }),
+    [compact, snapshot.nodes]
+  );
   const nodes: Node<TopicNodeData>[] = useMemo(
     () =>
       layout.nodes.map((node) => ({
         id: node.id,
         type: "topic",
         position: { x: node.x, y: node.y },
-        data: { label: node.label, depth: node.depth },
+        data: { label: node.label, depth: node.depth, compact },
         draggable: false,
         selectable: false,
+        className: "motion-safe:animate-cute-enter",
       })),
-    [layout.nodes]
+    [compact, layout.nodes]
   );
   const edges: Edge[] = useMemo(
     () =>
@@ -86,40 +101,67 @@ function MindMapFlow({ snapshot }: { snapshot: MindMapSnapshot }) {
       })),
     [layout.edges]
   );
+  const hasNodes = snapshot.nodes.length > 0;
+  const minZoom = compact ? 0.85 : 0.4;
+  const maxZoom = compact ? 1.15 : 1.5;
+  const padding = compact ? 0.1 : 0.18;
 
   useEffect(() => {
-    if (nodes.length === 0) {
+    if (compactRef.current !== compact) {
+      compactRef.current = compact;
+      didInitialFit.current = false;
+    }
+    if (didInitialFit.current || snapshot.nodes.length === 0) {
       return;
     }
     const frame = window.requestAnimationFrame(() => {
-      void fitView({ padding: 0.28, duration: 380 });
+      didInitialFit.current = true;
+      void fitView({ padding, duration: 380, minZoom, maxZoom });
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [fitView, nodes.length, snapshot.revision]);
+  }, [compact, fitView, maxZoom, minZoom, padding, snapshot.nodes.length]);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (element === null || !hasNodes) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      void fitView({ padding, duration: 180, minZoom, maxZoom });
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [compact, fitView, hasNodes, maxZoom, minZoom, padding]);
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={nodeTypes}
-      fitView
-      panOnDrag
-      zoomOnScroll
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable={false}
-      className="h-full bg-transparent"
-    >
-      <Background gap={22} size={1} color="var(--border)" />
-    </ReactFlow>
+    <div ref={containerRef} className="h-full min-h-0">
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        panOnDrag
+        zoomOnScroll
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        minZoom={minZoom}
+        maxZoom={maxZoom}
+        proOptions={{ hideAttribution: true }}
+        className="h-full bg-transparent"
+      >
+        <Background gap={22} size={1} color="var(--border)" />
+      </ReactFlow>
+    </div>
   );
 }
 
 export function MindMapCanvas({
   snapshot,
-  growing = false,
+  compact = false,
 }: MindMapCanvasProps) {
   const isEmpty = snapshot.nodes.length === 0;
 
@@ -128,13 +170,11 @@ export function MindMapCanvas({
       <div className="min-h-0 flex-1">
         {isEmpty ? (
           <p className="px-1 py-8 text-sm text-muted-foreground">
-            {growing
-              ? "話をききながら、地図をかいています"
-              : "話しはじめると、ここにちいさな地図が育ちます"}
+            話しはじめると、ここにちいさな地図が育ちます
           </p>
         ) : (
           <ReactFlowProvider>
-            <MindMapFlow snapshot={snapshot} />
+            <MindMapFlow snapshot={snapshot} compact={compact} />
           </ReactFlowProvider>
         )}
       </div>

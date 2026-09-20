@@ -27,6 +27,7 @@ import { useMeetingRoom } from "../model/use-meeting-room";
 import {
   MEETING_SPLIT,
   isWorkspaceTab,
+  mindMapPlaceLabel,
   type MobilePane,
   type WorkspaceTab,
 } from "../model/workspace";
@@ -99,18 +100,19 @@ export function MeetingRoomPage({
   const oursSpeaking = listening && audio.micVolume > 0.08;
   const theirsSpeaking = listening && audio.tabVolume > 0.08;
   const showControls = handoff === "none" && phase !== "finalizing";
-  const mapGrowing = listening && mindMap.nodes.length === 0;
+  const floorProps = {
+    oursListening: listening,
+    theirsListening: listening,
+    oursSpeaking: oursSpeaking,
+    theirsSpeaking: theirsSpeaking,
+    oursVolume: audio.micVolume,
+    theirsVolume: audio.tabVolume,
+  };
+  const mapPlace = mindMapPlaceLabel(mindMap.nodes);
 
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <MeetingFloor
-        oursListening={listening}
-        theirsListening={listening}
-        oursSpeaking={oursSpeaking}
-        theirsSpeaking={theirsSpeaking}
-        oursVolume={audio.micVolume}
-        theirsVolume={audio.tabVolume}
-      />
+      {layout === "mobile" ? <MeetingFloor {...floorProps} /> : null}
       {!listening && phase === "idle" ? (
         <p className="text-sm text-foreground">
           ききはじめるを押すと、相手の画面の音を共有できます。
@@ -128,7 +130,12 @@ export function MeetingRoomPage({
             maxSize={MEETING_SPLIT.leftMax}
             className="min-w-0"
           >
-            <CopilotSidebar adviceItems={adviceItems} />
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              <MeetingFloor {...floorProps} side="ours" />
+              <div className="min-h-0 flex-1">
+                <CopilotSidebar adviceItems={adviceItems} />
+              </div>
+            </div>
           </ResizablePanel>
           <ResizableHandle withHandle aria-label="左右の幅を変える" />
           <ResizablePanel
@@ -136,13 +143,17 @@ export function MeetingRoomPage({
             className="min-w-0"
             minSize="38"
           >
-            <WorkspaceTabs
-              tab={workspaceTab}
-              onTabChange={setWorkspaceTab}
-              utterances={utterances}
-              mindMap={mindMap}
-              growing={mapGrowing}
-            />
+            <div className="flex h-full min-h-0 flex-col gap-3">
+              <MeetingFloor {...floorProps} side="theirs" />
+              <div className="min-h-0 flex-1">
+                <WorkspaceTabs
+                  tab={workspaceTab}
+                  onTabChange={setWorkspaceTab}
+                  utterances={utterances}
+                  mindMap={mindMap}
+                />
+              </div>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
@@ -176,18 +187,23 @@ export function MeetingRoomPage({
                 : "ささやき"}
             </MobilePaneButton>
           </div>
+          {mobilePane !== "map" && mapPlace !== null ? (
+            <button
+              type="button"
+              className="mb-2 text-left text-sm text-foreground underline-offset-4 hover:underline"
+              onClick={() => {
+                setMobilePane("map");
+              }}
+            >
+              話の地図は残っています（{mapPlace}）
+            </button>
+          ) : null}
           <div
             id="meeting-mobile-pane"
             role="tabpanel"
             className="min-h-0 flex-1"
           >
-            {renderMobilePane(
-              mobilePane,
-              utterances,
-              adviceItems,
-              mindMap,
-              mapGrowing
-            )}
+            {renderMobilePane(mobilePane, utterances, adviceItems, mindMap)}
           </div>
         </div>
       )}
@@ -267,13 +283,11 @@ function WorkspaceTabs({
   onTabChange,
   utterances,
   mindMap,
-  growing,
 }: {
   tab: WorkspaceTab;
   onTabChange: (tab: WorkspaceTab) => void;
   utterances: Utterance[];
   mindMap: MindMapSnapshot;
-  growing: boolean;
 }) {
   return (
     <Tabs
@@ -298,7 +312,7 @@ function WorkspaceTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="map" className="min-h-0 overflow-hidden">
-        <MindMapCanvas snapshot={mindMap} growing={growing} />
+        <MindMapCanvas snapshot={mindMap} />
       </TabsContent>
       <TabsContent value="notes" className="min-h-0 overflow-hidden">
         <TranscriptFeed utterances={utterances} />
@@ -337,12 +351,11 @@ function renderMobilePane(
   pane: MobilePane,
   utterances: Utterance[],
   adviceItems: Advice[],
-  mindMap: MindMapSnapshot,
-  growing: boolean
+  mindMap: MindMapSnapshot
 ) {
   switch (pane) {
     case "map":
-      return <MindMapCanvas snapshot={mindMap} growing={growing} />;
+      return <MindMapCanvas snapshot={mindMap} compact />;
     case "notes":
       return <TranscriptFeed utterances={utterances} />;
     case "whispers":
