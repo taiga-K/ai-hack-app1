@@ -22,7 +22,7 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: 無料モデル `deepseek/deepseek-v4-flash-free`）
 - `ORCAROUTER_TIMEOUT_SECONDS`: タイムアウト秒数（デフォルト: `60.0`）
 - `ORCAROUTER_REQUIREMENTS_MODEL`: 要件定義書生成モデル（デフォルト: 無料モデル `deepseek/deepseek-v4-flash-free`）
-- `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS`: 要件定義書生成のフォールバックモデル（カンマ区切り、デフォルト: 無料モデル `z-ai/glm-5.3-flash-free`）
+- `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS`: 要件定義書生成のフォールバックモデル（カンマ区切り、デフォルト: 空。`-free` は `extra_body.models` の fallback 先にできない）
 - `ORCAROUTER_REQUIREMENTS_TIMEOUT_SECONDS`: 要件定義書生成タイムアウト秒数（デフォルト: `120.0`）
 - `WHISPER_MODEL_SIZE`: faster-whisper モデルサイズ（デフォルト: `base`）
 - `WHISPER_DEVICE`: 実行デバイス（デフォルト: `cpu`）

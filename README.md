@@ -74,7 +74,7 @@ ai-hack-app1/
 | `ORCAROUTER_DEFAULT_MODEL`                | 任意           | リアルタイム助言モデル。デフォルトは無料モデル `deepseek/deepseek-v4-flash-free`                |
 | `ORCAROUTER_TIMEOUT_SECONDS`              | 任意           | 助言呼び出しタイムアウト秒。デフォルト `60.0`                                                   |
 | `ORCAROUTER_REQUIREMENTS_MODEL`           | 任意           | 要件書生成モデル。デフォルトは無料モデル `deepseek/deepseek-v4-flash-free`                      |
-| `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS` | 任意           | カンマ区切りフォールバック。デフォルトは無料モデル `z-ai/glm-5.3-flash-free`                    |
+| `ORCAROUTER_REQUIREMENTS_FALLBACK_MODELS` | 任意           | カンマ区切りフォールバック。デフォルトは空（`-free` は fallback 先にできないため）              |
 | `ORCAROUTER_REQUIREMENTS_TIMEOUT_SECONDS` | 任意           | 要件書生成タイムアウト秒。デフォルト `120.0`                                                    |
 | `WHISPER_MODEL_SIZE`                      | 任意           | faster-whisper サイズ。デフォルト `base`                                                        |
 | `WHISPER_DEVICE`                          | 任意           | デフォルト `cpu`                                                                                |
