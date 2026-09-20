@@ -73,8 +73,10 @@ def test_settings_stt_defaults_match_env_example() -> None:
     assert fields["openai_stt_model"].default == "gpt-realtime-whisper"
     assert fields["openai_stt_url"].default == "wss://api.openai.com/v1/realtime"
     assert fields["openai_stt_language"].default == "ja"
+    assert fields["openai_stt_delay"].default == "high"
     assert example_values["STT_PROVIDER"] == fields["stt_provider"].default
     assert example_values["OPENAI_STT_MODEL"] == fields["openai_stt_model"].default
     assert example_values["OPENAI_STT_URL"] == fields["openai_stt_url"].default
+    assert example_values["OPENAI_STT_DELAY"] == fields["openai_stt_delay"].default
     assert "WHISPER_MODEL_SIZE" not in example_values
     assert "faster-whisper" not in ENV_EXAMPLE_PATH.read_text(encoding="utf-8")

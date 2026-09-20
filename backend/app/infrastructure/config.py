@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     openai_stt_model: str = "gpt-realtime-whisper"
     openai_stt_url: str = "wss://api.openai.com/v1/realtime"
     openai_stt_language: str = "ja"
+    openai_stt_delay: str = "high"
     openai_stt_timeout_seconds: float = 30.0
     audio_sample_rate: int = 16000
 

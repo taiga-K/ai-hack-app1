@@ -81,6 +81,7 @@ ai-hack-app1/
 | `OPENAI_STT_MODEL`                        | 任意           | デフォルト `gpt-realtime-whisper`                                                               |
 | `OPENAI_STT_URL`                          | 任意           | デフォルト `wss://api.openai.com/v1/realtime`                                                   |
 | `OPENAI_STT_LANGUAGE`                     | 任意           | デフォルト `ja`                                                                                 |
+| `OPENAI_STT_DELAY`                        | 任意           | Realtime 精度/遅延。デフォルト `high`。`minimal` / `low` / `medium` / `high` / `xhigh`          |
 | `OPENAI_STT_TIMEOUT_SECONDS`              | 任意           | デフォルト `30.0`                                                                               |
 | `AUDIO_SAMPLE_RATE`                       | 任意           | デフォルト `16000`                                                                              |
 | `APP_NAME`                                | 任意           | プロセス表示名。デフォルト `AI HACK APP1 API`                                                   |

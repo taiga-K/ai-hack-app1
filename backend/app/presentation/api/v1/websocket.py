@@ -14,12 +14,14 @@ from app.application.use_cases import (
     UpdateMindMapUseCase,
 )
 from app.application.use_cases.generate_requirements_doc import parse_seed_advice_item
+from app.application.use_cases.transcribe_audio import TranscriptStream
 from app.domain.exceptions import AudioProcessingError, STTServiceError
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.mind_map import MindMapNode, MindMapSnapshot
 from app.domain.models.transcript import Speaker, Utterance
 from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
+from app.infrastructure.stt.pcm import pcm16_is_dominant
 from app.presentation.deps import (
     get_analyze_dialogue_use_case,
     get_channel_diarizer,
@@ -37,12 +39,9 @@ from app.presentation.schemas import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Buffer duration in seconds before running transcription
-CHUNK_INTERVAL_SECONDS = 2.0
-
 
 class AudioStreamSession:
-    """Manages audio buffering, transcription, and real-time advice for a WebSocket connection."""
+    """Manages audio streaming, transcription, and real-time advice for a WebSocket connection."""
 
     def __init__(
         self,
@@ -53,7 +52,6 @@ class AudioStreamSession:
         analyze_dialogue_use_case: AnalyzeDialogueUseCase | None = None,
         update_mind_map_use_case: UpdateMindMapUseCase | None = None,
         meeting_session_repository: MeetingSessionRepository | None = None,
-        chunk_interval_sec: float = CHUNK_INTERVAL_SECONDS,
     ) -> None:
         self.meeting_id = meeting_id
         self.websocket = websocket
@@ -61,11 +59,9 @@ class AudioStreamSession:
         self.transcribe_use_case = transcribe_use_case
         self.analyze_dialogue_use_case = analyze_dialogue_use_case
         self.update_mind_map_use_case = update_mind_map_use_case
-        self.chunk_interval_sec = chunk_interval_sec
 
         # 4 bytes per stereo sample (2 channels * 2 bytes/sample)
         self.bytes_per_second = diarizer.sample_rate * 4
-        self.target_buffer_size = int(self.bytes_per_second * self.chunk_interval_sec)
 
         self._buffer = bytearray()
         self._elapsed_ms = 0
@@ -99,6 +95,8 @@ class AudioStreamSession:
         self._mind_map_lock = asyncio.Lock()
         self._mind_map_pending = False
         self._mind_map_pending_force = False
+        self._local_stream: TranscriptStream | None = None
+        self._remote_stream: TranscriptStream | None = None
 
     def mark_closed(self) -> None:
         """Mark session as disconnected to prevent sends on closed socket."""
@@ -170,30 +168,119 @@ class AudioStreamSession:
     async def _handle_audio_bytes(self, pcm_chunk: bytes) -> None:
         async with self._lock:
             self._buffer.extend(pcm_chunk)
-            if len(self._buffer) >= self.target_buffer_size:
-                buffer_to_process = bytes(self._buffer)
-                self._buffer.clear()
-            else:
-                buffer_to_process = None
+            aligned = len(self._buffer) - (len(self._buffer) % 4)
+            if aligned == 0:
+                return
+            buffer_to_process = bytes(self._buffer[:aligned])
+            del self._buffer[:aligned]
 
-        if buffer_to_process:
-            await self._process_stereo_buffer(buffer_to_process)
+        await self._process_stereo_buffer(buffer_to_process)
 
     async def flush(self) -> None:
-        """Process any remaining buffered audio bytes."""
+        """Push leftover PCM, then commit the open Realtime turns."""
         async with self._lock:
-            if not self._buffer:
-                return
             buffer_to_process = bytes(self._buffer)
             self._buffer.clear()
 
-        # Align to multiple of 4 bytes
         remainder = len(buffer_to_process) % 4
         if remainder != 0:
             buffer_to_process = buffer_to_process[:-remainder]
-
         if buffer_to_process:
             await self._process_stereo_buffer(buffer_to_process)
+        await self._close_transcript_streams()
+
+    def _stream_for(self, speaker: Speaker) -> TranscriptStream:
+        if speaker == Speaker.LOCAL_PM:
+            if self._local_stream is None:
+                self._local_stream = self.transcribe_use_case.open_stream(
+                    speaker=speaker,
+                    meeting_id=self.meeting_id,
+                    start_offset_ms=self._elapsed_ms,
+                )
+            return self._local_stream
+        if self._remote_stream is None:
+            self._remote_stream = self.transcribe_use_case.open_stream(
+                speaker=speaker,
+                meeting_id=self.meeting_id,
+                start_offset_ms=self._elapsed_ms,
+            )
+        return self._remote_stream
+
+    async def _close_transcript_streams(self) -> None:
+        streams = [self._local_stream, self._remote_stream]
+        self._local_stream = None
+        self._remote_stream = None
+        open_streams = [stream for stream in streams if stream is not None]
+        if not open_streams:
+            return
+        try:
+            results = await asyncio.gather(
+                *(stream.close() for stream in open_streams),
+                return_exceptions=False,
+            )
+        except (STTServiceError, AudioProcessingError) as exc:
+            logger.warning(
+                "Skipping transcript close for meeting %s due to processing error: %s",
+                self.meeting_id,
+                exc,
+            )
+            return
+        all_utterances = sorted(
+            [item for group in results for item in group],
+            key=lambda u: u.start_ms,
+        )
+        if all_utterances:
+            await self._publish_closed_utterances(all_utterances)
+
+    async def _publish_closed_utterances(
+        self, all_utterances: list[UtteranceDTO]
+    ) -> None:
+        self._begin_persist_work()
+        try:
+            has_remote_client_speech = False
+            for u in all_utterances:
+                speaker_enum = (
+                    Speaker.LOCAL_PM
+                    if u.speaker == Speaker.LOCAL_PM.value
+                    else Speaker.REMOTE_CLIENT
+                )
+                if speaker_enum == Speaker.REMOTE_CLIENT and u.is_final:
+                    has_remote_client_speech = True
+                utterance = Utterance(
+                    id=u.id,
+                    meeting_id=u.meeting_id,
+                    speaker=speaker_enum,
+                    text=u.text,
+                    start_ms=u.start_ms,
+                    end_ms=u.end_ms,
+                    is_final=u.is_final,
+                    created_at=u.created_at,
+                )
+                if u.is_final:
+                    self.dialogue_context.add_utterance(utterance)
+                    if self.meeting_session_repository is not None:
+                        self.meeting_session_repository.add_utterance(
+                            self.meeting_id, utterance
+                        )
+                if not self._is_closed:
+                    msg = UtteranceMessage(
+                        id=u.id,
+                        meeting_id=u.meeting_id,
+                        speaker=u.speaker,
+                        text=u.text,
+                        start_ms=u.start_ms,
+                        end_ms=u.end_ms,
+                        is_final=u.is_final,
+                        created_at=u.created_at,
+                    )
+                    await self._safe_send_text(msg.model_dump_json())
+            finals = [item for item in all_utterances if item.is_final]
+            if finals and self.analyze_dialogue_use_case is not None:
+                await self._trigger_analysis(force=has_remote_client_speech)
+            if finals and self.update_mind_map_use_case is not None:
+                await self._trigger_mind_map(force=True)
+        finally:
+            self._end_persist_work()
 
     def _begin_persist_work(self) -> None:
         if self.meeting_session_repository is not None:
@@ -220,14 +307,27 @@ class AudioStreamSession:
             left_chunk, right_chunk = self.diarizer.demux_stereo_pcm(
                 stereo_bytes, timestamp_ms=start_ms
             )
-
+            local_stream = self._stream_for(Speaker.LOCAL_PM)
+            remote_stream = self._stream_for(Speaker.REMOTE_CLIENT)
             results: tuple[
                 list[UtteranceDTO], list[UtteranceDTO]
             ] = await asyncio.gather(
-                self.transcribe_use_case.execute(left_chunk, self.meeting_id),
-                self.transcribe_use_case.execute(right_chunk, self.meeting_id),
+                local_stream.append(left_chunk),
+                remote_stream.append(right_chunk),
                 return_exceptions=False,
             )
+            left_utterances, right_utterances = results
+            if pcm16_is_dominant(left_chunk.data, right_chunk.data):
+                right_utterances = [
+                    *right_utterances,
+                    *(await remote_stream.commit()),
+                ]
+            if pcm16_is_dominant(right_chunk.data, left_chunk.data):
+                left_utterances = [
+                    *left_utterances,
+                    *(await local_stream.commit()),
+                ]
+            results = (left_utterances, right_utterances)
         except (STTServiceError, AudioProcessingError) as e:
             logger.warning(
                 "Skipping audio chunk for meeting %s due to processing error: %s",
@@ -257,7 +357,7 @@ class AudioStreamSession:
                 if u.speaker == Speaker.LOCAL_PM.value
                 else Speaker.REMOTE_CLIENT
             )
-            if speaker_enum == Speaker.REMOTE_CLIENT:
+            if speaker_enum == Speaker.REMOTE_CLIENT and u.is_final:
                 has_remote_client_speech = True
 
             utterance = Utterance(
@@ -270,11 +370,12 @@ class AudioStreamSession:
                 is_final=u.is_final,
                 created_at=u.created_at,
             )
-            self.dialogue_context.add_utterance(utterance)
-            if self.meeting_session_repository is not None:
-                self.meeting_session_repository.add_utterance(
-                    self.meeting_id, utterance
-                )
+            if u.is_final:
+                self.dialogue_context.add_utterance(utterance)
+                if self.meeting_session_repository is not None:
+                    self.meeting_session_repository.add_utterance(
+                        self.meeting_id, utterance
+                    )
 
             if self._is_closed:
                 continue
@@ -291,14 +392,15 @@ class AudioStreamSession:
             )
             await self._safe_send_text(msg.model_dump_json())
 
-        if all_utterances and self.analyze_dialogue_use_case is not None:
+        final_utterances = [item for item in all_utterances if item.is_final]
+        if final_utterances and self.analyze_dialogue_use_case is not None:
             if self._is_closed:
                 # Disconnect flush: persist last detections even if the socket is gone.
                 await self._trigger_analysis(force=has_remote_client_speech)
             else:
                 self._schedule_analysis(force=has_remote_client_speech)
 
-        if all_utterances and self.update_mind_map_use_case is not None:
+        if final_utterances and self.update_mind_map_use_case is not None:
             if self._is_closed:
                 await self._trigger_mind_map(force=True)
             else:
