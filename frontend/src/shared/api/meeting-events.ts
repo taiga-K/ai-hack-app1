@@ -43,10 +43,52 @@ export interface PongEvent {
   type: "pong";
 }
 
+export const MIND_MAP_NODE_KINDS = [
+  "topic",
+  "report",
+  "proposal",
+  "reason",
+  "concern",
+  "decision",
+  "action",
+] as const;
+export type MindMapNodeKind = (typeof MIND_MAP_NODE_KINDS)[number];
+
+export const MIND_MAP_NODE_STATUSES = [
+  "open",
+  "decided",
+  "pending",
+  "superseded",
+] as const;
+export type MindMapNodeStatus = (typeof MIND_MAP_NODE_STATUSES)[number];
+
+export const MIND_MAP_RELATION_KINDS = [
+  "supports",
+  "opposes",
+  "supersedes",
+] as const;
+export type MindMapRelationKind = (typeof MIND_MAP_RELATION_KINDS)[number];
+
+export interface MindMapRelationPayload {
+  kind: MindMapRelationKind;
+  targetId: string;
+}
+
 export interface MindMapNodePayload {
   id: string;
   label: string;
   parentId: string | null;
+  kind: MindMapNodeKind;
+  status: MindMapNodeStatus;
+  detail: string;
+  relations: MindMapRelationPayload[];
+  history: string[];
+  pinned: boolean;
+  sourceUtteranceIds: string[];
+}
+
+export interface MindMapPendingPayload {
+  text: string;
   sourceUtteranceIds: string[];
 }
 
@@ -56,6 +98,7 @@ export interface MindMapEvent {
   revision: number;
   upserts: MindMapNodePayload[];
   removes: string[];
+  pending: MindMapPendingPayload[];
 }
 
 export type MeetingServerEvent =
@@ -84,6 +127,28 @@ function asStringList(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
+function toMindMapNodeKind(value: unknown): MindMapNodeKind {
+  const match = MIND_MAP_NODE_KINDS.find((kind) => kind === value);
+  return match ?? "topic";
+}
+
+function toMindMapNodeStatus(value: unknown): MindMapNodeStatus {
+  const match = MIND_MAP_NODE_STATUSES.find((status) => status === value);
+  return match ?? "open";
+}
+
+function parseMindMapRelation(value: unknown): MindMapRelationPayload | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const kind = MIND_MAP_RELATION_KINDS.find((item) => item === value.kind);
+  const targetId = asString(value.target_id);
+  if (kind === undefined || targetId === null) {
+    return null;
+  }
+  return { kind, targetId };
+}
+
 function parseMindMapNode(value: unknown): MindMapNodePayload | null {
   if (!isRecord(value)) {
     return null;
@@ -96,10 +161,35 @@ function parseMindMapNode(value: unknown): MindMapNodePayload | null {
   const parentRaw = value.parent_id;
   const parentId =
     typeof parentRaw === "string" && parentRaw.length > 0 ? parentRaw : null;
+  const relations = Array.isArray(value.relations)
+    ? value.relations
+        .map((item) => parseMindMapRelation(item))
+        .filter((item): item is MindMapRelationPayload => item !== null)
+    : [];
   return {
     id,
     label,
     parentId,
+    kind: toMindMapNodeKind(value.kind),
+    status: toMindMapNodeStatus(value.status),
+    detail: typeof value.detail === "string" ? value.detail : "",
+    relations,
+    history: asStringList(value.history),
+    pinned: asBoolean(value.pinned, false),
+    sourceUtteranceIds: asStringList(value.source_utterance_ids),
+  };
+}
+
+function parseMindMapPending(value: unknown): MindMapPendingPayload | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const text = asString(value.text);
+  if (text === null) {
+    return null;
+  }
+  return {
+    text,
     sourceUtteranceIds: asStringList(value.source_utterance_ids),
   };
 }
@@ -237,12 +327,19 @@ export function parseMeetingServerMessage(
           .filter((item): item is MindMapNodePayload => item !== null)
       : [];
     const removes = asStringList(removesRaw);
+    const pendingRaw = payload.pending;
+    const pending = Array.isArray(pendingRaw)
+      ? pendingRaw
+          .map((item) => parseMindMapPending(item))
+          .filter((item): item is MindMapPendingPayload => item !== null)
+      : [];
     return {
       type: "mindmap",
       meetingId,
       revision,
       upserts,
       removes,
+      pending,
     };
   }
 
