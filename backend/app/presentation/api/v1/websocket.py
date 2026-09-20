@@ -8,10 +8,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
 from app.application.dto import AdviceItemDTO, UtteranceDTO
-from app.application.use_cases import AnalyzeDialogueUseCase, TranscribeAudioUseCase
+from app.application.use_cases import (
+    AnalyzeDialogueUseCase,
+    TranscribeAudioUseCase,
+    UpdateMindMapUseCase,
+)
 from app.application.use_cases.generate_requirements_doc import parse_seed_advice_item
 from app.domain.exceptions import AudioProcessingError, STTServiceError
 from app.domain.models.meeting_context import MeetingDialogueContext
+from app.domain.models.mind_map import MindMapNode, MindMapSnapshot
 from app.domain.models.transcript import Speaker, Utterance
 from app.domain.services.meeting_session_repository import MeetingSessionRepository
 from app.infrastructure.audio.channel_diarizer import ChannelDiarizer
@@ -20,8 +25,14 @@ from app.presentation.deps import (
     get_channel_diarizer,
     get_meeting_session_repository,
     get_transcribe_audio_use_case,
+    get_update_mind_map_use_case,
 )
-from app.presentation.schemas import AdviceMessage, UtteranceMessage
+from app.presentation.schemas import (
+    AdviceMessage,
+    MindMapMessage,
+    MindMapNodeMessage,
+    UtteranceMessage,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -40,6 +51,7 @@ class AudioStreamSession:
         diarizer: ChannelDiarizer,
         transcribe_use_case: TranscribeAudioUseCase,
         analyze_dialogue_use_case: AnalyzeDialogueUseCase | None = None,
+        update_mind_map_use_case: UpdateMindMapUseCase | None = None,
         meeting_session_repository: MeetingSessionRepository | None = None,
         chunk_interval_sec: float = CHUNK_INTERVAL_SECONDS,
     ) -> None:
@@ -48,6 +60,7 @@ class AudioStreamSession:
         self.diarizer = diarizer
         self.transcribe_use_case = transcribe_use_case
         self.analyze_dialogue_use_case = analyze_dialogue_use_case
+        self.update_mind_map_use_case = update_mind_map_use_case
         self.chunk_interval_sec = chunk_interval_sec
 
         # 4 bytes per stereo sample (2 channels * 2 bytes/sample)
@@ -66,14 +79,26 @@ class AudioStreamSession:
         self.dialogue_context = MeetingDialogueContext(meeting_id=meeting_id)
         self.meeting_session_repository = meeting_session_repository
         self._close_persist_started = False
+        self._mind_map = MindMapSnapshot(meeting_id=meeting_id, revision=0)
         if self.meeting_session_repository is not None:
-            self.meeting_session_repository.get_or_create(meeting_id)
+            record = self.meeting_session_repository.get_or_create(meeting_id)
             self.meeting_session_repository.register_live_session(meeting_id)
+            # Keep the persisted transcript so the restored watermark is not ahead
+            # of an empty dialogue (reconnect / ききはじめる again).
+            self.dialogue_context = record.dialogue
+            if record.mind_map is not None:
+                self._mind_map = self._align_mind_map_watermark(
+                    record.mind_map,
+                    self.dialogue_context.total_utterances,
+                )
         self._analysis_lock = asyncio.Lock()
         self._analysis_pending = False
         self._analysis_pending_force = False
         self._seen_advice_ids: set[str] = set()
         self._background_tasks: set[asyncio.Task[None]] = set()
+        self._mind_map_lock = asyncio.Lock()
+        self._mind_map_pending = False
+        self._mind_map_pending_force = False
 
     def mark_closed(self) -> None:
         """Mark session as disconnected to prevent sends on closed socket."""
@@ -137,6 +162,8 @@ class AudioStreamSession:
             elif action == "analyze":
                 if self.analyze_dialogue_use_case is not None and not self._is_closed:
                     self._schedule_analysis(force=True)
+                if self.update_mind_map_use_case is not None and not self._is_closed:
+                    self._schedule_mind_map(force=True)
         except json.JSONDecodeError:
             logger.warning("Received invalid non-JSON text message: %s", text)
 
@@ -271,6 +298,12 @@ class AudioStreamSession:
             else:
                 self._schedule_analysis(force=has_remote_client_speech)
 
+        if all_utterances and self.update_mind_map_use_case is not None:
+            if self._is_closed:
+                await self._trigger_mind_map(force=True)
+            else:
+                self._schedule_mind_map(force=has_remote_client_speech)
+
     def _schedule_analysis(self, force: bool) -> None:
         """Start analysis without a persist-count gap after STT returns."""
         self._begin_persist_work()
@@ -367,6 +400,131 @@ class AudioStreamSession:
             if self.meeting_session_repository is not None:
                 self.meeting_session_repository.end_close(self.meeting_id)
 
+    def _schedule_mind_map(self, force: bool) -> None:
+        """Start a mind-map update without blocking the audio loop."""
+        if self.update_mind_map_use_case is None:
+            return
+        self._begin_persist_work()
+        task = asyncio.create_task(self._run_scheduled_mind_map(force))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _run_scheduled_mind_map(self, force: bool) -> None:
+        try:
+            await self._trigger_mind_map(force)
+        finally:
+            self._end_persist_work()
+
+    async def _trigger_mind_map(self, force: bool = False) -> None:
+        if self.update_mind_map_use_case is None:
+            return
+        if self._mind_map_lock.locked():
+            self._mind_map_pending = True
+            if force:
+                self._mind_map_pending_force = True
+            return
+
+        self._begin_persist_work()
+        try:
+            await self._run_mind_map_loop(force)
+        finally:
+            self._end_persist_work()
+
+    async def _run_mind_map_loop(self, force: bool) -> None:
+        use_case = self.update_mind_map_use_case
+        if use_case is None:
+            return
+        async with self._mind_map_lock:
+            current_force = force
+            while True:
+                self._mind_map_pending = False
+                force_to_use = current_force or self._mind_map_pending_force
+                self._mind_map_pending_force = False
+
+                try:
+                    result = await use_case.execute(
+                        context=self.dialogue_context,
+                        current=self._mind_map,
+                        force=force_to_use,
+                    )
+                    self._mind_map = MindMapSnapshot(
+                        meeting_id=result.meeting_id,
+                        revision=result.revision,
+                        nodes=tuple(
+                            MindMapNode(
+                                id=node.id,
+                                label=node.label,
+                                parent_id=node.parent_id,
+                                source_utterance_ids=tuple(node.source_utterance_ids),
+                            )
+                            for node in result.nodes
+                        ),
+                        source_utterance_count=result.source_utterance_count,
+                    )
+                    self._persist_mind_map()
+                    if result.changed and not self._is_closed:
+                        message = MindMapMessage(
+                            meeting_id=result.meeting_id,
+                            revision=result.revision,
+                            upserts=[
+                                MindMapNodeMessage(
+                                    id=node.id,
+                                    label=node.label,
+                                    parent_id=node.parent_id,
+                                    source_utterance_ids=node.source_utterance_ids,
+                                )
+                                for node in result.upserts
+                            ],
+                            removes=result.removes,
+                        )
+                        await self._safe_send_text(message.model_dump_json())
+                except Exception as exc:
+                    logger.error("Failed to update mind map: %s", exc)
+
+                if self._mind_map_pending:
+                    current_force = self._mind_map_pending_force
+                    continue
+                break
+
+    def _persist_mind_map(self) -> None:
+        if self.meeting_session_repository is None:
+            return
+        self.meeting_session_repository.save_mind_map(self.meeting_id, self._mind_map)
+
+    @staticmethod
+    def _align_mind_map_watermark(
+        snapshot: MindMapSnapshot,
+        utterance_count: int,
+    ) -> MindMapSnapshot:
+        """Keep the tree/revision, but never let the watermark exceed dialogue."""
+        if snapshot.source_utterance_count <= utterance_count:
+            return snapshot
+        return MindMapSnapshot(
+            meeting_id=snapshot.meeting_id,
+            revision=snapshot.revision,
+            nodes=snapshot.nodes,
+            source_utterance_count=utterance_count,
+        )
+
+    async def send_restored_mind_map(self) -> None:
+        if self._mind_map.revision <= 0 or self._is_closed:
+            return
+        message = MindMapMessage(
+            meeting_id=self._mind_map.meeting_id,
+            revision=self._mind_map.revision,
+            upserts=[
+                MindMapNodeMessage(
+                    id=node.id,
+                    label=node.label,
+                    parent_id=node.parent_id,
+                    source_utterance_ids=list(node.source_utterance_ids),
+                )
+                for node in self._mind_map.nodes
+            ],
+            removes=[],
+        )
+        await self._safe_send_text(message.model_dump_json())
+
     def _persist_advice(self, item: AdviceItemDTO) -> None:
         """Store a detection so finalize can include it in the requirements context."""
         if self.meeting_session_repository is None:
@@ -396,6 +554,9 @@ async def websocket_audio_endpoint(
     analyze_dialogue_use_case: AnalyzeDialogueUseCase | None = Depends(
         get_analyze_dialogue_use_case
     ),
+    update_mind_map_use_case: UpdateMindMapUseCase | None = Depends(
+        get_update_mind_map_use_case
+    ),
     meeting_session_repository: MeetingSessionRepository = Depends(
         get_meeting_session_repository
     ),
@@ -408,8 +569,10 @@ async def websocket_audio_endpoint(
         diarizer=diarizer,
         transcribe_use_case=transcribe_use_case,
         analyze_dialogue_use_case=analyze_dialogue_use_case,
+        update_mind_map_use_case=update_mind_map_use_case,
         meeting_session_repository=meeting_session_repository,
     )
+    await session.send_restored_mind_map()
 
     try:
         while True:

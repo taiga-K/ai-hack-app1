@@ -1,0 +1,56 @@
+export interface MindMapCameraRefitInput {
+  hasNodes: boolean;
+  nodesInitialized: boolean;
+  width: number;
+  height: number;
+  isFirstLayout: boolean;
+  sizeChanged: boolean;
+  nodesChanged: boolean;
+  userTookCamera: boolean;
+}
+
+export function shouldRefitMindMapCamera(
+  input: MindMapCameraRefitInput
+): boolean {
+  if (
+    !input.hasNodes ||
+    !input.nodesInitialized ||
+    input.width < 8 ||
+    input.height < 8
+  ) {
+    return false;
+  }
+  if (input.userTookCamera) {
+    return false;
+  }
+  return input.isFirstLayout || input.sizeChanged || input.nodesChanged;
+}
+
+export function shouldDeferMindMapResizeFit(input: {
+  sizeChanged: boolean;
+  isFirstLayout: boolean;
+  nodesChanged: boolean;
+}): boolean {
+  return input.sizeChanged && !input.isFirstLayout && !input.nodesChanged;
+}
+
+export function usesStackedMindMapLayout(
+  width: number,
+  compact: boolean
+): boolean {
+  if (compact) {
+    return true;
+  }
+  return width > 0 && width < 560;
+}
+
+export function shouldCommitMindMapCameraMemory(input: {
+  fitRan: boolean;
+  nodesInitialized: boolean;
+  userTookCamera: boolean;
+}): boolean {
+  if (!input.nodesInitialized) {
+    return false;
+  }
+  return input.fitRan || input.userTookCamera;
+}

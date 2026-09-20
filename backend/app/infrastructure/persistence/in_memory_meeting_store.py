@@ -9,6 +9,7 @@ from app.domain.exceptions import MeetingNotFoundError
 from app.domain.models.analysis import AdviceItem
 from app.domain.models.meeting_context import MeetingDialogueContext
 from app.domain.models.meeting_session import MeetingSessionRecord
+from app.domain.models.mind_map import MindMapSnapshot
 from app.domain.models.requirement_doc import RequirementsDocument
 from app.domain.models.transcript import Utterance
 
@@ -48,6 +49,11 @@ class InMemoryMeetingSessionStore:
         with self._cond:
             record = self._ensure_locked(meeting_id, None)
             record.add_advice(item)
+
+    def save_mind_map(self, meeting_id: str, snapshot: MindMapSnapshot) -> None:
+        with self._cond:
+            record = self._ensure_locked(meeting_id, None)
+            record.mind_map = snapshot
 
     def update_title(self, meeting_id: str, title: str) -> None:
         with self._cond:

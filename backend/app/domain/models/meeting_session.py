@@ -5,6 +5,7 @@ from datetime import datetime
 
 from app.domain.models.analysis import AdviceItem
 from app.domain.models.meeting_context import MeetingDialogueContext
+from app.domain.models.mind_map import MindMapSnapshot
 from app.domain.models.requirement_doc import RequirementsDocument
 
 
@@ -19,6 +20,7 @@ class MeetingSessionRecord:
     advice_items: list[AdviceItem] = field(default_factory=list)
     document: RequirementsDocument | None = None
     finalized_at: datetime | None = None
+    mind_map: MindMapSnapshot | None = None
 
     def add_advice(self, item: AdviceItem) -> bool:
         """Append an advice item if its id has not been recorded yet."""

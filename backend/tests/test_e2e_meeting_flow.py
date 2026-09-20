@@ -29,6 +29,7 @@ from app.presentation.deps import (
     get_meeting_session_repository,
     get_requirements_doc_use_case,
     get_transcribe_audio_use_case,
+    get_update_mind_map_use_case,
 )
 from main import app
 
@@ -57,6 +58,7 @@ def _override_meeting_flow(
     app.dependency_overrides[get_meeting_session_repository] = lambda: store
     app.dependency_overrides[get_transcribe_audio_use_case] = lambda: transcribe
     app.dependency_overrides[get_analyze_dialogue_use_case] = lambda: analyze
+    app.dependency_overrides[get_update_mind_map_use_case] = lambda: None
     app.dependency_overrides[get_channel_diarizer] = lambda: ChannelDiarizer(
         sample_rate=16000
     )

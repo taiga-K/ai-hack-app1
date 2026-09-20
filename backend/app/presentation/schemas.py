@@ -75,6 +75,25 @@ class AdviceMessage(BaseModel):
     )
 
 
+class MindMapNodeMessage(BaseModel):
+    """One topic in a realtime mind-map event."""
+
+    id: str
+    label: str
+    parent_id: str | None = None
+    source_utterance_ids: list[str] = Field(default_factory=list)
+
+
+class MindMapMessage(BaseModel):
+    """Incremental mind-map update pushed to the meeting client."""
+
+    type: str = Field(default="mindmap", description="Message type")
+    meeting_id: str
+    revision: int
+    upserts: list[MindMapNodeMessage] = Field(default_factory=list)
+    removes: list[str] = Field(default_factory=list)
+
+
 class AnalyzeDialogueRequest(BaseModel):
     """Request schema for REST dialogue analysis."""
 
