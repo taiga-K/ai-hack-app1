@@ -7,8 +7,14 @@ export {
   describeMindMapNode,
   describeMindMapStatus,
   getMindMapNodePresentation,
+  summarizeMindMapBranch,
+  summarizeMindMapDecisions,
 } from "./model/labels";
-export type { MindMapNodePresentation, MindMapNodeTone } from "./model/labels";
+export type {
+  MindMapBranchSummary,
+  MindMapNodePresentation,
+  MindMapNodeTone,
+} from "./model/labels";
 export {
   DEFAULT_MIND_MAP_LAYOUT_ALGORITHM,
   layoutMindMap,
@@ -22,6 +28,7 @@ export type {
   MindMapEdgeKind,
   MindMapLayout,
   MindMapLayoutAlgorithm,
+  MindMapLayoutDirection,
   MindMapNodeDecoration,
 } from "./model/layout";
 export { createEmptyMindMap, createMindMapNode } from "./model/types";
@@ -41,6 +48,5 @@ export {
   isAlwaysVisibleMindMapNode,
   resolveMindMapVisibility,
   selectedMindMapNode,
-  toggleMindMapBranch,
 } from "./model/visibility";
 export type { MindMapVisibility } from "./model/visibility";

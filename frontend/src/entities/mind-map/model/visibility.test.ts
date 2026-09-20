@@ -6,7 +6,6 @@ import {
   computeMindMapDepths,
   resolveMindMapVisibility,
   selectedMindMapNode,
-  toggleMindMapBranch,
 } from "./visibility.ts";
 
 const tree: MindMapNode[] = [
@@ -76,16 +75,12 @@ describe("resolveMindMapVisibility", () => {
   });
 
   it("opens a branch, including corrected history, when it is expanded", () => {
-    const expanded = toggleMindMapBranch(new Set(), "budget");
-    const visibility = resolveMindMapVisibility(tree, expanded);
+    const visibility = resolveMindMapVisibility(tree, new Set(["budget"]));
     const ids = visibility.visible.map((node) => node.id);
 
     assert.ok(ids.includes("budget-old"));
     assert.equal(visibility.hiddenChildCount.has("budget"), false);
     assert.equal(ids.includes("deep-note"), false);
-
-    const closed = toggleMindMapBranch(expanded, "budget");
-    assert.equal(closed.has("budget"), false);
   });
 
   it("does not show children of a hidden branch even if marked expanded", () => {

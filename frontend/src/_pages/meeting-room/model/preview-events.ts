@@ -224,7 +224,7 @@ export function createPreviewMindMapEvents(meetingId: string): MindMapEvent[] {
           label: "すぐ反映したい",
           parentId: "api",
           kind: "report",
-          detail: "相手はリアルタイム同期を希望。",
+          detail: "むこうはリアルタイム同期を希望。",
           sourceUtteranceIds: ["preview-utt-2"],
         }),
         previewNode({
@@ -301,13 +301,24 @@ export function createPreviewMindMapEvents(meetingId: string): MindMapEvent[] {
           parentId: "api",
           kind: "report",
           detail:
-            "相手はリアルタイム同期を希望。\nリアルタイムといっても、まずは参照だけ反映できれば十分。",
+            "むこうはリアルタイム同期を希望。\nリアルタイムといっても、まずは参照だけ反映できれば十分。",
           history: ["すぐ反映したい"],
           sourceUtteranceIds: [
             "preview-utt-2",
             "preview-utt-8",
             "preview-utt-9",
           ],
+        }),
+        previewNode({
+          id: "sync-risk",
+          label: "来月末に間に合うか",
+          parentId: "due",
+          kind: "concern",
+          status: "superseded",
+          detail:
+            "リアルタイム同期と本番投入を同時に進めるのは無理がないか。\n参照だけ反映に変わったので、この心配はいまは対象外。",
+          relations: [{ kind: "opposes", targetId: "sync" }],
+          sourceUtteranceIds: ["preview-utt-2", "preview-utt-8"],
         }),
       ],
       removes: [],

@@ -53,12 +53,16 @@ export function computeMindMapDepths(
   return depthById;
 }
 
-/** Decisions and next actions stay in view even when their branch is closed. */
+/** Decisions, next actions and open concerns stay in view when a branch is closed. */
 export function isAlwaysVisibleMindMapNode(node: MindMapNode): boolean {
   if (node.status === "superseded") {
     return false;
   }
-  return node.kind === "decision" || node.kind === "action";
+  return (
+    node.kind === "decision" ||
+    node.kind === "action" ||
+    node.kind === "concern"
+  );
 }
 
 export function resolveMindMapVisibility(
@@ -124,19 +128,6 @@ export function resolveMindMapVisibility(
   }
 
   return { visible, hiddenChildCount, depthById };
-}
-
-export function toggleMindMapBranch(
-  expandedIds: ReadonlySet<string>,
-  nodeId: string
-): Set<string> {
-  const next = new Set(expandedIds);
-  if (next.has(nodeId)) {
-    next.delete(nodeId);
-  } else {
-    next.add(nodeId);
-  }
-  return next;
 }
 
 export function selectedMindMapNode(
