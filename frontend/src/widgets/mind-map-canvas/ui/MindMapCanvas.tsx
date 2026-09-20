@@ -155,8 +155,8 @@ function MindMapFlow({
     const syncPane = (nextWidth: number, nextHeight: number): void => {
       setMeasuredPane((current) => {
         if (
-          Math.abs(current.width - nextWidth) <= 1 &&
-          Math.abs(current.height - nextHeight) <= 1
+          Math.abs(current.width - nextWidth) <= 4 &&
+          Math.abs(current.height - nextHeight) <= 4
         ) {
           return current;
         }
@@ -240,10 +240,13 @@ function MindMapFlow({
       }
       lastSizeRef.current = nextVisible;
       lastNodeSignatureRef.current = nodeSignature;
-      isFittingRef.current = true;
       didInitialFit.current = true;
+      const duration = deferResize ? 0 : isFirstLayout ? 320 : 200;
+      if (duration > 0) {
+        isFittingRef.current = true;
+      }
       void setViewport(viewport, {
-        duration: deferResize ? 0 : isFirstLayout ? 320 : 200,
+        duration,
       }).finally(() => {
         isFittingRef.current = false;
       });
@@ -332,10 +335,7 @@ function MindMapFlow({
             return;
           }
           lastSizeRef.current = visible;
-          isFittingRef.current = true;
-          void setViewport(viewport, { duration: 0 }).finally(() => {
-            isFittingRef.current = false;
-          });
+          void setViewport(viewport, { duration: 0 });
         }}
         onMove={(event) => {
           if (event === null || isFittingRef.current || userTookCamera) {
