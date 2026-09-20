@@ -1,6 +1,5 @@
 "use client";
 
-import { Copy, Download } from "lucide-react";
 import { Button, Spinner } from "@/shared/ui";
 
 export interface ExportMarkdownActionsProps {
@@ -28,24 +27,16 @@ export function ExportMarkdownActions({
         onClick={onCopy}
         disabled={copyDisabled || copying}
       >
-        {copying ? (
-          <Spinner data-icon="inline-start" />
-        ) : (
-          <Copy data-icon="inline-start" />
-        )}
-        Markdownをコピー
+        {copying ? <Spinner data-icon="inline-start" /> : null}
+        コピー
       </Button>
       <Button
         type="button"
         onClick={onDownload}
         disabled={downloadDisabled || downloading}
       >
-        {downloading ? (
-          <Spinner data-icon="inline-start" />
-        ) : (
-          <Download data-icon="inline-start" />
-        )}
-        .mdをダウンロード
+        {downloading ? <Spinner data-icon="inline-start" /> : null}
+        ファイルに保存
       </Button>
     </div>
   );

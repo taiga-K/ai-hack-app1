@@ -2,25 +2,11 @@
 
 import Link from "next/link";
 import { toast } from "sonner";
-import { ArrowLeft, CircleAlert, FileText } from "lucide-react";
 import { ExportMarkdownActions } from "@/features/export-markdown";
 import { Header } from "@/widgets/header";
 import { DocumentEditor, MarkdownPreview } from "@/widgets/document-editor";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Badge,
-  Button,
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  Skeleton,
-  Toaster,
-} from "@/shared/ui";
+import { cn } from "@/shared/lib";
+import { Button, Skeleton, Toaster, buttonVariants } from "@/shared/ui";
 import { useDocumentView } from "../model/use-document-view";
 
 export interface DocumentViewPageProps {
@@ -50,14 +36,12 @@ export function DocumentViewPage({
   const {
     meetingTitle,
     status,
-    document,
     markdown,
     setMarkdown,
     errorMessage,
     view,
     setView,
-    openIssues,
-    showOpenIssuesCallout,
+    openIssueItems,
     copying,
     downloading,
     reload,
@@ -70,7 +54,7 @@ export function DocumentViewPage({
   async function handleCopy() {
     const copied = await copyMarkdown();
     if (copied) {
-      toast.success("Markdownをコピーしました");
+      toast.success("コピーしました");
       return;
     }
     toast.error("コピーできませんでした");
@@ -79,30 +63,26 @@ export function DocumentViewPage({
   async function handleDownload() {
     const downloaded = await downloadMarkdown();
     if (downloaded) {
-      toast.success("Markdownファイルを保存しました");
+      toast.success("ファイルに保存しました");
       return;
     }
-    toast.error("ダウンロードできませんでした");
+    toast.error("保存できませんでした");
   }
 
   return (
     <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground">
       <Header
         title={meetingTitle}
-        badge="要件定義書"
-        actions={
-          <div className="flex items-center gap-2">
-            {preview && <Badge variant="outline">UIプレビュー</Badge>}
-            <Badge variant="secondary">#{meetingId.slice(0, 8)}</Badge>
-          </div>
-        }
+        badge={preview ? "おためし" : "できたまとめ"}
       />
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-3 py-2.5 sm:px-4">
-        <Button variant="outline" render={<Link href={meetingHref} />}>
-          <ArrowLeft data-icon="inline-start" />
+      <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-2 sm:px-8">
+        <Link
+          href={meetingHref}
+          className={cn(buttonVariants({ variant: "ghost" }))}
+        >
           会議に戻る
-        </Button>
+        </Link>
         <ExportMarkdownActions
           copyDisabled={status !== "ready" || markdown.length === 0}
           downloadDisabled={status !== "ready" || markdown.length === 0}
@@ -115,98 +95,82 @@ export function DocumentViewPage({
             void handleDownload();
           }}
         />
-        {document && (
-          <span className="ml-auto text-[11px] text-muted-foreground">
-            発話 {document.sourceUtteranceCount} / 検出{" "}
-            {document.sourceDetectionCount}
-          </span>
-        )}
       </div>
 
-      {preview && status === "ready" && (
-        <Alert className="mx-3 mt-2 sm:mx-4">
-          <AlertTitle>表示確認用の要件定義書です</AlertTitle>
-          <AlertDescription>
-            実会議の生成結果ではなく、プレビュー／コピー／ダウンロードの操作確認用です。
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {showOpenIssuesCallout && openIssues && (
-        <Alert className="mx-3 mt-2 sm:mx-4">
-          <CircleAlert />
-          <AlertTitle>未決事項（ToDo）があります</AlertTitle>
-          <AlertDescription>
-            <p className="mb-1">{openIssues.heading}</p>
-            <div className="whitespace-pre-wrap text-sm">
-              {openIssues.bodyMarkdown}
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {status === "loading" && (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-6">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="min-h-0 flex-1 w-full" />
+      {status === "ready" ? (
+        <div className="px-5 pb-2 sm:px-8">
+          <p className="text-sm font-medium">あとで確認すること</p>
+          {openIssueItems.length === 0 ? (
+            <p className="mt-1 text-sm text-foreground">
+              確認することは、ありません
+            </p>
+          ) : (
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground">
+              {openIssueItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
         </div>
-      )}
+      ) : null}
 
-      {status === "empty" && (
-        <Empty className="min-h-0 flex-1 border-0">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FileText />
-            </EmptyMedia>
-            <EmptyTitle>要件定義書がまだありません</EmptyTitle>
-            <EmptyDescription>
-              {errorMessage ??
-                "会議を終了すると、発話から要件定義書が生成されます。"}
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button variant="outline" render={<Link href={meetingHref} />}>
-              会議に戻る
-            </Button>
-          </EmptyContent>
-        </Empty>
-      )}
+      {status === "loading" ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-6 sm:px-8">
+          <Skeleton className="h-8 w-48 rounded-full" />
+          <Skeleton className="h-4 w-full rounded-full" />
+          <Skeleton className="h-4 w-5/6 rounded-full" />
+          <Skeleton className="min-h-0 flex-1 w-full rounded-3xl" />
+        </div>
+      ) : null}
 
-      {status === "error" && (
-        <Empty className="min-h-0 flex-1 border-0">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <CircleAlert />
-            </EmptyMedia>
-            <EmptyTitle>要件定義書を表示できません</EmptyTitle>
-            <EmptyDescription>{errorMessage}</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
+      {status === "empty" ? (
+        <div className="flex min-h-0 flex-1 flex-col items-start justify-center gap-3 px-5 sm:px-8">
+          <p className="text-lg font-medium">まとめは、まだ出来ていません</p>
+          <p className="text-sm text-muted-foreground">
+            {errorMessage ?? "会議をおわると、まとめが出来ます。"}
+          </p>
+          <Link
+            href={meetingHref}
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            会議に戻る
+          </Link>
+        </div>
+      ) : null}
+
+      {status === "error" ? (
+        <div className="flex min-h-0 flex-1 flex-col items-start justify-center gap-3 px-5 sm:px-8">
+          <p className="text-lg font-medium">まとめを開けませんでした</p>
+          <p className="text-sm text-muted-foreground">{errorMessage}</p>
+          <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
                 void reload();
               }}
             >
-              再読み込み
+              もういちど
             </Button>
-            <Button variant="outline" render={<Link href={meetingHref} />}>
+            <Link
+              href={meetingHref}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
               会議に戻る
-            </Button>
-          </EmptyContent>
-        </Empty>
-      )}
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
-      {status === "ready" && (
-        <DocumentEditor
-          markdown={markdown}
-          view={view}
-          onMarkdownChange={setMarkdown}
-          onViewChange={setView}
-          preview={<MarkdownPreview markdown={markdown} />}
-        />
-      )}
+      {status === "ready" ? (
+        <div className="motion-safe:animate-cute-aftertaste flex min-h-0 flex-1 flex-col">
+          <DocumentEditor
+            markdown={markdown}
+            view={view}
+            onMarkdownChange={setMarkdown}
+            onViewChange={setView}
+            preview={<MarkdownPreview markdown={markdown} />}
+          />
+        </div>
+      ) : null}
 
       <Toaster />
     </div>

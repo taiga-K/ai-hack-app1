@@ -7,8 +7,11 @@ export {
 } from "./api/requirement-doc-client";
 export {
   findOpenIssuesSection,
+  findOpenIssuesSectionFromMarkdown,
   hasConcreteOpenIssues,
   isOpenIssuesHeading,
+  listOpenIssueItems,
+  listOpenIssueItemsFromMarkdown,
 } from "./model/open-issues";
 export {
   parseRequirementDocument,

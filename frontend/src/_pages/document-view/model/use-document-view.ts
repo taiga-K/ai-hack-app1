@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BackendHttpError, toUserFacingHttpErrorMessage } from "@/shared/api";
 import {
   downloadRequirementDocumentBlob,
-  findOpenIssuesSection,
   getRequirementDocument,
-  hasConcreteOpenIssues,
+  listOpenIssueItemsFromMarkdown,
   type RequirementDocument,
 } from "@/entities/requirement-doc";
 import {
@@ -16,6 +15,12 @@ import {
 } from "@/features/export-markdown";
 import { copyTextToClipboard } from "@/shared/lib";
 import type { DocumentEditorView } from "@/widgets/document-editor";
+import {
+  clearDocumentDraft,
+  draftMatchesSource,
+  readDocumentDraft,
+  writeDocumentDraft,
+} from "./document-draft";
 import { createPreviewRequirementDocument } from "./preview-document";
 
 export type DocumentViewStatus = "loading" | "ready" | "empty" | "error";
@@ -37,6 +42,23 @@ function createInitialDocument(
   return createPreviewRequirementDocument(meetingId, meetingTitle);
 }
 
+function markdownForDocument(
+  meetingId: string,
+  document: RequirementDocument
+): string {
+  const draft = readDocumentDraft(meetingId);
+  if (
+    draftMatchesSource(draft, {
+      documentId: document.id,
+      createdAt: document.createdAt,
+    })
+  ) {
+    return draft?.markdown ?? document.markdown;
+  }
+  clearDocumentDraft(meetingId);
+  return document.markdown;
+}
+
 export function useDocumentView({
   meetingId,
   title,
@@ -49,21 +71,47 @@ export function useDocumentView({
   const [document, setDocument] = useState<RequirementDocument | null>(() =>
     createInitialDocument(meetingId, meetingTitle, preview)
   );
-  const [markdown, setMarkdown] = useState(() => {
+  const [markdown, setMarkdownState] = useState(() => {
     const initial = createInitialDocument(meetingId, meetingTitle, preview);
-    return initial?.markdown ?? "";
+    if (initial === null) {
+      return "";
+    }
+    return markdownForDocument(meetingId, initial);
   });
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [view, setView] = useState<DocumentEditorView>("split");
+  const [view, setView] = useState<DocumentEditorView>("preview");
   const [copying, setCopying] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const documentRef = useRef<RequirementDocument | null>(document);
 
-  const applyDocument = useCallback((next: RequirementDocument) => {
-    setDocument(next);
-    setMarkdown(next.markdown);
-    setErrorMessage(null);
-    setStatus("ready");
-  }, []);
+  useEffect(() => {
+    documentRef.current = document;
+  }, [document]);
+
+  const setMarkdown = useCallback(
+    (next: string) => {
+      setMarkdownState(next);
+      const current = documentRef.current;
+      if (current === null) {
+        return;
+      }
+      writeDocumentDraft(meetingId, next, {
+        documentId: current.id,
+        createdAt: current.createdAt,
+      });
+    },
+    [meetingId]
+  );
+
+  const applyDocument = useCallback(
+    (next: RequirementDocument) => {
+      setDocument(next);
+      setMarkdownState(markdownForDocument(meetingId, next));
+      setErrorMessage(null);
+      setStatus("ready");
+    },
+    [meetingId]
+  );
 
   const loadFromApi = useCallback(async () => {
     try {
@@ -72,9 +120,10 @@ export function useDocumentView({
     } catch (error) {
       if (error instanceof BackendHttpError && error.code === "not_found") {
         setDocument(null);
-        setMarkdown("");
+        setMarkdownState("");
         setStatus("empty");
         setErrorMessage(error.message);
+        clearDocumentDraft(meetingId);
         return;
       }
 
@@ -83,7 +132,7 @@ export function useDocumentView({
           ? error.message
           : toUserFacingHttpErrorMessage("unknown");
       setDocument(null);
-      setMarkdown("");
+      setMarkdownState("");
       setStatus("error");
       setErrorMessage(message);
     }
@@ -119,9 +168,10 @@ export function useDocumentView({
         }
         if (error instanceof BackendHttpError && error.code === "not_found") {
           setDocument(null);
-          setMarkdown("");
+          setMarkdownState("");
           setStatus("empty");
           setErrorMessage(error.message);
+          clearDocumentDraft(meetingId);
           return;
         }
 
@@ -130,7 +180,7 @@ export function useDocumentView({
             ? error.message
             : toUserFacingHttpErrorMessage("unknown");
         setDocument(null);
-        setMarkdown("");
+        setMarkdownState("");
         setStatus("error");
         setErrorMessage(message);
       });
@@ -140,11 +190,10 @@ export function useDocumentView({
     };
   }, [applyDocument, meetingId, preview]);
 
-  const openIssues = useMemo(
-    () => (document ? findOpenIssuesSection(document) : null),
-    [document]
+  const openIssueItems = useMemo(
+    () => listOpenIssueItemsFromMarkdown(markdown),
+    [markdown]
   );
-  const showOpenIssuesCallout = hasConcreteOpenIssues(openIssues);
 
   const copyMarkdown = useCallback(async (): Promise<boolean> => {
     if (markdown.length === 0) {
@@ -194,8 +243,7 @@ export function useDocumentView({
     errorMessage,
     view,
     setView,
-    openIssues,
-    showOpenIssuesCallout,
+    openIssueItems,
     copying,
     downloading,
     reload,

@@ -43,6 +43,36 @@ export function createPreviewUtterances(meetingId: string): Utterance[] {
       isFinal: true,
       createdAt: "2026-09-19T00:00:23.000Z",
     },
+    {
+      id: "preview-utt-5",
+      meetingId,
+      speaker: "remote_client",
+      text: "現場の担当も同じ認識です。例外はあとで共有します。",
+      startMs: 27000,
+      endMs: 32000,
+      isFinal: true,
+      createdAt: "2026-09-19T00:00:27.000Z",
+    },
+    {
+      id: "preview-utt-6",
+      meetingId,
+      speaker: "local_pm",
+      text: "では更新申請に限定して、例外は宿題にしますね。",
+      startMs: 33000,
+      endMs: 37000,
+      isFinal: true,
+      createdAt: "2026-09-19T00:00:33.000Z",
+    },
+    {
+      id: "preview-utt-7",
+      meetingId,
+      speaker: "local_pm",
+      text: "こちらの設計担当にも、その前提で共有します。",
+      startMs: 38000,
+      endMs: 42000,
+      isFinal: true,
+      createdAt: "2026-09-19T00:00:38.000Z",
+    },
   ];
 }
 

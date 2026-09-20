@@ -1,5 +1,3 @@
-import { Badge } from "@/shared/ui";
-
 export interface HeaderProps {
   title?: string;
   badge?: string;
@@ -7,23 +5,25 @@ export interface HeaderProps {
 }
 
 export function Header({
-  title = "AI HACK APP1",
-  badge = "Copilot",
+  title = "会議のまとめ",
+  badge,
   actions,
 }: HeaderProps) {
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-background px-4">
-      <div className="flex items-center gap-2.5">
-        <span className="font-sans text-sm font-semibold tracking-tight text-foreground">
+    <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 px-5 py-3 sm:px-8">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="truncate font-heading text-base font-medium tracking-tight text-foreground">
           {title}
         </span>
-        {badge && (
-          <Badge variant="secondary" className="text-[11px] font-normal">
+        {badge ? (
+          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] text-secondary-foreground">
             {badge}
-          </Badge>
-        )}
+          </span>
+        ) : null}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions ? (
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+      ) : null}
     </header>
   );
 }

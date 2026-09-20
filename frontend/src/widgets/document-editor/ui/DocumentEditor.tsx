@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Columns2, Eye, FilePenLine } from "lucide-react";
 import {
   Label,
@@ -9,6 +9,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/shared/ui";
+import { cn } from "@/shared/lib";
 import type { DocumentEditorView } from "../model/types";
 
 export interface DocumentEditorProps {
@@ -26,7 +27,21 @@ export function DocumentEditor({
   onViewChange,
   preview,
 }: DocumentEditorProps) {
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+
+  function flushEditorValue() {
+    const next = sourceRef.current?.value;
+    if (typeof next === "string" && next !== markdown) {
+      onMarkdownChange(next);
+    }
+  }
+
+  function handleMarkdownInput(next: string) {
+    onMarkdownChange(next);
+  }
+
   function handleViewChange(next: string[]) {
+    flushEditorValue();
     const selected = next[0];
     if (
       selected === "preview" ||
@@ -37,64 +52,12 @@ export function DocumentEditor({
     }
   }
 
-  let workspace: ReactNode;
-  switch (view) {
-    case "preview":
-      workspace = (
-        <ScrollArea className="h-full">
-          <div className="px-6 py-6 sm:px-10">{preview}</div>
-        </ScrollArea>
-      );
-      break;
-    case "source":
-      workspace = (
-        <div className="flex h-full min-h-0 flex-col px-4 py-4">
-          <Label htmlFor="requirements-markdown" className="sr-only">
-            要件定義書 Markdown
-          </Label>
-          <Textarea
-            id="requirements-markdown"
-            value={markdown}
-            onChange={(event) => onMarkdownChange(event.target.value)}
-            spellCheck={false}
-            className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
-          />
-        </div>
-      );
-      break;
-    case "split":
-      workspace = (
-        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-2">
-          <div className="flex min-h-0 flex-col border-b border-border lg:border-r lg:border-b-0">
-            <Label htmlFor="requirements-markdown-split" className="sr-only">
-              要件定義書 Markdown
-            </Label>
-            <Textarea
-              id="requirements-markdown-split"
-              value={markdown}
-              onChange={(event) => onMarkdownChange(event.target.value)}
-              spellCheck={false}
-              className="h-full min-h-0 flex-1 resize-none rounded-none border-0 font-mono text-sm leading-relaxed field-sizing-fixed"
-            />
-          </div>
-          <ScrollArea className="h-full min-h-64">
-            <div className="px-6 py-6">{preview}</div>
-          </ScrollArea>
-        </div>
-      );
-      break;
-    default: {
-      const _exhaustiveCheck: never = view;
-      throw new Error(`Unhandled document editor view: ${_exhaustiveCheck}`);
-    }
-  }
-
   return (
     <section
       aria-label="要件定義書エディタ"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 sm:px-8"
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
+      <div className="flex shrink-0 items-center justify-between py-2">
         <ToggleGroup
           value={[view]}
           onValueChange={handleViewChange}
@@ -103,21 +66,59 @@ export function DocumentEditor({
           spacing={0}
           aria-label="表示モード"
         >
-          <ToggleGroupItem value="preview" aria-label="プレビュー">
+          <ToggleGroupItem value="preview" aria-label="見る">
             <Eye data-icon="inline-start" />
-            プレビュー
+            見る
           </ToggleGroupItem>
-          <ToggleGroupItem value="split" aria-label="分割表示">
+          <ToggleGroupItem value="split" aria-label="ならべて">
             <Columns2 data-icon="inline-start" />
-            分割
+            ならべて
           </ToggleGroupItem>
-          <ToggleGroupItem value="source" aria-label="Markdown編集">
+          <ToggleGroupItem value="source" aria-label="なおす">
             <FilePenLine data-icon="inline-start" />
-            編集
+            なおす
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <div className="min-h-0 flex-1 bg-background">{workspace}</div>
+      <div className="relative min-h-0 flex-1 bg-background">
+        {view === "preview" ? (
+          <div className="absolute inset-0">
+            <ScrollArea className="h-full">
+              <div className="px-1 py-6 sm:px-2">{preview}</div>
+            </ScrollArea>
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "absolute inset-0 min-h-0",
+            view === "source" && "flex flex-col",
+            view === "split" && "grid grid-cols-1 lg:grid-cols-2",
+            view === "preview" && "invisible pointer-events-none"
+          )}
+        >
+          <div className="flex h-full min-h-0 flex-col lg:pr-6">
+            <Label htmlFor="requirements-markdown" className="sr-only">
+              まとめの本文
+            </Label>
+            <Textarea
+              ref={sourceRef}
+              id="requirements-markdown"
+              value={markdown}
+              onChange={(event) => handleMarkdownInput(event.target.value)}
+              onInput={(event) =>
+                handleMarkdownInput(event.currentTarget.value)
+              }
+              spellCheck={false}
+              className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed"
+            />
+          </div>
+          {view === "split" ? (
+            <ScrollArea className="h-full min-h-64">
+              <div className="px-1 py-6 lg:pl-6">{preview}</div>
+            </ScrollArea>
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }
