@@ -250,13 +250,16 @@ class AudioStreamSession:
 
     async def _close_dropped_stream(self, stream: TranscriptStream) -> None:
         try:
-            await stream.close()
+            utterances = await stream.close()
         except (STTServiceError, AudioProcessingError) as exc:
             logger.warning(
                 "Failed to close dropped transcript stream for meeting %s: %s",
                 self.meeting_id,
                 exc,
             )
+            return
+        if utterances:
+            await self._publish_closed_utterances(utterances)
 
     def _utterances_or_drop(
         self,

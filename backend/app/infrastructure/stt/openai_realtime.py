@@ -429,8 +429,6 @@ class PersistentOpenAIRealtimeSession:
         )
 
     def _drain(self) -> list[Utterance]:
-        if self._start_error is not None:
-            raise self._start_error
         pending = self._pending
         self._pending = []
         return pending
