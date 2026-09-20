@@ -145,6 +145,13 @@ pnpm run dev      # http://localhost:3000
 
 画面共有をキャンセルした場合は「うまく聞けませんでした」が出ます。WebSocket 切断時は再接続を試します。Orca Router 未設定時は助言・話の地図・要件書生成が無効になります。
 
+### 会議マップの更新のしかた
+
+- 話しているあいだは確定した文字起こしを溜めるだけです。左右 PCM がともに 1 秒静かになったとき、切断時、手動の `analyze` のときだけ、溜めた発話を 1 回の Orca Router `chat_completion` に送ります。話し続けているあいだの秒数上限はありません。
+- LLM は「マインドマップを作る」のではなく、既存マップを編集します。入力は現在のマップ・保留（pending）・直前の発話・過去の関連発話・今回の発話ウィンドウ。出力は差分 `operations`（add / annotate / correct / relate / set_status）と `pending` で、`backend/app/application/use_cases/update_mind_map.py` が JSON を境界で解釈し、`backend/app/domain/models/mind_map.py` の純粋な reducer が適用します。
+- ノードは kind（論点・報告・提案・理由・懸念・決定・行動項目）、status（open / decided / pending / superseded）、detail、関係（supports / opposes / supersedes）、訂正履歴、pinned を持ちます。深さはルートを 1 として最大 5。6 段目になる内容は親の detail に残し、訂正は履歴を残し、人が固定した内容は上書きしません。
+- LLM の呼び出しに失敗したウィンドウは捨てず、次の沈黙で再送します（沈黙の要求時間は失敗ごとに倍、最大 8 秒）。保存済みの地図と読み取り位置（watermark）は成功時だけ進み、後退しません。
+
 ---
 
 ## 検証コマンド
