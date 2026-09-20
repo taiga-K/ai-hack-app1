@@ -1,9 +1,11 @@
 """Unit tests for OpenAI Realtime Whisper STT, with the network boundary mocked."""
 
+import asyncio
 import json
 from datetime import UTC
 
 import pytest
+from websockets.exceptions import ConnectionClosedOK
 
 from app.application.use_cases import TranscribeAudioUseCase
 from app.domain.exceptions import STTConfigurationError, STTServiceError
@@ -285,6 +287,104 @@ def test_dominant_channel_detects_turn_taking() -> None:
     assert pcm16_is_dominant(loud, quiet)
     assert not pcm16_is_dominant(quiet, loud)
     assert not pcm16_is_dominant(loud, loud)
+
+
+class _RecordingRealtimeSocket:
+    def __init__(self) -> None:
+        self.sent: list[dict[str, object]] = []
+        self._incoming: asyncio.Queue[str | None] = asyncio.Queue()
+
+    async def send(self, raw: str) -> None:
+        event = json.loads(raw)
+        self.sent.append(event)
+        if event.get("type") == "session.update":
+            await self._incoming.put(json.dumps({"type": "session.updated"}))
+        if event.get("type") == "input_audio_buffer.commit":
+            await self._incoming.put(
+                json.dumps(
+                    {
+                        "type": "conversation.item.input_audio_transcription.completed",
+                        "item_id": f"item-{self.commit_count()}",
+                        "transcript": "",
+                    }
+                )
+            )
+
+    async def recv(self) -> str:
+        message = await self._incoming.get()
+        if message is None:
+            raise ConnectionClosedOK(None, None)
+        return message
+
+    async def close(self) -> None:
+        await self._incoming.put(None)
+
+    async def __aenter__(self) -> "_RecordingRealtimeSocket":
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        return None
+
+    def commit_count(self) -> int:
+        return sum(
+            1 for event in self.sent if event.get("type") == "input_audio_buffer.commit"
+        )
+
+
+def _script_processor_pcm(*, amplitude: int = 0x2000) -> bytes:
+    samples_16k = 4096 * 16000 // 48000
+    return amplitude.to_bytes(2, "little", signed=True) * samples_16k
+
+
+@pytest.mark.asyncio
+async def test_sub_100ms_buffer_does_not_send_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    socket = _RecordingRealtimeSocket()
+    monkeypatch.setattr(
+        "app.infrastructure.stt.openai_realtime.connect",
+        lambda *_args, **_kwargs: socket,
+    )
+    session = PersistentOpenAIRealtimeSession(
+        api_key="sk-test",
+        url="wss://api.openai.com/v1/realtime",
+        timeout_seconds=1.0,
+        language="ja",
+        model="gpt-realtime-whisper",
+        delay="high",
+        speaker=Speaker.LOCAL_PM,
+        meeting_id="meeting-min-commit",
+        start_offset_ms=0,
+    )
+    too_short = _script_processor_pcm()
+    assert await session.append(too_short, 16000) == []
+    assert await session.commit() == []
+    assert [
+        event["type"] for event in socket.sent if event["type"] != "session.update"
+    ] == ["input_audio_buffer.append"]
+
+    assert await session.append(too_short, 16000) == []
+    assert await session.commit() == []
+    assert [
+        event["type"] for event in socket.sent if event["type"] != "session.update"
+    ] == [
+        "input_audio_buffer.append",
+        "input_audio_buffer.append",
+    ]
+
+    floor_pcm = (b"\x00\x20") * 3200
+    assert await session.append(floor_pcm, 16000) == []
+    assert await session.commit() == []
+    assert [
+        event["type"] for event in socket.sent if event["type"] != "session.update"
+    ] == [
+        "input_audio_buffer.append",
+        "input_audio_buffer.append",
+        "input_audio_buffer.append",
+        "input_audio_buffer.commit",
+    ]
+
+    await session.close()
 
 
 def test_completed_event_keeps_next_turn_audio() -> None:
