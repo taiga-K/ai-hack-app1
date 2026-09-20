@@ -30,11 +30,52 @@ def is_store_media(resolved: str) -> bool:
     )
 
 
+def require_host(raw: str) -> str:
+    if raw == "" or not all(
+        char.isalnum() or char in {".", "_", ":", "-"} for char in raw
+    ):
+        print(
+            f"Rejected --host {raw!r}. Must match [A-Za-z0-9._:-]+ "
+            "(no $, backticks, spaces, or other shell metacharacters).",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return raw
+
+
+def require_port(raw: str) -> str:
+    if not raw.isdigit() or (len(raw) > 1 and raw.startswith("0")):
+        print(
+            f"Rejected --port {raw!r}. Must be an integer 1-65535.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    value = int(raw)
+    if value < 1 or value > 65535:
+        print(
+            f"Rejected --port {raw!r}. Must be an integer 1-65535.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    return str(value)
+
+
 def main() -> None:
-    if len(sys.argv) != 3 or sys.argv[1] not in {"--run", "--evidence"}:
-        raise SystemExit("usage: path-guard.py --run|--evidence PATH")
+    if len(sys.argv) != 3 or sys.argv[1] not in {
+        "--run",
+        "--evidence",
+        "--host",
+        "--port",
+    }:
+        raise SystemExit("usage: path-guard.py --run|--evidence|--host|--port VALUE")
     kind = sys.argv[1]
     raw = sys.argv[2]
+    if kind == "--host":
+        print(require_host(raw))
+        return
+    if kind == "--port":
+        print(require_port(raw))
+        return
     resolved = resolve(raw)
     if kind == "--run":
         allowed = is_tmp_child(resolved)

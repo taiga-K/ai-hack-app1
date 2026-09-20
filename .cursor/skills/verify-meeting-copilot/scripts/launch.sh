@@ -7,9 +7,9 @@ REPO_ROOT=$(cd "${SKILL_DIR}/../../.." && pwd)
 
 VERIFY_RUN_DIR=${VERIFY_RUN_DIR:-/tmp/verify-meeting-copilot}
 VERIFY_RUN_DIR=$("${SCRIPT_DIR}/path-guard.py" --run "${VERIFY_RUN_DIR}")
-VERIFY_FRONTEND_HOST=${VERIFY_FRONTEND_HOST:-127.0.0.1}
-VERIFY_FRONTEND_PORT=${VERIFY_FRONTEND_PORT:-3100}
-VERIFY_BACKEND_PORT=${VERIFY_BACKEND_PORT:-8010}
+VERIFY_FRONTEND_HOST=$("${SCRIPT_DIR}/path-guard.py" --host "${VERIFY_FRONTEND_HOST:-127.0.0.1}")
+VERIFY_FRONTEND_PORT=$("${SCRIPT_DIR}/path-guard.py" --port "${VERIFY_FRONTEND_PORT:-3100}")
+VERIFY_BACKEND_PORT=$("${SCRIPT_DIR}/path-guard.py" --port "${VERIFY_BACKEND_PORT:-8010}")
 VERIFY_WITH_BACKEND=${VERIFY_WITH_BACKEND:-0}
 FRONTEND_URL="http://${VERIFY_FRONTEND_HOST}:${VERIFY_FRONTEND_PORT}"
 BACKEND_URL="http://127.0.0.1:${VERIFY_BACKEND_PORT}"
@@ -77,25 +77,31 @@ if [[ "${VERIFY_WITH_BACKEND}" == "1" ]]; then
     exit 1
   fi
   : >"${VERIFY_RUN_DIR}/backend.log"
-  setsid bash -c "
-    cd \"${REPO_ROOT}/backend\"
-    exec uv run uvicorn main:app --reload --host 127.0.0.1 --port ${VERIFY_BACKEND_PORT}
-  " </dev/null >"${VERIFY_RUN_DIR}/backend.log" 2>&1 &
+  setsid env \
+    LAUNCH_DIR="${REPO_ROOT}/backend" \
+    LAUNCH_PORT="${VERIFY_BACKEND_PORT}" \
+    bash -c 'cd "$LAUNCH_DIR" && exec uv run uvicorn main:app --reload --host 127.0.0.1 --port "$LAUNCH_PORT"' \
+    </dev/null >"${VERIFY_RUN_DIR}/backend.log" 2>&1 &
   BACKEND_PID=$!
   echo "${BACKEND_PID}" >"${VERIFY_RUN_DIR}/backend.pid"
 fi
 
 : >"${VERIFY_RUN_DIR}/frontend.log"
-FRONTEND_ENV=(env)
-if [[ "${VERIFY_WITH_BACKEND}" == "1" ]]; then
-  FRONTEND_ENV+=(BACKEND_HTTP_ORIGIN="${BACKEND_URL}")
-fi
 # Same Next.js dev server as README `pnpm run dev`. Extra `--` must not
 # be forwarded: Next 16 treats a leading `--hostname` as a project path.
-setsid bash -c "
-  cd \"${REPO_ROOT}/frontend\"
-  exec ${FRONTEND_ENV[*]} pnpm exec next dev --hostname ${VERIFY_FRONTEND_HOST} --port ${VERIFY_FRONTEND_PORT}
-" </dev/null >"${VERIFY_RUN_DIR}/frontend.log" 2>&1 &
+# Host/port are validated above and passed via env, not interpolated into bash -c.
+frontend_env=(
+  env
+  LAUNCH_DIR="${REPO_ROOT}/frontend"
+  LAUNCH_HOST="${VERIFY_FRONTEND_HOST}"
+  LAUNCH_PORT="${VERIFY_FRONTEND_PORT}"
+)
+if [[ "${VERIFY_WITH_BACKEND}" == "1" ]]; then
+  frontend_env+=(BACKEND_HTTP_ORIGIN="${BACKEND_URL}")
+fi
+setsid "${frontend_env[@]}" \
+  bash -c 'cd "$LAUNCH_DIR" && exec pnpm exec next dev --hostname "$LAUNCH_HOST" --port "$LAUNCH_PORT"' \
+  </dev/null >"${VERIFY_RUN_DIR}/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo "${FRONTEND_PID}" >"${VERIFY_RUN_DIR}/frontend.pid"
 

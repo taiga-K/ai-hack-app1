@@ -157,7 +157,7 @@ All scripts are executable. Invoke them from the repository root as shown. Do no
 
 | Script | What it does |
 | :--- | :--- |
-| `scripts/path-guard.py` | Resolves a path (`realpath`) and exits `1` unless it stays under the allowed prefix. `--run` is `/tmp/<name>` only. `--evidence` also allows `/cursor/stores/<id>/media/<name>`. |
+| `scripts/path-guard.py` | Resolves a path (`realpath`) and exits `1` unless it stays under the allowed prefix. `--run` is `/tmp/<name>` only. `--evidence` also allows `/cursor/stores/<id>/media/<name>`. `--host` / `--port` reject shell metacharacters and non-ports before `launch.sh` builds any command. |
 | `scripts/launch.sh` | `pnpm install` if `frontend/node_modules` is missing, then `pnpm exec next dev --hostname … --port …` (same Next.js dev server as README `pnpm run dev`). Optional backend: `uv run uvicorn main:app --reload --port …`. Writes `launch.json`. |
 | `scripts/doctor.sh` | Read-only ownership + HTTP check. Exit `0` only when the instance is ours and worth driving. |
 | `scripts/cleanup.sh` | Signal the recorded PIDs / process groups. Keep evidence. `rm -rf` runs only after `path-guard.py --run`. |
@@ -175,9 +175,9 @@ Environment the helpers honor:
 | Variable | Default | Meaning |
 | :--- | :--- | :--- |
 | `VERIFY_RUN_DIR` | `/tmp/verify-meeting-copilot` | PID / log / `launch.json` scratch. Helpers resolve this path and reject anything outside `/tmp/<name>` before mkdir, read, or `rm -rf`. |
-| `VERIFY_FRONTEND_HOST` | `127.0.0.1` | Bind address |
-| `VERIFY_FRONTEND_PORT` | `3100` | Isolated from README `:3000` |
-| `VERIFY_BACKEND_PORT` | `8010` | Isolated from README `:8000` |
+| `VERIFY_FRONTEND_HOST` | `127.0.0.1` | Bind address. `launch.sh` rejects anything outside `[A-Za-z0-9._:-]+` before `bash -c`. |
+| `VERIFY_FRONTEND_PORT` | `3100` | Isolated from README `:3000`. Integer 1–65535 only. |
+| `VERIFY_BACKEND_PORT` | `8010` | Isolated from README `:8000`. Integer 1–65535 only. |
 | `VERIFY_WITH_BACKEND` | `0` | `1` starts FastAPI |
 | `VERIFY_FRONTEND_URL` | `http://127.0.0.1:3100` | Drive target |
 | `VERIFY_EVIDENCE_DIR` | `/tmp/verify-meeting-copilot-evidence` | Screenshots and video; survives Cleanup. `drive.mjs` resolves this path and allows only `/tmp/<name>` or `/cursor/stores/<id>/media/<name>`. |
