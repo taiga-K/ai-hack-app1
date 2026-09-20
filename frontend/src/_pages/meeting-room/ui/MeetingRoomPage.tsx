@@ -87,9 +87,7 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
-    alreadyEnded:
-      readRememberedCompletedSummary(meetingId) !== null ||
-      completedSummary.status === "error",
+    alreadyEnded: readRememberedCompletedSummary(meetingId) !== null,
   });
 
   async function handleEndMeeting() {

@@ -173,6 +173,16 @@ test("生成中に戻るとフロアで完了を待ち同じまとめを開け�
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
+async function stubRequirementsFailure(page: Page): Promise<void> {
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements unavailable" }),
+    });
+  });
+}
+
 test("実会議開始では初回認証なしで空の会議ルームが開く", async ({ page }) => {
   await stubMissingRequirements(page);
   await page.goto("/");
@@ -189,6 +199,18 @@ test("実会議開始では初回認証なしで空の会議ルームが開く",
     page.getByRole("button", { name: "ききはじめる" })
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toBeEnabled();
+});
+
+test("実会議は要件書GETが失敗しても操作できる", async ({ page }) => {
+  await stubRequirementsFailure(page);
+  await page.goto("/meetings/e2e-req-500?title=障害会議");
+  await expect(page).not.toHaveURL(/demo=1/);
+  await expect(
+    page.getByRole("button", { name: "ききはじめる" })
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await expect(page.getByText("ききはじめるを押すと")).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
 });
 
 test("画面共有を拒否すると聞けなかったことを表示する", async ({ page }) => {
@@ -582,7 +604,7 @@ test("実会議の生成失敗後に開き直すとやり直せる", async ({ pa
       body: JSON.stringify({ detail: "finalize failed" }),
     });
   });
-  await stubMissingRequirements(page);
+  await stubRequirementsFailure(page);
 
   await page.goto("/meetings/e2e-fail-finalize?title=失敗会議");
   await expect(page.getByText(REAL_MEMO)).toBeVisible();

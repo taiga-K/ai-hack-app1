@@ -196,9 +196,9 @@ export function isMeetingAlreadyOver(input: {
   }
   switch (input.lookupStatus) {
     case "found":
+      return true;
     case "checking":
     case "error":
-      return true;
     case "missing":
       return false;
     default: {

@@ -172,18 +172,29 @@ describe("mergeCompletedSummaryLookup", () => {
 });
 
 describe("isMeetingAlreadyOver", () => {
-  it("hides end controls while checking or on fetch error", () => {
+  it("keeps live controls while checking or on fetch error", () => {
     assert.equal(
       isMeetingAlreadyOver({
         lookupStatus: "checking",
         hasSessionDocument: false,
         phase: "idle",
       }),
-      true
+      false
     );
     assert.equal(
       isMeetingAlreadyOver({
         lookupStatus: "error",
+        hasSessionDocument: false,
+        phase: "idle",
+      }),
+      false
+    );
+  });
+
+  it("hides end controls only after a completed summary is found", () => {
+    assert.equal(
+      isMeetingAlreadyOver({
+        lookupStatus: "found",
         hasSessionDocument: false,
         phase: "idle",
       }),
