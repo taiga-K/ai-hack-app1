@@ -26,7 +26,7 @@ Preconditions:
 - **Open home.** Go to `/`. `page.goto(process.env.VERIFY_FRONTEND_URL + "/")`. Heading `/会議がおわると/` is visible and the page shows `相手の画面には出ません`.
 - **Name the meeting.** Fill the textbox. `page.getByRole("textbox", { name: "今日の会議のなまえ" }).fill("検証スタート")`.
 - **Preview entry.** Choose **おためし**. `page.getByRole("button", { name: "おためし" }).click()`. URL matches `/\/meetings\/.+[?&]demo=1/` and `title` is `検証スタート`. Header badge text `おためし` is visible.
-- **Live entry.** From a fresh `/`, fill `検証ライブ` and choose **はじめる**. `page.getByRole("button", { name: "はじめる" }).click()`. URL matches `/\/meetings\/[0-9a-f-]+\?title=/` and does **not** include `demo=1`. Button **ききはじめる** is visible. Empty map copy `話しはじめると、ここにちいさな地図が育ちます` is visible.
+- **Live entry.** From a fresh `/`, fill `検証ライブ` and choose **はじめる**. `page.getByRole("button", { name: "はじめる" }).click()`. URL matches `/\/meetings\/[0-9a-f-]+\?title=/` and does **not** include `demo=1`. Button **ききはじめる** is visible. Empty map copy `マインドマップが作られます` is visible.
 - **Default title.** From `/`, leave the textbox empty and choose **おためし**. The room title reads `今日の会議`.
 - **Proof.** Screenshot home (heading visible) and the preview room (badge `おためし` + regions `こちら` / `むこう`). Video must include the **おためし** click and the URL change. Record feature id `start-meeting`.
 

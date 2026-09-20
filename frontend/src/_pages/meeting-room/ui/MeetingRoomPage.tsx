@@ -289,8 +289,8 @@ export function MeetingRoomPage({
               onSelect={setMobilePane}
             >
               {adviceItems.length > 0
-                ? `ささやき ${String(adviceItems.length)}`
-                : "ささやき"}
+                ? `アドバイス ${String(adviceItems.length)}`
+                : "アドバイス"}
             </MobilePaneButton>
           </div>
           <div

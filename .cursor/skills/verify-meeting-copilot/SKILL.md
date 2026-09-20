@@ -81,7 +81,7 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | Preview URL | `/meetings/<uuid>?title=...&demo=1` |
 | Live URL | `/meetings/<uuid>?title=...` and **not** `demo=1` |
 | Ours / theirs | `getByRole("region", { name: "こちら" })` / `むこう` |
-| Whispers | `getByRole("complementary", { name: "こちらのささやき" })` |
+| Whispers | `getByRole("complementary", { name: "こちらのアドバイス" })` |
 | Map / memos tabs | `getByRole("tab", { name: "話の地図" })` / `会議のメモ` |
 | Splitter | `getByRole("separator", { name: "左右の幅を変える" })` |
 | Capture | `ききはじめる` / `きくのをやめる` / `おためしちゅう` |
@@ -89,7 +89,7 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | After end | text `まとめをつくっています` then `/document` |
 | Back | `getByRole("link", { name: "戻る" })` or `getByRole("button", { name: "戻る" })` |
 | Reopen まとめ | `getByRole("link", { name: "まとめを見る" })` |
-| Export | `コピー` / `ファイルに保存` |
+| Export | header icon `まとめをコピー` / `ファイルに保存` |
 | Editor modes | `見る` / `ならべて` / `なおす` (`#requirements-markdown`) |
 
 One-off Playwright in `frontend/` (same selectors as the spec):
@@ -119,7 +119,7 @@ pnpm run test:e2e
 
 That starts `next start` on `127.0.0.1:3217` (`reuseExistingServer` when `CI` is unset). Use it to re-run mapped flows the spec already drives (`startUiPreview`, `confirmEndMeeting`). Do not start it while you are driving `:3100` and expecting one browser to be both. Do not add a login helper.
 
-Desktop recipes assume viewport ≥ `1280x800` (left whispers + right map). At `390x844` the same content is under tablist `会議の表示` (`話の地図` / `メモ` / `ささやき`).
+Desktop recipes assume viewport ≥ `1280x800` (left whispers + right map). At `390x844` the same content is under tablist `会議の表示` (`話の地図` / `メモ` / `アドバイス`).
 
 ## Evidence
 

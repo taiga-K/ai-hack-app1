@@ -50,10 +50,10 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
 
   return (
     <aside
-      aria-label="こちらのささやき"
+      aria-label="こちらのアドバイス"
       className="flex h-full min-h-0 flex-col"
     >
-      <h2 className="shrink-0 pb-2 text-sm font-medium">ささやき</h2>
+      <h2 className="shrink-0 pb-2 text-sm font-medium">アドバイス</h2>
       <ScrollArea className="min-h-0 flex-1">
         <div
           className="flex flex-col gap-5 py-1 pr-2"
@@ -62,7 +62,7 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
         >
           {adviceItems.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              いまは、ささやくことがありません
+              いまは、アドバイスがありません
             </p>
           ) : (
             adviceItems.map((item, index) => {

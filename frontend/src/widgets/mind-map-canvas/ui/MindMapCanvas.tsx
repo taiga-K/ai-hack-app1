@@ -356,7 +356,7 @@ export function MindMapCanvas({
       <div className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
           <p className="py-8 text-sm text-muted-foreground">
-            話しはじめると、ここにちいさな地図が育ちます
+            マインドマップが作られます
           </p>
         ) : (
           <ReactFlowProvider>

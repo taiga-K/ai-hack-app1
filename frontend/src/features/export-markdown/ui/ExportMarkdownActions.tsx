@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Spinner } from "@/shared/ui";
+import { Button } from "@/shared/ui";
 
 export interface ExportMarkdownActionsProps {
   copyDisabled?: boolean;
@@ -9,6 +9,24 @@ export interface ExportMarkdownActionsProps {
   downloading?: boolean;
   onCopy: () => void;
   onDownload: () => void;
+}
+
+function CopyMarkdownIcon() {
+  return (
+    <span className="export-copy-icon" aria-hidden="true">
+      <span className="export-copy-icon__back" />
+      <span className="export-copy-icon__front" />
+    </span>
+  );
+}
+
+function SaveMarkdownIcon() {
+  return (
+    <span className="export-save-icon" aria-hidden="true">
+      <span className="export-save-icon__arrow" />
+      <span className="export-save-icon__tray" />
+    </span>
+  );
 }
 
 export function ExportMarkdownActions({
@@ -20,23 +38,32 @@ export function ExportMarkdownActions({
   onDownload,
 }: ExportMarkdownActionsProps) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex items-center gap-1">
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
+        size="icon-sm"
+        className="export-action"
+        aria-label="まとめをコピー"
+        data-tooltip="まとめをコピー"
+        aria-busy={copying}
         onClick={onCopy}
         disabled={copyDisabled || copying}
       >
-        {copying ? <Spinner data-icon="inline-start" /> : null}
-        コピー
+        <CopyMarkdownIcon />
       </Button>
       <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="export-action"
+        aria-label="ファイルに保存"
+        data-tooltip="ファイルに保存"
+        aria-busy={downloading}
         onClick={onDownload}
         disabled={downloadDisabled || downloading}
       >
-        {downloading ? <Spinner data-icon="inline-start" /> : null}
-        ファイルに保存
+        <SaveMarkdownIcon />
       </Button>
     </div>
   );

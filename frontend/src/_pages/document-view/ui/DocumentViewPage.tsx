@@ -82,22 +82,21 @@ export function DocumentViewPage({
       <Header
         title={meetingTitle}
         badge={preview ? "おためし" : "できたまとめ"}
+        titleActions={
+          <ExportMarkdownActions
+            copyDisabled={status !== "ready" || markdown.length === 0}
+            downloadDisabled={status !== "ready" || markdown.length === 0}
+            copying={copying}
+            downloading={downloading}
+            onCopy={() => {
+              void handleCopy();
+            }}
+            onDownload={() => {
+              void handleDownload();
+            }}
+          />
+        }
       />
-
-      <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-2 sm:px-8">
-        <ExportMarkdownActions
-          copyDisabled={status !== "ready" || markdown.length === 0}
-          downloadDisabled={status !== "ready" || markdown.length === 0}
-          copying={copying}
-          downloading={downloading}
-          onCopy={() => {
-            void handleCopy();
-          }}
-          onDownload={() => {
-            void handleDownload();
-          }}
-        />
-      </div>
 
       {status === "ready" ? (
         <div className="px-5 pb-2 sm:px-8">
