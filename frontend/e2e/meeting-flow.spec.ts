@@ -126,13 +126,12 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   const widthHandle = page.getByRole("separator", { name: "左右の幅を変える" });
   await expect(widthHandle).toBeVisible();
   await expect(page.getByText("地図をかいています")).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "マインドマップ" })
-  ).toBeVisible();
-  await expect(page.getByText("今日の会議").first()).toBeVisible({
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  await expect(mapRegion).toBeVisible();
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
     timeout: 4000,
   });
-  await expect(page.getByText("対象範囲").first()).toBeVisible({
+  await expect(mapRegion.getByText("対象範囲")).toBeVisible({
     timeout: 4000,
   });
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
