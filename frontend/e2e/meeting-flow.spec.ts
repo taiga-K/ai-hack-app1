@@ -11,6 +11,7 @@ async function startUiPreview(page: Page, title: string): Promise<void> {
   await expect(
     page.getByRole("heading", { name: /会議がおわると/ })
   ).toBeVisible();
+  await expect(page.getByText("相手の画面には出ません")).toBeVisible();
   await page.getByPlaceholder(/なまえ/).fill(title);
   await page.getByRole("button", { name: "おためし" }).click();
   await expect(page).toHaveURL(/\/meetings\/.+[?&]demo=1/);
@@ -85,10 +86,14 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   ).toBeVisible();
   await expect(page.getByText("あとで確認すること")).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "要件定義書エディタ" })
+    page.getByText("『API連携でリアルタイム同期』の対象データ").first()
   ).toBeVisible();
+  await page.getByText("あとで確認すること").click();
   await expect(
     page.getByRole("heading", { name: "E2E要件書会議" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "要件定義書エディタ" })
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: /未決事項（ToDo \/ 宿題）/ })
@@ -111,6 +116,9 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await page.getByRole("button", { name: "なおす" }).click();
   const editor = page.locator("#requirements-markdown");
   await expect(editor).toBeVisible();
+  await expect(editor).toHaveValue(/プロジェクト\/会議概要/);
+  const editorBox = await editor.boundingBox();
+  expect(editorBox?.height ?? 0).toBeGreaterThan(240);
   await editor.fill("# 編集後の要件定義書\n\nE2Eで書き換えました。");
   await page.getByRole("button", { name: "見る" }).click();
   await expect(

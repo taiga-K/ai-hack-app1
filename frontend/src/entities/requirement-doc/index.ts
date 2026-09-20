@@ -9,6 +9,7 @@ export {
   findOpenIssuesSection,
   hasConcreteOpenIssues,
   isOpenIssuesHeading,
+  listOpenIssueItems,
 } from "./model/open-issues";
 export {
   parseRequirementDocument,

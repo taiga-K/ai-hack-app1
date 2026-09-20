@@ -22,19 +22,36 @@ export function findOpenIssuesSection(
   return byHeading ?? null;
 }
 
-export function hasConcreteOpenIssues(
+export function listOpenIssueItems(
   section: RequirementSection | null
-): boolean {
+): string[] {
   if (section === null) {
-    return false;
+    return [];
   }
 
   const body = section.bodyMarkdown.trim();
-  if (body.length === 0) {
-    return false;
+  if (body.length === 0 || body === EMPTY_OPEN_ISSUES_PLACEHOLDER) {
+    return [];
   }
 
-  return body !== EMPTY_OPEN_ISSUES_PLACEHOLDER;
+  const bullets = body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("- "))
+    .map((line) => line.slice(2).trim())
+    .filter((line) => line.length > 0);
+
+  if (bullets.length > 0) {
+    return bullets;
+  }
+
+  return [body];
+}
+
+export function hasConcreteOpenIssues(
+  section: RequirementSection | null
+): boolean {
+  return listOpenIssueItems(section).length > 0;
 }
 
 export function isOpenIssuesHeading(text: string): boolean {

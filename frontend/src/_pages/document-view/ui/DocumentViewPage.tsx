@@ -41,8 +41,7 @@ export function DocumentViewPage({
     errorMessage,
     view,
     setView,
-    openIssues,
-    showOpenIssuesCallout,
+    openIssueItems,
     copying,
     downloading,
     reload,
@@ -98,12 +97,20 @@ export function DocumentViewPage({
         />
       </div>
 
-      {showOpenIssuesCallout && openIssues ? (
+      {status === "ready" ? (
         <div className="px-5 pb-2 sm:px-8">
           <p className="text-sm font-medium">あとで確認すること</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {openIssues.heading}
-          </p>
+          {openIssueItems.length === 0 ? (
+            <p className="mt-1 text-sm text-foreground">
+              確認することは、ありません
+            </p>
+          ) : (
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-foreground">
+              {openIssueItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : null}
 

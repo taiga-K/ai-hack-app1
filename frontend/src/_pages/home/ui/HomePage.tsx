@@ -25,7 +25,9 @@ export function HomePage() {
             まとめが出来てます
           </h1>
           <p className="text-sm leading-relaxed text-foreground">
-            Meetの横に置いて、はじめてください。相手の画面には出ません。
+            Meetの横に置いて、はじめてください。
+            <br />
+            相手の画面には出ません。
           </p>
         </div>
         <StartMeetingForm />

@@ -82,19 +82,21 @@ export function DocumentEditor({
       </div>
       <div className="relative min-h-0 flex-1 bg-background">
         {view === "preview" ? (
-          <ScrollArea className="h-full">
-            <div className="px-1 py-6 sm:px-2">{preview}</div>
-          </ScrollArea>
+          <div className="absolute inset-0">
+            <ScrollArea className="h-full">
+              <div className="px-1 py-6 sm:px-2">{preview}</div>
+            </ScrollArea>
+          </div>
         ) : null}
         <div
           className={cn(
-            "h-full min-h-0",
-            view === "preview" && "hidden",
+            "absolute inset-0 min-h-0",
             view === "source" && "flex flex-col",
-            view === "split" && "grid grid-cols-1 lg:grid-cols-2"
+            view === "split" && "grid grid-cols-1 lg:grid-cols-2",
+            view === "preview" && "invisible pointer-events-none"
           )}
         >
-          <div className="flex min-h-0 flex-col lg:pr-6">
+          <div className="flex h-full min-h-0 flex-col lg:pr-6">
             <Label htmlFor="requirements-markdown" className="sr-only">
               まとめの本文
             </Label>
@@ -107,7 +109,7 @@ export function DocumentEditor({
                 handleMarkdownInput(event.currentTarget.value)
               }
               spellCheck={false}
-              className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
+              className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed"
             />
           </div>
           {view === "split" ? (

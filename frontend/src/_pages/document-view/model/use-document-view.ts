@@ -7,6 +7,7 @@ import {
   findOpenIssuesSection,
   getRequirementDocument,
   hasConcreteOpenIssues,
+  listOpenIssueItems,
   type RequirementDocument,
 } from "@/entities/requirement-doc";
 import {
@@ -161,6 +162,10 @@ export function useDocumentView({
     () => (document ? findOpenIssuesSection(document) : null),
     [document]
   );
+  const openIssueItems = useMemo(
+    () => listOpenIssueItems(openIssues),
+    [openIssues]
+  );
   const showOpenIssuesCallout = hasConcreteOpenIssues(openIssues);
 
   const copyMarkdown = useCallback(async (): Promise<boolean> => {
@@ -212,6 +217,7 @@ export function useDocumentView({
     view,
     setView,
     openIssues,
+    openIssueItems,
     showOpenIssuesCallout,
     copying,
     downloading,

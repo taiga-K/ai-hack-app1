@@ -4,6 +4,7 @@ import {
   findOpenIssuesSection,
   hasConcreteOpenIssues,
   isOpenIssuesHeading,
+  listOpenIssueItems,
 } from "./open-issues.ts";
 import type { RequirementDocument } from "./types.ts";
 
@@ -51,6 +52,9 @@ describe("open issues helpers", () => {
     );
 
     assert.equal(hasConcreteOpenIssues(section), true);
+    assert.deepEqual(listOpenIssueItems(section), [
+      "リアルタイム同期の対象データを確認する",
+    ]);
     assert.equal(
       isOpenIssuesHeading("6. 未決事項（ToDo / 宿題）・確認中リスク一覧"),
       true
