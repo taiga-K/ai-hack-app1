@@ -140,21 +140,20 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page.getByRole("link", { name: "戻る" })).toBeVisible();
 });
 
-test("終わる確認のあと戻るで会議の場に戻れる", async ({ page }) => {
-  await startUiPreview(page, "E2E確認戻り");
+test("生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({ page }) => {
+  await startUiPreview(page, "E2E生成中戻り");
   await confirmEndMeeting(page);
 
-  const overlayBack = page.getByRole("button", { name: "戻る" });
-  await expect(overlayBack).toBeVisible();
-  await overlayBack.click();
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toBeVisible();
+  await page.getByRole("button", { name: "戻る" }).click();
 
   await expect(page).not.toHaveURL(/\/document/);
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
   await expect(page.getByRole("region", { name: "むこう" })).toBeVisible();
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
-  await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
-  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await page.getByRole("link", { name: "まとめを見る" }).click();
   await expect(page).toHaveURL(/\/document/);
   await expect(page.getByText("あとで確認すること")).toBeVisible();
@@ -231,6 +230,145 @@ test("画面共有を拒否すると聞けなかったことを表示する", as
   await expect(page.getByText("まだ、だれも話していません")).toBeVisible();
   await page.getByRole("button", { name: "ききはじめる" }).click();
   await expect(page.getByText("うまく聞けませんでした")).toBeVisible();
+});
+
+function requirementDocumentPayload(meetingId: string, title: string) {
+  return {
+    id: `doc-${meetingId}`,
+    meeting_id: meetingId,
+    title,
+    markdown: `# ${title}\n\n遅延したまとめです。`,
+    sections: [
+      {
+        section_id: "open_issues",
+        heading: "6. 未決事項（ToDo / 宿題）・確認中リスク一覧",
+        body_markdown: "- なし",
+      },
+    ],
+    created_at: "2026-09-20T00:00:00.000Z",
+    model: "anthropic/claude-3-5-sonnet",
+    source_utterance_count: 0,
+    source_detection_count: 0,
+  };
+}
+
+async function installClosedWebSocket(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    class ImmediateFailWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 3;
+      readonly url: string;
+      readyState = ImmediateFailWebSocket.CLOSED;
+      onopen: ((event: Event) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.onerror?.(new Event("error"));
+          this.onclose?.(new CloseEvent("close"));
+        });
+      }
+
+      send(): void {
+        return undefined;
+      }
+
+      close(): void {
+        return undefined;
+      }
+    }
+
+    Object.defineProperty(window, "WebSocket", {
+      configurable: true,
+      value: ImmediateFailWebSocket,
+    });
+  });
+}
+
+test("読込中のまとめから戻ってもおわるは出ない", async ({ page }) => {
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 2500);
+    });
+    const meetingId =
+      route.request().url().split("/meetings/")[1]?.split("/")[0] ?? "unknown";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(requirementDocumentPayload(meetingId, "読込中会議")),
+    });
+  });
+
+  await page.goto("/meetings/e2e-loading-doc/document?title=読込中会議");
+  await expect(page.getByRole("link", { name: "戻る" })).toBeVisible();
+  await expect(page.getByText("遅延したまとめです。")).toHaveCount(0);
+  await page.getByRole("link", { name: "戻る" }).click();
+  await expect(page).toHaveURL(/\/meetings\/e2e-loading-doc\?/);
+  await expect(page).toHaveURL(/summary=1/);
+  await expect(page).not.toHaveURL(/\/document/);
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+});
+
+test("実会議の生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({
+  page,
+}) => {
+  await installClosedWebSocket(page);
+  let finalized = false;
+  await page.route("**/api/v1/meetings/**/finalize", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1600);
+    });
+    finalized = true;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        requirementDocumentPayload("e2e-gen-wait", "生成待ち会議")
+      ),
+    });
+  });
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    if (!finalized) {
+      await route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ detail: "requirements document not found" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        requirementDocumentPayload("e2e-gen-wait", "生成待ち会議")
+      ),
+    });
+  });
+
+  await page.goto("/meetings/e2e-gen-wait?title=生成待ち会議");
+  await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
+  await confirmEndMeeting(page);
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await page.getByRole("button", { name: "戻る" }).click();
+  await expect(page).not.toHaveURL(/\/document/);
+  await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible({
+    timeout: 8000,
+  });
+  await page.getByRole("link", { name: "まとめを見る" }).click();
+  await expect(page).toHaveURL(/\/document/);
+  await expect(page.getByText("遅延したまとめです。")).toBeVisible();
+  await page.getByRole("link", { name: "戻る" }).click();
+  await expect(page).toHaveURL(/summary=1/);
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
 test("未生成のまとめ画面は空状態を出す", async ({ page }) => {

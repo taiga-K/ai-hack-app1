@@ -31,6 +31,13 @@ describe("buildMeetingHref", () => {
       "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1&summary=1"
     );
   });
+
+  it("keeps summary=1 when returning from a still-loading document", () => {
+    assert.equal(
+      buildMeetingHref({ ...target, hasCompletedSummary: true }),
+      "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&summary=1"
+    );
+  });
 });
 
 describe("buildDocumentHref", () => {

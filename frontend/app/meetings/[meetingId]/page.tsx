@@ -17,7 +17,7 @@ export default async function MeetingRoute({
       meetingId={meetingId}
       title={query.title}
       preview={query.demo === "1"}
-      hasCompletedSummary={query.summary === "1"}
+      completedSummaryHint={query.summary === "1"}
     />
   );
 }

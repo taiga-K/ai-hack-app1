@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { ExportMarkdownActions } from "@/features/export-markdown";
 import {
   BackToMeeting,
+  buildDocumentHref,
   buildMeetingHref,
+  rememberCompletedSummary,
+  shouldHintCompletedSummaryOnBack,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { Header } from "@/widgets/header";
@@ -44,9 +48,26 @@ export function DocumentViewPage({
     meetingId,
     title: meetingTitle,
     preview,
-    hasCompletedSummary: status === "ready",
+    hasCompletedSummary: shouldHintCompletedSummaryOnBack(status),
   };
   const meetingHref = buildMeetingHref(backTarget);
+
+  useEffect(() => {
+    if (!shouldHintCompletedSummaryOnBack(status)) {
+      return;
+    }
+    const rememberedTarget: BackTarget = {
+      kind: "meeting",
+      meetingId,
+      title: meetingTitle,
+      preview,
+      hasCompletedSummary: true,
+    };
+    rememberCompletedSummary(
+      rememberedTarget,
+      buildDocumentHref(rememberedTarget)
+    );
+  }, [meetingId, meetingTitle, preview, status]);
 
   async function handleCopy() {
     const copied = await copyMarkdown();

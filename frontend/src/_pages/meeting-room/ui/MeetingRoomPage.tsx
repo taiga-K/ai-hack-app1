@@ -9,8 +9,11 @@ import { MeetingControls } from "@/features/meeting-control";
 import {
   BackToMeeting,
   buildDocumentHref,
+  completedSummaryHref,
   decideAfterFinalize,
   decideAfterReadyPause,
+  isMeetingAlreadyOver,
+  rememberCompletedSummary,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -19,7 +22,7 @@ import { MeetingFloor } from "@/widgets/meeting-floor";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { cn } from "@/shared/lib";
 import { Button, Toaster, buttonVariants } from "@/shared/ui";
-import { useCompletedDocumentHref } from "../model/use-completed-document-href";
+import { useCompletedSummaryLookup } from "../model/use-completed-summary-lookup";
 import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
 
@@ -27,7 +30,7 @@ export interface MeetingRoomPageProps {
   meetingId: string;
   title?: string;
   preview?: boolean;
-  hasCompletedSummary?: boolean;
+  completedSummaryHint?: boolean;
 }
 
 type MobilePane = "notes" | "whispers";
@@ -43,7 +46,7 @@ export function MeetingRoomPage({
   meetingId,
   title,
   preview = false,
-  hasCompletedSummary = false,
+  completedSummaryHint = false,
 }: MeetingRoomPageProps) {
   const router = useRouter();
   const meetingTitle = title?.trim() || "今日の会議";
@@ -59,13 +62,14 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
-    hasCompletedSummary,
+    hasCompletedSummary: completedSummaryHint,
   };
-  const persistedDocumentHref = useCompletedDocumentHref(
+  const completedSummary = useCompletedSummaryLookup(
     backTarget,
-    hasCompletedSummary
+    completedSummaryHint
   );
-  const documentHref = sessionDocumentHref ?? persistedDocumentHref;
+  const documentHref =
+    sessionDocumentHref ?? completedSummaryHref(completedSummary);
   const {
     phase,
     utterances,
@@ -81,13 +85,16 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
-    alreadyEnded: hasCompletedSummary,
+    alreadyEnded: completedSummary.status === "found",
   });
 
   async function handleEndMeeting() {
     stayOnFloorRef.current = false;
     setSessionDocumentHref(null);
     setHandoff("making");
+    if (preview) {
+      await waitMs(720);
+    }
     const result = await endMeeting();
     if (!result.ok) {
       setHandoff("none");
@@ -98,6 +105,10 @@ export function MeetingRoomPage({
       preview: result.preview,
     });
     setSessionDocumentHref(nextDocumentHref);
+    rememberCompletedSummary(
+      { ...backTarget, preview: result.preview, hasCompletedSummary: true },
+      nextDocumentHref
+    );
 
     const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
     switch (afterFinalize) {
@@ -133,11 +144,11 @@ export function MeetingRoomPage({
     setHandoff("none");
   }
 
-  const meetingAlreadyOver =
-    hasCompletedSummary ||
-    documentHref !== null ||
-    phase === "ended" ||
-    phase === "finalizing";
+  const meetingAlreadyOver = isMeetingAlreadyOver({
+    lookupStatus: completedSummary.status,
+    hasSessionDocument: documentHref !== null,
+    phase,
+  });
   const listening =
     !meetingAlreadyOver && (audio.isRecording || (preview && phase === "live"));
   const oursSpeaking = listening && audio.micVolume > 0.08;
@@ -156,7 +167,7 @@ export function MeetingRoomPage({
         oursVolume={audio.micVolume}
         theirsVolume={audio.tabVolume}
       />
-      {!listening && phase === "idle" ? (
+      {!listening && phase === "idle" && !meetingAlreadyOver ? (
         <p className="text-sm text-foreground">
           ききはじめるを押すと、相手の画面の音を共有できます。
         </p>

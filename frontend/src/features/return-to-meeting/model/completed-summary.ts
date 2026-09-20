@@ -1,14 +1,164 @@
-import { getRequirementDocument } from "@/entities/requirement-doc";
-import { buildDocumentHref } from "./href";
-import type { BackTarget } from "./types";
+import type {
+  BackTarget,
+  CompletedSummaryLookup,
+  CompletedSummaryStatus,
+} from "./types";
 
-export async function fetchCompletedDocumentHref(
-  target: BackTarget
-): Promise<string | null> {
+const REMEMBERED_SUMMARY_PREFIX = "return-to-meeting:completed-summary:";
+
+export function completedSummaryStorageKey(meetingId: string): string {
+  return `${REMEMBERED_SUMMARY_PREFIX}${meetingId}`;
+}
+
+function sessionStorageOrNull(): Storage | null {
+  if (typeof globalThis.sessionStorage === "undefined") {
+    return null;
+  }
   try {
-    await getRequirementDocument(target.meetingId);
-    return buildDocumentHref(target);
+    return globalThis.sessionStorage;
   } catch {
     return null;
   }
+}
+
+export function rememberCompletedSummary(
+  target: BackTarget,
+  href: string
+): void {
+  const storage = sessionStorageOrNull();
+  if (storage === null) {
+    return;
+  }
+  storage.setItem(completedSummaryStorageKey(target.meetingId), href);
+}
+
+export function readRememberedCompletedSummary(
+  meetingId: string
+): string | null {
+  const storage = sessionStorageOrNull();
+  if (storage === null) {
+    return null;
+  }
+  return storage.getItem(completedSummaryStorageKey(meetingId));
+}
+
+export function forgetCompletedSummary(meetingId: string): void {
+  const storage = sessionStorageOrNull();
+  if (storage === null) {
+    return;
+  }
+  storage.removeItem(completedSummaryStorageKey(meetingId));
+}
+
+function readErrorStatus(error: unknown): number | null {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return null;
+  }
+  return typeof error.status === "number" ? error.status : null;
+}
+
+export function isMissingCompletedSummaryError(error: unknown): boolean {
+  return readErrorStatus(error) === 404;
+}
+
+export async function lookupCompletedSummary(
+  meetingId: string,
+  documentHref: string,
+  loadDocument: (id: string) => Promise<unknown>
+): Promise<CompletedSummaryLookup> {
+  try {
+    await loadDocument(meetingId);
+    return { status: "found", href: documentHref };
+  } catch (error) {
+    if (isMissingCompletedSummaryError(error)) {
+      return { status: "missing" };
+    }
+    return { status: "error" };
+  }
+}
+
+export type DocumentBackStatus = "loading" | "ready" | "empty" | "error";
+
+export function shouldHintCompletedSummaryOnBack(
+  status: DocumentBackStatus
+): boolean {
+  switch (status) {
+    case "loading":
+    case "ready":
+    case "error":
+      return true;
+    case "empty":
+      return false;
+    default: {
+      const _exhaustiveCheck: never = status;
+      throw new Error(`Unhandled document back status: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+export function resolveImmediateCompletedSummary(input: {
+  completedSummaryHint: boolean;
+  rememberedHref: string | null;
+  hintedHref: string;
+}): CompletedSummaryLookup {
+  if (input.rememberedHref !== null) {
+    return { status: "found", href: input.rememberedHref };
+  }
+  if (input.completedSummaryHint) {
+    return { status: "found", href: input.hintedHref };
+  }
+  return { status: "missing" };
+}
+
+export function mergeCompletedSummaryLookup(
+  immediate: CompletedSummaryLookup,
+  fetched: CompletedSummaryLookup | null
+): CompletedSummaryLookup {
+  if (fetched === null) {
+    return immediate;
+  }
+  switch (fetched.status) {
+    case "found":
+    case "missing":
+      return fetched;
+    case "checking":
+      return immediate;
+    case "error":
+      return immediate.status === "found" ? immediate : fetched;
+    default: {
+      const _exhaustiveCheck: never = fetched;
+      throw new Error(`Unhandled lookup status: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+export function isMeetingAlreadyOver(input: {
+  lookupStatus: CompletedSummaryStatus;
+  hasSessionDocument: boolean;
+  phase: "idle" | "live" | "finalizing" | "ended";
+}): boolean {
+  if (input.hasSessionDocument) {
+    return true;
+  }
+  if (input.phase === "ended" || input.phase === "finalizing") {
+    return true;
+  }
+  switch (input.lookupStatus) {
+    case "found":
+    case "checking":
+    case "error":
+      return true;
+    case "missing":
+      return false;
+    default: {
+      const _exhaustiveCheck: never = input.lookupStatus;
+      throw new Error(`Unhandled lookup status: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+export function completedSummaryHref(
+  lookup: CompletedSummaryLookup
+): string | null {
+  return lookup.status === "found" ? lookup.href : null;
 }
