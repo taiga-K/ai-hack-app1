@@ -20,6 +20,7 @@ export interface MeetingControlsProps {
   phase: MeetingPhase;
   connection: MeetingConnectionState;
   chimeEnabled: boolean;
+  preview?: boolean;
   onToggleChime: (enabled: boolean) => void;
   onStart: () => void;
   onStop: () => void;
@@ -30,6 +31,7 @@ export function MeetingControls({
   phase,
   connection,
   chimeEnabled,
+  preview = false,
   onToggleChime,
   onStart,
   onStop,
@@ -39,6 +41,7 @@ export function MeetingControls({
   const isEnded = phase === "ended" || phase === "finalizing";
   const isRequestingPermission = connection.status === "requesting_permission";
   const isListening = connection.isRecording && !isEnded;
+  const showPreviewLive = preview && !isListening && !isEnded;
   const endDisabled = isEnded || isRequestingPermission;
 
   function handleConfirmEnd() {
@@ -51,7 +54,12 @@ export function MeetingControls({
       aria-label="会議の操作"
       className="flex shrink-0 flex-wrap items-center gap-2 px-1 py-3"
     >
-      {!isListening ? (
+      {showPreviewLive ? (
+        <Button size="lg" disabled>
+          おためしちゅう
+        </Button>
+      ) : null}
+      {!showPreviewLive && !isListening ? (
         <Button
           size="lg"
           onClick={onStart}
@@ -59,11 +67,12 @@ export function MeetingControls({
         >
           {isRequestingPermission ? "まっててね" : "ききはじめる"}
         </Button>
-      ) : (
+      ) : null}
+      {!showPreviewLive && isListening ? (
         <Button variant="outline" size="lg" onClick={onStop}>
           きくのをやめる
         </Button>
-      )}
+      ) : null}
 
       <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
         <DialogTrigger

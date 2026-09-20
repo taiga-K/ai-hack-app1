@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AdviceWhisper, type Advice } from "@/entities/advice";
 import { ScrollArea } from "@/shared/ui";
 
@@ -9,6 +10,10 @@ export interface CopilotSidebarProps {
 }
 
 export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
+  const [mountedIds] = useState(
+    () => new Set(adviceItems.map((item) => item.id))
+  );
+
   return (
     <aside
       aria-label="こちらのささやき"
@@ -26,14 +31,18 @@ export function CopilotSidebar({ adviceItems, onCopied }: CopilotSidebarProps) {
               いまは、ささやくことがありません
             </p>
           ) : (
-            adviceItems.map((item, index) => (
-              <AdviceWhisper
-                key={item.id}
-                advice={item}
-                appearDelayMs={index * 140}
-                onCopied={onCopied}
-              />
-            ))
+            adviceItems.map((item, index) => {
+              const isNew = !mountedIds.has(item.id);
+              return (
+                <AdviceWhisper
+                  key={item.id}
+                  advice={item}
+                  appearDelayMs={isNew ? index * 140 : 0}
+                  enterMotion={isNew}
+                  onCopied={onCopied}
+                />
+              );
+            })
           )}
         </div>
       </ScrollArea>

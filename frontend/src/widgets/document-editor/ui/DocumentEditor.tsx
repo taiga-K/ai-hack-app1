@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Columns2, Eye, FilePenLine } from "lucide-react";
 import {
   Label,
@@ -9,6 +9,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/shared/ui";
+import { cn } from "@/shared/lib";
 import type { DocumentEditorView } from "../model/types";
 
 export interface DocumentEditorProps {
@@ -26,7 +27,23 @@ export function DocumentEditor({
   onViewChange,
   preview,
 }: DocumentEditorProps) {
+  const sourceRef = useRef<HTMLTextAreaElement>(null);
+  const splitRef = useRef<HTMLTextAreaElement>(null);
+
+  function flushEditorValue() {
+    const next =
+      view === "split" ? splitRef.current?.value : sourceRef.current?.value;
+    if (typeof next === "string" && next !== markdown) {
+      onMarkdownChange(next);
+    }
+  }
+
+  function handleMarkdownInput(next: string) {
+    onMarkdownChange(next);
+  }
+
   function handleViewChange(next: string[]) {
+    flushEditorValue();
     const selected = next[0];
     if (
       selected === "preview" ||
@@ -34,58 +51,6 @@ export function DocumentEditor({
       selected === "source"
     ) {
       onViewChange(selected);
-    }
-  }
-
-  let workspace: ReactNode;
-  switch (view) {
-    case "preview":
-      workspace = (
-        <ScrollArea className="h-full">
-          <div className="px-6 py-6 sm:px-10">{preview}</div>
-        </ScrollArea>
-      );
-      break;
-    case "source":
-      workspace = (
-        <div className="flex h-full min-h-0 flex-col px-4 py-4">
-          <Label htmlFor="requirements-markdown" className="sr-only">
-            まとめの本文
-          </Label>
-          <Textarea
-            id="requirements-markdown"
-            value={markdown}
-            onChange={(event) => onMarkdownChange(event.target.value)}
-            spellCheck={false}
-            className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
-          />
-        </div>
-      );
-      break;
-    case "split":
-      workspace = (
-        <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-2">
-          <div className="flex min-h-0 flex-col border-b border-border lg:border-r lg:border-b-0">
-            <Label htmlFor="requirements-markdown-split" className="sr-only">
-              まとめの本文
-            </Label>
-            <Textarea
-              id="requirements-markdown-split"
-              value={markdown}
-              onChange={(event) => onMarkdownChange(event.target.value)}
-              spellCheck={false}
-              className="h-full min-h-0 flex-1 resize-none rounded-none border-0 font-mono text-sm leading-relaxed field-sizing-fixed"
-            />
-          </div>
-          <ScrollArea className="h-full min-h-64">
-            <div className="px-6 py-6">{preview}</div>
-          </ScrollArea>
-        </div>
-      );
-      break;
-    default: {
-      const _exhaustiveCheck: never = view;
-      throw new Error(`Unhandled document editor view: ${_exhaustiveCheck}`);
     }
   }
 
@@ -117,7 +82,62 @@ export function DocumentEditor({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <div className="min-h-0 flex-1 bg-background">{workspace}</div>
+      <div className="relative min-h-0 flex-1 bg-background">
+        {view === "preview" ? (
+          <ScrollArea className="h-full">
+            <div className="px-1 py-6 sm:px-2">{preview}</div>
+          </ScrollArea>
+        ) : null}
+        <div
+          className={cn(
+            "h-full",
+            view === "source" ? "flex flex-col" : "hidden"
+          )}
+        >
+          <Label htmlFor="requirements-markdown" className="sr-only">
+            まとめの本文
+          </Label>
+          <Textarea
+            ref={sourceRef}
+            id="requirements-markdown"
+            value={markdown}
+            onChange={(event) => handleMarkdownInput(event.target.value)}
+            onInput={(event) => handleMarkdownInput(event.currentTarget.value)}
+            spellCheck={false}
+            tabIndex={view === "source" ? 0 : -1}
+            className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
+          />
+        </div>
+        <div
+          className={cn(
+            "h-full min-h-0 grid-cols-1 lg:grid-cols-2",
+            view === "split" ? "grid" : "hidden"
+          )}
+        >
+          <div className="flex min-h-0 flex-col lg:pr-6">
+            <Label htmlFor="requirements-markdown-split" className="sr-only">
+              まとめの本文
+            </Label>
+            <Textarea
+              ref={splitRef}
+              id="requirements-markdown-split"
+              value={markdown}
+              onChange={(event) => handleMarkdownInput(event.target.value)}
+              onInput={(event) =>
+                handleMarkdownInput(event.currentTarget.value)
+              }
+              spellCheck={false}
+              tabIndex={view === "split" ? 0 : -1}
+              className="h-full min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed field-sizing-fixed"
+            />
+          </div>
+          {view === "split" ? (
+            <ScrollArea className="h-full min-h-64">
+              <div className="px-1 py-6 lg:pl-6">{preview}</div>
+            </ScrollArea>
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }

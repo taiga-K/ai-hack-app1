@@ -10,12 +10,14 @@ import type { Advice } from "../model/types";
 export interface AdviceWhisperProps {
   advice: Advice;
   appearDelayMs?: number;
+  enterMotion?: boolean;
   onCopied?: (question: string) => void;
 }
 
 export function AdviceWhisper({
   advice,
   appearDelayMs = 0,
+  enterMotion = false,
   onCopied,
 }: AdviceWhisperProps) {
   const [copied, setCopied] = useState(false);
@@ -35,18 +37,25 @@ export function AdviceWhisper({
 
   return (
     <article
-      className="motion-safe:animate-cute-whisper"
-      style={{ animationDelay: `${String(appearDelayMs)}ms` }}
+      className={enterMotion ? "motion-safe:animate-cute-whisper" : undefined}
+      style={
+        enterMotion
+          ? { animationDelay: `${String(appearDelayMs)}ms` }
+          : undefined
+      }
     >
       <p className="text-xs font-medium text-ours">{category.badge}</p>
-      <p className="mt-2 text-base leading-relaxed font-medium">
+      <p className="mt-2 text-base leading-relaxed font-medium text-foreground">
         {advice.suggestedQuestion}
       </p>
-      <p className="mt-2 text-sm text-muted-foreground">{advice.title}</p>
+      <p className="mt-2 text-sm text-foreground">{advice.title}</p>
+      <p className="mt-1 text-sm leading-relaxed text-foreground">
+        {advice.reason}
+      </p>
       <Button
         className="mt-2"
         size="sm"
-        variant="ghost"
+        variant="outline"
         onClick={() => void handleCopy()}
       >
         {copied ? <Check data-icon="inline-start" /> : null}

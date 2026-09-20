@@ -43,6 +43,30 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText("❓ 専門用語の確認")).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "おためしちゅう" })
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "ききはじめる" })).toHaveCount(
+    0
+  );
+  await expect(page.getByText("きいている").first()).toBeVisible();
+});
+
+test("モバイルのささやきタブは選択と本文が一致する", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startUiPreview(page, "E2Eモバイル会議");
+
+  const whispersTab = page.getByRole("tab", { name: /ささやき/ });
+  await whispersTab.click();
+  await expect(whispersTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "メモ" })).toHaveAttribute(
+    "aria-selected",
+    "false"
+  );
+  await expect(page.getByRole("heading", { name: "ささやき" })).toBeVisible();
+  await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
+  await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
 });
 
 test("会議終了からまとめの確認・編集・書き出しまで通る", async ({

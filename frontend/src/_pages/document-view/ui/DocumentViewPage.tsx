@@ -154,13 +154,15 @@ export function DocumentViewPage({
       ) : null}
 
       {status === "ready" ? (
-        <DocumentEditor
-          markdown={markdown}
-          view={view}
-          onMarkdownChange={setMarkdown}
-          onViewChange={setView}
-          preview={<MarkdownPreview markdown={markdown} />}
-        />
+        <div className="motion-safe:animate-cute-aftertaste flex min-h-0 flex-1 flex-col">
+          <DocumentEditor
+            markdown={markdown}
+            view={view}
+            onMarkdownChange={setMarkdown}
+            onViewChange={setView}
+            preview={<MarkdownPreview markdown={markdown} key={markdown} />}
+          />
+        </div>
       ) : null}
 
       <Toaster />
