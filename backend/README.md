@@ -15,6 +15,8 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
   - `pytest`: 単体・結合テスト
 
 ## 環境変数
+コピー用の実在名一覧は `.env.example` にあります。`cp .env.example .env` してから値を入れてください。初回認証は追加しません。
+
 - `ORCAROUTER_API_KEY`: オルカルーターの API キー（必須）
 - `ORCAROUTER_BASE_URL`: オルカルーターの Base URL（デフォルト: `https://api.orcarouter.ai/v1`）
 - `ORCAROUTER_DEFAULT_MODEL`: デフォルトモデル（デフォルト: `openai/gpt-4o-mini`）
@@ -27,6 +29,9 @@ Python 3.12+ / FastAPI / Clean Architecture によるバックエンド API サ�
 - `WHISPER_COMPUTE_TYPE`: 計算精度（デフォルト: `int8`）
 - `WHISPER_LANGUAGE`: 文字起こし言語（デフォルト: `ja`）
 - `AUDIO_SAMPLE_RATE`: 音声サンプルレート（デフォルト: `16000`）
+- `APP_NAME`: プロセス表示名（デフォルト: `AI HACK APP1 API`）
+- `APP_VERSION`: バージョン（デフォルト: `0.1.0`）
+- `DEBUG`: デバッグフラグ（デフォルト: `false`）
 
 ## エンドポイント
 - `GET /api/v1/health`: システムヘルスチェック
