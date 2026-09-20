@@ -293,6 +293,27 @@ def _append_detail(detail: str, piece: str) -> str:
     return f"{detail}\n{text}"
 
 
+def _parent_first_operations(
+    operations: list[MindMapOperation],
+) -> list[MindMapOperation]:
+    """Put same-batch parents before their children, then non-add operations."""
+    adds = [op for op in operations if isinstance(op, AddNodeOperation)]
+    others = [op for op in operations if not isinstance(op, AddNodeOperation)]
+    pending = {op.node.id: op for op in adds}
+    ordered: list[MindMapOperation] = []
+    while pending:
+        ready_ids = [
+            node_id
+            for node_id, operation in pending.items()
+            if operation.node.parent_id not in pending
+        ]
+        if not ready_ids:
+            ready_ids = list(pending)
+        for node_id in ready_ids:
+            ordered.append(pending.pop(node_id))
+    return ordered + others
+
+
 class _MindMapEditor:
     """Mutable working copy used while applying one delta."""
 
@@ -332,7 +353,7 @@ class _MindMapEditor:
                 if not self._apply_one(operation, final_pass=False):
                     deferred.append(operation)
             if len(deferred) == len(remaining):
-                for operation in deferred:
+                for operation in _parent_first_operations(deferred):
                     self._apply_one(operation, final_pass=True)
                 return
             remaining = deferred
