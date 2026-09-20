@@ -1,6 +1,25 @@
 import type { Advice } from "@/entities/advice";
-import type { MindMapEvent } from "@/entities/mind-map";
+import type { MindMapEvent, MindMapNode } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
+
+type PreviewNodeInput = Pick<MindMapNode, "id" | "label" | "parentId"> &
+  Partial<Omit<MindMapNode, "id" | "label" | "parentId">>;
+
+// Local so this fixture stays loadable by node:test without path aliases.
+function previewNode(node: PreviewNodeInput): MindMapNode {
+  return {
+    id: node.id,
+    label: node.label,
+    parentId: node.parentId,
+    kind: node.kind ?? "topic",
+    status: node.status ?? "open",
+    detail: node.detail ?? "",
+    relations: node.relations ?? [],
+    history: node.history ?? [],
+    pinned: node.pinned ?? false,
+    sourceUtteranceIds: node.sourceUtteranceIds ?? [],
+  };
+}
 
 export function createPreviewUtterances(meetingId: string): Utterance[] {
   return [
@@ -74,6 +93,26 @@ export function createPreviewUtterances(meetingId: string): Utterance[] {
       isFinal: true,
       createdAt: "2026-09-19T00:00:38.000Z",
     },
+    {
+      id: "preview-utt-8",
+      meetingId,
+      speaker: "remote_client",
+      text: "リアルタイムといっても、まずは参照だけ反映できれば十分です。",
+      startMs: 43000,
+      endMs: 48000,
+      isFinal: true,
+      createdAt: "2026-09-19T00:00:43.000Z",
+    },
+    {
+      id: "preview-utt-9",
+      meetingId,
+      speaker: "local_pm",
+      text: "では、まず参照だけをすぐ反映する形で進めますね。",
+      startMs: 49000,
+      endMs: 53000,
+      isFinal: true,
+      createdAt: "2026-09-19T00:00:49.000Z",
+    },
   ];
 }
 
@@ -127,74 +166,157 @@ export function createPreviewMindMapEvents(meetingId: string): MindMapEvent[] {
       meetingId,
       revision: 1,
       upserts: [
-        {
-          id: "root",
-          label: "今日の会議",
-          parentId: null,
-          sourceUtteranceIds: [],
-        },
+        previewNode({ id: "root", label: "今日の会議", parentId: null }),
       ],
       removes: [],
+      pending: [],
     },
     {
       type: "mindmap",
       meetingId,
       revision: 2,
       upserts: [
-        {
+        previewNode({
           id: "scope",
           label: "対象範囲",
           parentId: "root",
+          detail: "既存顧客向けの更新申請だけでよいか、はじめに確認した。",
           sourceUtteranceIds: ["preview-utt-1"],
-        },
-        {
+        }),
+        previewNode({
           id: "api",
           label: "システムのつなぎ",
           parentId: "root",
+          detail: "API連携でリアルタイムに同期したい、という希望。",
           sourceUtteranceIds: ["preview-utt-2"],
-        },
+        }),
+        previewNode({
+          id: "due",
+          label: "来月末の本番",
+          parentId: "root",
+          detail: "来月末までに本番投入したい。",
+          sourceUtteranceIds: ["preview-utt-2"],
+        }),
       ],
       removes: [],
+      pending: [
+        {
+          text: "同期の対象データは「お任せ」のまま",
+          sourceUtteranceIds: ["preview-utt-3", "preview-utt-4"],
+        },
+      ],
     },
     {
       type: "mindmap",
       meetingId,
       revision: 3,
       upserts: [
-        {
+        previewNode({
           id: "renewal",
           label: "更新申請だけ",
           parentId: "scope",
+          kind: "proposal",
+          detail: "新規や一括更新は今回の対象に入れない案。",
           sourceUtteranceIds: ["preview-utt-1"],
-        },
-        {
+        }),
+        previewNode({
           id: "sync",
           label: "すぐ反映したい",
           parentId: "api",
+          kind: "report",
+          detail: "相手はリアルタイム同期を希望。",
           sourceUtteranceIds: ["preview-utt-2"],
-        },
-        {
-          id: "due",
-          label: "来月末の本番",
-          parentId: "root",
+        }),
+        previewNode({
+          id: "sync-risk",
+          label: "来月末に間に合うか",
+          parentId: "due",
+          kind: "concern",
+          detail: "リアルタイム同期と本番投入を同時に進めるのは無理がないか。",
+          relations: [{ kind: "opposes", targetId: "sync" }],
           sourceUtteranceIds: ["preview-utt-2"],
-        },
+        }),
       ],
       removes: [],
+      pending: [
+        {
+          text: "同期の対象データは「お任せ」のまま",
+          sourceUtteranceIds: ["preview-utt-3", "preview-utt-4"],
+        },
+      ],
     },
     {
       type: "mindmap",
       meetingId,
       revision: 4,
       upserts: [
-        {
+        previewNode({
+          id: "renewal",
+          label: "更新申請だけ",
+          parentId: "scope",
+          kind: "proposal",
+          status: "decided",
+          detail: "新規や一括更新は今回の対象に入れない案。",
+          sourceUtteranceIds: ["preview-utt-1", "preview-utt-6"],
+        }),
+        previewNode({
+          id: "scope-decision",
+          label: "更新申請に限定で決定",
+          parentId: "scope",
+          kind: "decision",
+          status: "decided",
+          detail: "現場の担当も同じ認識。",
+          relations: [{ kind: "supports", targetId: "renewal" }],
+          sourceUtteranceIds: ["preview-utt-5", "preview-utt-6"],
+        }),
+        previewNode({
           id: "exceptions",
           label: "例外は宿題",
           parentId: "scope",
-          sourceUtteranceIds: ["preview-utt-5", "preview-utt-6"],
-        },
+          kind: "action",
+          detail: "例外はあとで共有してもらう。設計担当にも前提を共有。",
+          sourceUtteranceIds: [
+            "preview-utt-5",
+            "preview-utt-6",
+            "preview-utt-7",
+          ],
+        }),
       ],
       removes: [],
+      pending: [
+        {
+          text: "同期の対象データは「お任せ」のまま",
+          sourceUtteranceIds: ["preview-utt-3", "preview-utt-4"],
+        },
+      ],
+    },
+    {
+      type: "mindmap",
+      meetingId,
+      revision: 5,
+      upserts: [
+        previewNode({
+          id: "sync",
+          label: "まず参照だけ反映",
+          parentId: "api",
+          kind: "report",
+          detail:
+            "相手はリアルタイム同期を希望。\nリアルタイムといっても、まずは参照だけ反映できれば十分。",
+          history: ["すぐ反映したい"],
+          sourceUtteranceIds: [
+            "preview-utt-2",
+            "preview-utt-8",
+            "preview-utt-9",
+          ],
+        }),
+      ],
+      removes: [],
+      pending: [
+        {
+          text: "同期の対象データは「お任せ」のまま",
+          sourceUtteranceIds: ["preview-utt-3", "preview-utt-4"],
+        },
+      ],
     },
   ];
 }

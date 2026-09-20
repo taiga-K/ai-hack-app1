@@ -174,6 +174,7 @@ export function useMeetingRoom({
               revision: parsed.revision,
               upserts: parsed.upserts,
               removes: parsed.removes,
+              pending: parsed.pending,
             })
           );
           return;

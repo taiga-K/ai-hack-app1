@@ -25,5 +25,6 @@ export function applyMindMapEvent(
     meetingId: event.meetingId,
     revision: event.revision,
     nodes: [...byId.values()],
+    pending: event.pending,
   };
 }

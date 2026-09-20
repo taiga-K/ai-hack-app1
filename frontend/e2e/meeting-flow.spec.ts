@@ -190,6 +190,80 @@ test("地図は動かさなければ成長しても画面内に収まる", async
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
 });
 
+test("地図は浅く始まり、枝をおすとくわしい話と関係が見える", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E構造化地図会議");
+
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(
+    mapRegion.getByText("更新申請に限定で決定", { exact: true })
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    mapRegion.getByText("例外は宿題", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(/まだ地図に置けていない話: 同期の対象データ/)
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    page.getByText("枝をおすと、くわしい話がひらきます。")
+  ).toBeVisible();
+  await expect(mapRegion.getByText("決定", { exact: true })).toBeVisible();
+  await expect(
+    mapRegion.getByText("つぎにやること", { exact: true })
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toHaveCount(0);
+  await expect(mapRegion.getByText("まず参照だけ反映")).toHaveCount(0);
+
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  const scopeDetail = page.getByRole("region", {
+    name: "対象範囲 のくわしい話",
+  });
+  await expect(scopeDetail).toBeVisible();
+  await expect(scopeDetail.getByText("話題・まだ決まっていない")).toBeVisible();
+  await expect(
+    scopeDetail.getByText(
+      "既存顧客向けの更新申請だけでよいか、はじめに確認した。"
+    )
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("採用", { exact: true })).toBeVisible();
+
+  await mapRegion
+    .getByRole("button", { name: /^更新申請に限定で決定/ })
+    .click();
+  const decisionDetail = page.getByRole("region", {
+    name: "更新申請に限定で決定 のくわしい話",
+  });
+  await expect(decisionDetail.getByText("賛成: 更新申請だけ")).toBeVisible();
+  await expect(decisionDetail.getByText("決定・決定")).toHaveCount(0);
+
+  await mapRegion.getByRole("button", { name: /^システムのつなぎ/ }).click();
+  await mapRegion.getByRole("button", { name: /^まず参照だけ反映/ }).click();
+  await expect(
+    page.getByText("言いなおし前: すぐ反映したい", { exact: true })
+  ).toBeVisible();
+
+  await mapRegion.getByRole("button", { name: /^来月末の本番/ }).click();
+  await expect(
+    mapRegion.getByText("来月末に間に合うか", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("反対", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "とじる" }).click();
+  await expect(page.getByRole("region", { name: /のくわしい話/ })).toHaveCount(
+    0
+  );
+});
+
 test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await startUiPreview(page, "E2E地図操作会議");
