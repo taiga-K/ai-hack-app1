@@ -459,7 +459,6 @@ async function seedRealMeetingFloor(
       const href = `/meetings/${id}/document?title=${encodeURIComponent(meetingTitle)}`;
       const raw = JSON.stringify(snapshot);
       sessionStorage.setItem(snapKey, raw);
-      localStorage.setItem(snapKey, raw);
       if (remember) {
         sessionStorage.setItem(sumKey, href);
         localStorage.setItem(sumKey, href);

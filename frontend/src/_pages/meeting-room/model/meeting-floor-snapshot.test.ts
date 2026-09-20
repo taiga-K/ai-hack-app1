@@ -89,13 +89,23 @@ describe("meeting floor snapshot", () => {
     assert.equal(restored?.adviceItems[0]?.title, "実会議の残ったささやき");
   });
 
-  it("reads localStorage when sessionStorage is empty", () => {
+  it("keeps transcripts out of localStorage", () => {
     installMemoryStorages();
+    const key = "return-to-meeting:floor-snapshot:meet-1";
+    globalThis.localStorage.setItem(key, JSON.stringify(snapshot));
     writeMeetingFloorSnapshot("meet-1", snapshot);
-    globalThis.sessionStorage.removeItem(
-      "return-to-meeting:floor-snapshot:meet-1"
-    );
+
     assert.deepEqual(readMeetingFloorSnapshot("meet-1"), snapshot);
+    assert.equal(globalThis.localStorage.getItem(key), null);
+    assert.equal(globalThis.sessionStorage.getItem(key) !== null, true);
+  });
+
+  it("does not restore a leftover localStorage snapshot", () => {
+    installMemoryStorages();
+    const key = "return-to-meeting:floor-snapshot:meet-1";
+    globalThis.localStorage.setItem(key, JSON.stringify(snapshot));
+    assert.equal(readMeetingFloorSnapshot("meet-1"), null);
+    assert.equal(globalThis.localStorage.getItem(key), null);
   });
 
   it("does not treat a failed finalize as ended", () => {

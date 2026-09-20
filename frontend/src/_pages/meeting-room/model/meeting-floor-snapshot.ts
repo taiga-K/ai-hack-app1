@@ -54,17 +54,20 @@ function readWebStorage(
   }
 }
 
-function floorSnapshotStorages(): Storage[] {
-  const storages: Storage[] = [];
-  const session = readWebStorage("sessionStorage");
+function sessionStorageOrNull(): Storage | null {
+  return readWebStorage("sessionStorage");
+}
+
+function forgetLocalFloorSnapshot(meetingId: string): void {
   const local = readWebStorage("localStorage");
-  if (session !== null) {
-    storages.push(session);
+  if (local === null) {
+    return;
   }
-  if (local !== null) {
-    storages.push(local);
+  try {
+    local.removeItem(floorSnapshotStorageKey(meetingId));
+  } catch {
+    return;
   }
-  return storages;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -223,30 +226,33 @@ export function parseMeetingFloorSnapshot(
 export function readMeetingFloorSnapshot(
   meetingId: string
 ): MeetingFloorSnapshot | null {
-  const key = floorSnapshotStorageKey(meetingId);
-  for (const storage of floorSnapshotStorages()) {
-    const snapshot = parseMeetingFloorSnapshot(storage.getItem(key));
-    if (snapshot !== null) {
-      return snapshot;
-    }
+  forgetLocalFloorSnapshot(meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return null;
   }
-  return null;
+  return parseMeetingFloorSnapshot(
+    session.getItem(floorSnapshotStorageKey(meetingId))
+  );
 }
 
 export function writeMeetingFloorSnapshot(
   meetingId: string,
   snapshot: MeetingFloorSnapshot
 ): void {
-  const key = floorSnapshotStorageKey(meetingId);
-  const raw = JSON.stringify(snapshot);
-  for (const storage of floorSnapshotStorages()) {
-    storage.setItem(key, raw);
+  forgetLocalFloorSnapshot(meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return;
   }
+  session.setItem(floorSnapshotStorageKey(meetingId), JSON.stringify(snapshot));
 }
 
 export function clearMeetingFloorSnapshot(meetingId: string): void {
-  const key = floorSnapshotStorageKey(meetingId);
-  for (const storage of floorSnapshotStorages()) {
-    storage.removeItem(key);
+  forgetLocalFloorSnapshot(meetingId);
+  const session = sessionStorageOrNull();
+  if (session === null) {
+    return;
   }
+  session.removeItem(floorSnapshotStorageKey(meetingId));
 }
