@@ -87,6 +87,18 @@ class MindMapSilenceBuffer:
         )
         return emptied, self.pending_ids
 
+    def requeue(self, utterance_ids: tuple[str, ...]) -> "MindMapSilenceBuffer":
+        """Put a failed window back in front of any newer finals."""
+        if not utterance_ids:
+            return self
+        known = set(utterance_ids)
+        rest = tuple(item_id for item_id in self.pending_ids if item_id not in known)
+        return MindMapSilenceBuffer(
+            pending_ids=utterance_ids + rest,
+            quiet_ms=0,
+            silence_ms=self.silence_ms,
+        )
+
 
 def mind_map_node_depth(node_id: str, by_id: dict[str, MindMapNode]) -> int | None:
     """Return 1-based depth from this node to the root, or None on a cycle."""

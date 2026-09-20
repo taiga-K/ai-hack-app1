@@ -680,6 +680,41 @@ async def test_session_does_not_call_mind_map_llm_until_silence() -> None:
 
 
 @pytest.mark.asyncio
+async def test_session_requeues_window_when_llm_does_not_advance() -> None:
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-retry",
+        revision=0,
+        upserts=[],
+        removes=[],
+        nodes=[],
+        source_utterance_count=0,
+        changed=False,
+    )
+    session = AudioStreamSession(
+        meeting_id="meet-map-retry",
+        websocket=AsyncMock(),
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+    )
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-retry", "u-1", "対象範囲を決めたいです。")
+    )
+    session._accumulate_mind_map_utterance("u-1")
+    session._observe_mind_map_audio(speech=False, duration_ms=3000)
+    await session._flush_mind_map_now(force=False)
+
+    mock_mind_map.execute.assert_awaited_once()
+    assert session._mind_map.source_utterance_count == 0
+    assert session._mind_map_buffer.pending_ids == ("u-1",)
+    assert not session._mind_map_buffer.should_flush()
+
+    session._observe_mind_map_audio(speech=False, duration_ms=3000)
+    assert session._mind_map_buffer.should_flush()
+
+
+@pytest.mark.asyncio
 async def test_session_empty_mindmap_delta_persists_watermark() -> None:
     mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
     mock_mind_map.execute.return_value = MindMapUpdateDTO(

@@ -162,6 +162,11 @@ def test_silence_buffer_does_not_flush_on_stt_turn_cut() -> None:
     assert emptied.pending_ids == ()
     assert not emptied.should_flush()
 
+    restored = emptied.accumulate(("u-3",)).requeue(("u-1", "u-2"))
+    assert restored.pending_ids == ("u-1", "u-2", "u-3")
+    assert restored.quiet_ms == 0
+    assert not restored.should_flush()
+
 
 @pytest.mark.asyncio
 async def test_update_mind_map_skips_when_no_new_utterances() -> None:

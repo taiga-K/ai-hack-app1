@@ -590,6 +590,11 @@ class AudioStreamSession:
     def _accumulate_mind_map_utterance(self, utterance_id: str) -> None:
         self._mind_map_buffer = self._mind_map_buffer.accumulate((utterance_id,))
 
+    def _requeue_mind_map_window(self, window: tuple[Utterance, ...]) -> None:
+        self._mind_map_buffer = self._mind_map_buffer.requeue(
+            tuple(item.id for item in window)
+        )
+
     def _take_mind_map_window(
         self, *, include_unprocessed: bool
     ) -> tuple[Utterance, ...]:
@@ -708,6 +713,7 @@ class AudioStreamSession:
                 window_to_use = self._next_queued_mind_map_window(current_window)
                 current_window = None
 
+                previous_watermark = self._mind_map.source_utterance_count
                 try:
                     result = await use_case.execute(
                         context=self.dialogue_context,
@@ -715,6 +721,11 @@ class AudioStreamSession:
                         force=force_to_use,
                         window=window_to_use,
                     )
+                    if (
+                        window_to_use
+                        and result.source_utterance_count <= previous_watermark
+                    ):
+                        self._requeue_mind_map_window(window_to_use)
                     self._mind_map = MindMapSnapshot(
                         meeting_id=result.meeting_id,
                         revision=result.revision,
@@ -748,6 +759,8 @@ class AudioStreamSession:
                         await self._safe_send_text(message.model_dump_json())
                 except Exception as exc:
                     logger.error("Failed to update mind map: %s", exc)
+                    if window_to_use:
+                        self._requeue_mind_map_window(window_to_use)
 
                 if self._mind_map_pending or self._mind_map_pending_windows:
                     current_force = self._mind_map_pending_force
