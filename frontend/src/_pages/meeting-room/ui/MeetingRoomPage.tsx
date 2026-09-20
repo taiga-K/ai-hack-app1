@@ -19,6 +19,7 @@ import { MeetingFloor } from "@/widgets/meeting-floor";
 import { TranscriptFeed } from "@/widgets/transcript-feed";
 import { cn } from "@/shared/lib";
 import { Button, Toaster, buttonVariants } from "@/shared/ui";
+import { useCompletedDocumentHref } from "../model/use-completed-document-href";
 import { useMeetingLayout } from "../model/use-meeting-layout";
 import { useMeetingRoom } from "../model/use-meeting-room";
 
@@ -26,6 +27,7 @@ export interface MeetingRoomPageProps {
   meetingId: string;
   title?: string;
   preview?: boolean;
+  hasCompletedSummary?: boolean;
 }
 
 type MobilePane = "notes" | "whispers";
@@ -41,12 +43,15 @@ export function MeetingRoomPage({
   meetingId,
   title,
   preview = false,
+  hasCompletedSummary = false,
 }: MeetingRoomPageProps) {
   const router = useRouter();
   const meetingTitle = title?.trim() || "今日の会議";
   const [mobilePane, setMobilePane] = useState<MobilePane>("notes");
   const [handoff, setHandoff] = useState<Handoff>("none");
-  const [documentHref, setDocumentHref] = useState<string | null>(null);
+  const [sessionDocumentHref, setSessionDocumentHref] = useState<string | null>(
+    null
+  );
   const stayOnFloorRef = useRef(false);
   const layout = useMeetingLayout();
   const backTarget: BackTarget = {
@@ -54,7 +59,13 @@ export function MeetingRoomPage({
     meetingId,
     title: meetingTitle,
     preview,
+    hasCompletedSummary,
   };
+  const persistedDocumentHref = useCompletedDocumentHref(
+    backTarget,
+    hasCompletedSummary
+  );
+  const documentHref = sessionDocumentHref ?? persistedDocumentHref;
   const {
     phase,
     utterances,
@@ -66,11 +77,16 @@ export function MeetingRoomPage({
     stopCapture,
     endMeeting,
     toggleChime,
-  } = useMeetingRoom({ meetingId, title: meetingTitle, preview });
+  } = useMeetingRoom({
+    meetingId,
+    title: meetingTitle,
+    preview,
+    alreadyEnded: hasCompletedSummary,
+  });
 
   async function handleEndMeeting() {
     stayOnFloorRef.current = false;
-    setDocumentHref(null);
+    setSessionDocumentHref(null);
     setHandoff("making");
     const result = await endMeeting();
     if (!result.ok) {
@@ -81,7 +97,7 @@ export function MeetingRoomPage({
       ...backTarget,
       preview: result.preview,
     });
-    setDocumentHref(nextDocumentHref);
+    setSessionDocumentHref(nextDocumentHref);
 
     const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
     switch (afterFinalize) {
@@ -117,14 +133,18 @@ export function MeetingRoomPage({
     setHandoff("none");
   }
 
-  const listening = audio.isRecording || (preview && phase === "live");
+  const meetingAlreadyOver =
+    hasCompletedSummary ||
+    documentHref !== null ||
+    phase === "ended" ||
+    phase === "finalizing";
+  const listening =
+    !meetingAlreadyOver && (audio.isRecording || (preview && phase === "live"));
   const oursSpeaking = listening && audio.micVolume > 0.08;
   const theirsSpeaking = listening && audio.tabVolume > 0.08;
   const showAfterEnd = handoff === "making" || handoff === "ready";
-  const showOpenDocument =
-    documentHref !== null && !showAfterEnd && phase === "ended";
-  const showControls =
-    !showAfterEnd && phase !== "finalizing" && !showOpenDocument;
+  const showOpenDocument = documentHref !== null && !showAfterEnd;
+  const showControls = !showAfterEnd && !meetingAlreadyOver;
 
   let workspace = (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">

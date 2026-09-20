@@ -32,17 +32,28 @@ export interface UseMeetingRoomOptions {
   meetingId: string;
   title: string;
   preview?: boolean;
+  alreadyEnded?: boolean;
 }
 
 export type EndMeetingResult =
   { ok: true; preview: boolean } | { ok: false; message: string };
 
+function initialPhase(preview: boolean, alreadyEnded: boolean): MeetingPhase {
+  if (alreadyEnded) {
+    return "ended";
+  }
+  return preview ? "live" : "idle";
+}
+
 export function useMeetingRoom({
   meetingId,
   title,
   preview = false,
+  alreadyEnded = false,
 }: UseMeetingRoomOptions) {
-  const [phase, setPhase] = useState<MeetingPhase>(preview ? "live" : "idle");
+  const [phase, setPhase] = useState<MeetingPhase>(() =>
+    initialPhase(preview, alreadyEnded)
+  );
   const [utterances, setUtterances] = useState<Utterance[]>(() =>
     preview ? createPreviewUtterances(meetingId) : []
   );
@@ -52,7 +63,7 @@ export function useMeetingRoom({
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const chimeEnabledRef = useRef(true);
-  const phaseRef = useRef<MeetingPhase>(preview ? "live" : "idle");
+  const phaseRef = useRef<MeetingPhase>(initialPhase(preview, alreadyEnded));
   const utterancesRef = useRef<Utterance[]>(
     preview ? createPreviewUtterances(meetingId) : []
   );

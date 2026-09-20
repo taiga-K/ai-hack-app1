@@ -1,5 +1,11 @@
+export { fetchCompletedDocumentHref } from "./model/completed-summary";
 export { decideAfterFinalize, decideAfterReadyPause } from "./model/after-end";
-export { buildDocumentHref, buildMeetingHref } from "./model/href";
+export {
+  buildDocumentHref,
+  buildMeetingHref,
+  COMPLETED_SUMMARY_QUERY,
+  readCompletedSummaryQuery,
+} from "./model/href";
 export type {
   AfterEndScreen,
   AfterFinalizeDecision,

@@ -127,11 +127,17 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page.getByText("確認することは、ありません")).toBeVisible();
 
   await page.getByRole("link", { name: "戻る" }).click();
-  await expect(page).toHaveURL(/\/meetings\/.+\?.*demo=1/);
+  await expect(page).toHaveURL(/\/meetings\/[^/]+\?.*demo=1/);
+  await expect(page).toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/\/document/);
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
   await expect(page.getByRole("region", { name: "むこう" })).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await page.getByRole("link", { name: "まとめを見る" }).click();
+  await expect(page).toHaveURL(/\/document/);
+  await expect(page.getByRole("link", { name: "戻る" })).toBeVisible();
 });
 
 test("終わる確認のあと戻るで会議の場に戻れる", async ({ page }) => {
@@ -148,6 +154,14 @@ test("終わる確認のあと戻るで会議の場に戻れる", async ({ page 
   await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+  await page.getByRole("link", { name: "まとめを見る" }).click();
+  await expect(page).toHaveURL(/\/document/);
+  await expect(page.getByText("あとで確認すること")).toBeVisible();
+  await page.getByRole("link", { name: "戻る" }).click();
+  await expect(page).toHaveURL(/summary=1/);
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
 test("実会議開始では初回認証なしで空の会議ルームが開く", async ({ page }) => {
@@ -233,5 +247,7 @@ test("未生成のまとめ画面は空状態を出す", async ({ page }) => {
   await expect(page.getByRole("link", { name: "戻る" })).toBeVisible();
   await page.getByRole("link", { name: "戻る" }).click();
   await expect(page).toHaveURL(/\/meetings\/e2e-missing-doc\?title=/);
+  await expect(page).not.toHaveURL(/summary=1/);
   await expect(page.getByRole("region", { name: "こちら" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "まとめを見る" })).toHaveCount(0);
 });

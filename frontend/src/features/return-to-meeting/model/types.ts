@@ -5,6 +5,7 @@ export type BackTarget = {
   meetingId: string;
   title: string;
   preview: boolean;
+  hasCompletedSummary?: boolean;
 };
 
 export type AfterFinalizeDecision = "stay-on-floor" | "announce-ready";

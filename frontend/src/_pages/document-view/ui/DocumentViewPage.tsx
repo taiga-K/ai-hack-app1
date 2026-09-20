@@ -44,6 +44,7 @@ export function DocumentViewPage({
     meetingId,
     title: meetingTitle,
     preview,
+    hasCompletedSummary: status === "ready",
   };
   const meetingHref = buildMeetingHref(backTarget);
 

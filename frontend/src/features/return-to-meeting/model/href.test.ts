@@ -24,6 +24,13 @@ describe("buildMeetingHref", () => {
       "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1"
     );
   });
+
+  it("keeps a completed summary so まとめを見る survives remount", () => {
+    assert.equal(
+      buildMeetingHref({ ...target, preview: true, hasCompletedSummary: true }),
+      "/meetings/meet-1?title=%E4%BB%8A%E6%97%A5%E3%81%AE%E4%BC%9A%E8%AD%B0&demo=1&summary=1"
+    );
+  });
 });
 
 describe("buildDocumentHref", () => {
