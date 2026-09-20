@@ -23,7 +23,6 @@ from app.infrastructure.stt.factory import build_stt_service
 
 logger = logging.getLogger(__name__)
 
-# Singleton instances for STT and Diarizer to avoid reloading weights per request
 _stt_service_instance: STTService | None = None
 _channel_diarizer_instance: ChannelDiarizer | None = None
 _meeting_session_store: InMemoryMeetingSessionStore | None = None

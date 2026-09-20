@@ -5,7 +5,7 @@ from app.domain.services.stt_service import STTService
 from app.infrastructure.config import Settings
 from app.infrastructure.stt.openai_realtime import OpenAIRealtimeWhisperSTTService
 
-SUPPORTED_STT_PROVIDERS = frozenset({"openai", "azure"})
+IMPLEMENTED_STT_PROVIDERS = frozenset({"openai"})
 
 
 def build_stt_service(settings: Settings) -> STTService:
@@ -26,5 +26,5 @@ def build_stt_service(settings: Settings) -> STTService:
         )
     raise STTConfigurationError(
         f"Unknown STT_PROVIDER={settings.stt_provider!r}. "
-        f"Supported values: {', '.join(sorted(SUPPORTED_STT_PROVIDERS))}."
+        f"Implemented values: {', '.join(sorted(IMPLEMENTED_STT_PROVIDERS))}."
     )
