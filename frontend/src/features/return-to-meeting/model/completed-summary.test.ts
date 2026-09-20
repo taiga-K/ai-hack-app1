@@ -239,6 +239,17 @@ describe("isMeetingAlreadyOver", () => {
     );
   });
 
+  it("hides controls while a summary is still being generated", () => {
+    assert.equal(
+      isMeetingAlreadyOver({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        phase: "finalizing",
+      }),
+      true
+    );
+  });
+
   it("keeps an ended remount over while the summary is still checking", () => {
     assert.equal(
       isMeetingAlreadyOver({
@@ -289,6 +300,15 @@ describe("shouldReopenLiveFloor", () => {
         hasSessionDocument: false,
         hasFinalizeError: false,
         phase: "ended",
+      }),
+      false
+    );
+    assert.equal(
+      shouldReopenLiveFloor({
+        lookupStatus: "missing",
+        hasSessionDocument: false,
+        hasFinalizeError: false,
+        phase: "finalizing",
       }),
       false
     );

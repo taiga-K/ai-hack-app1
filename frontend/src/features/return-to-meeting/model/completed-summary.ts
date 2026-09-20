@@ -196,10 +196,13 @@ export function isMeetingAlreadyOver(input: {
   if (input.hasSessionDocument) {
     return true;
   }
+  if (input.phase === "finalizing") {
+    return true;
+  }
   if (input.lookupStatus === "missing") {
     return false;
   }
-  if (input.phase === "ended" || input.phase === "finalizing") {
+  if (input.phase === "ended") {
     return true;
   }
   switch (input.lookupStatus) {
