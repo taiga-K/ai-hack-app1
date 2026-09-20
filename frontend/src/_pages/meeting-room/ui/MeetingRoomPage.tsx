@@ -189,8 +189,8 @@ export function MeetingRoomPage({
           <div
             className={
               mobilePane === "map"
-                ? "min-h-0 flex-1 overflow-hidden"
-                : "mb-2 min-h-64 basis-1/2 shrink-0 overflow-hidden"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "mb-2 flex h-0 min-h-64 basis-1/2 shrink-0 flex-col overflow-hidden"
             }
           >
             <MindMapCanvas snapshot={mindMap} compact />

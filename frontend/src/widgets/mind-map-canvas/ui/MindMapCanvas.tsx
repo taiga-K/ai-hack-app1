@@ -256,7 +256,7 @@ function MindMapFlow({
   ]);
 
   return (
-    <div ref={paneRef} className="relative h-full min-h-0">
+    <div ref={paneRef} className="relative h-full min-h-0 overflow-hidden">
       {userTookCamera ? (
         <button
           type="button"
@@ -317,8 +317,11 @@ export function MindMapCanvas({
   const isEmpty = snapshot.nodes.length === 0;
 
   return (
-    <section aria-label="話の地図" className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1">
+    <section
+      aria-label="話の地図"
+      className="flex h-full min-h-0 flex-col overflow-hidden"
+    >
+      <div className="min-h-0 flex-1 overflow-hidden">
         {isEmpty ? (
           <p className="px-1 py-8 text-sm text-muted-foreground">
             話しはじめると、ここにちいさな地図が育ちます
