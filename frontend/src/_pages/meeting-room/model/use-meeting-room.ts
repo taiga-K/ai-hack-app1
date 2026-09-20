@@ -185,10 +185,13 @@ export function useMeetingRoom({
   }, [startCapture]);
 
   const handleStop = useCallback(() => {
-    if (isTerminalPhase(phaseRef.current)) {
+    if (phaseRef.current === "finalizing") {
       return;
     }
     stopCapture();
+    if (phaseRef.current === "ended") {
+      return;
+    }
     phaseRef.current = "idle";
     setPhase("idle");
   }, [stopCapture]);

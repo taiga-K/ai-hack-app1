@@ -3,17 +3,28 @@ import { describe, it } from "node:test";
 import { stopCaptureWhenAlreadyOver } from "./stop-capture-when-already-over.ts";
 
 describe("stopCaptureWhenAlreadyOver", () => {
-  it("stops capture when a live remount becomes already over", () => {
+  it("stops capture when a completed summary is found on a live floor", () => {
     let stopped = 0;
-    stopCaptureWhenAlreadyOver(true, "live", () => {
+    stopCaptureWhenAlreadyOver("found", "live", () => {
       stopped += 1;
     });
     assert.equal(stopped, 1);
   });
 
-  it("does not stop capture while the meeting is still live", () => {
+  it("stops capture when the meeting is truly ended", () => {
     let stopped = 0;
-    stopCaptureWhenAlreadyOver(false, "live", () => {
+    stopCaptureWhenAlreadyOver("missing", "ended", () => {
+      stopped += 1;
+    });
+    assert.equal(stopped, 1);
+  });
+
+  it("keeps capture while lookup is still checking or failed", () => {
+    let stopped = 0;
+    stopCaptureWhenAlreadyOver("checking", "live", () => {
+      stopped += 1;
+    });
+    stopCaptureWhenAlreadyOver("error", "idle", () => {
       stopped += 1;
     });
     assert.equal(stopped, 0);
@@ -21,15 +32,10 @@ describe("stopCaptureWhenAlreadyOver", () => {
 
   it("does not cut the finalize drain", () => {
     let stopped = 0;
-    stopCaptureWhenAlreadyOver(true, "finalizing", () => {
+    stopCaptureWhenAlreadyOver("found", "finalizing", () => {
       stopped += 1;
     });
-    assert.equal(stopped, 0);
-  });
-
-  it("does not stop capture after the meeting has already ended", () => {
-    let stopped = 0;
-    stopCaptureWhenAlreadyOver(true, "ended", () => {
+    stopCaptureWhenAlreadyOver("missing", "finalizing", () => {
       stopped += 1;
     });
     assert.equal(stopped, 0);
