@@ -15,6 +15,7 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm architecture && pnpm test && pnpm format:check"
   },
   "dependencies": {
+    "@antv/hierarchy": "0.7.1",
     "@base-ui/react": "^1.8.0",
     "@xyflow/react": "^12.11.6",
     "class-variance-authority": "^0.7.1",

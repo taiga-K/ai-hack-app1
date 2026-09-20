@@ -1,3 +1,5 @@
+import { compactBox, mindmap } from "@antv/hierarchy";
+import type { HierarchyData, HierarchyNode } from "@antv/hierarchy";
 import type { MindMapNode } from "./types";
 
 export interface LaidOutMindMapNode {
@@ -21,8 +23,20 @@ export interface MindMapLayout {
   edges: MindMapEdge[];
 }
 
+export type MindMapLayoutAlgorithm = "mindmap" | "compactBox";
+
 export interface LayoutMindMapOptions {
   compact?: boolean;
+  algorithm?: MindMapLayoutAlgorithm;
+}
+
+export const DEFAULT_MIND_MAP_LAYOUT_ALGORITHM: MindMapLayoutAlgorithm =
+  "mindmap";
+
+interface NestedMindMapNode {
+  id: string;
+  label: string;
+  children: NestedMindMapNode[];
 }
 
 const NODE_GAP_X = 48;
@@ -55,61 +69,89 @@ export function measureMindMapLabel(label: string): {
   };
 }
 
-function childrenOf(
-  nodes: readonly MindMapNode[],
-  parentId: string | null
-): MindMapNode[] {
-  return nodes.filter((node) => node.parentId === parentId);
-}
+function nestMindMapForest(nodes: readonly MindMapNode[]): NestedMindMapNode[] {
+  const knownIds = new Set(nodes.map((node) => node.id));
+  const childrenByParent = new Map<string | null, MindMapNode[]>();
 
-function nodeBox(node: MindMapNode): { width: number; height: number } {
-  return measureMindMapLabel(node.label);
-}
-
-function subtreeHeight(nodes: readonly MindMapNode[], nodeId: string): number {
-  const node = nodes.find((item) => item.id === nodeId);
-  const ownHeight = node ? nodeBox(node).height : LABEL_PAD_Y + LABEL_LINE_PX;
-  const children = childrenOf(nodes, nodeId);
-  if (children.length === 0) {
-    return ownHeight;
+  for (const node of nodes) {
+    const parentId =
+      node.parentId !== null && knownIds.has(node.parentId)
+        ? node.parentId
+        : null;
+    const siblings = childrenByParent.get(parentId);
+    if (siblings === undefined) {
+      childrenByParent.set(parentId, [node]);
+      continue;
+    }
+    siblings.push(node);
   }
-  const childHeights = children.map((child) => subtreeHeight(nodes, child.id));
-  const gaps = Math.max(0, children.length - 1) * NODE_GAP_Y;
-  return Math.max(
-    ownHeight,
-    childHeights.reduce((sum, height) => sum + height, 0) + gaps
-  );
+
+  function nest(node: MindMapNode): NestedMindMapNode {
+    const children = childrenByParent.get(node.id) ?? [];
+    return {
+      id: node.id,
+      label: node.label,
+      children: children.map(nest),
+    };
+  }
+
+  return (childrenByParent.get(null) ?? []).map(nest);
 }
 
-function placeSubtree(
-  nodes: readonly MindMapNode[],
-  node: MindMapNode,
-  left: number,
-  depth: number,
-  top: number,
-  placed: LaidOutMindMapNode[]
-): number {
-  const box = nodeBox(node);
-  const height = subtreeHeight(nodes, node.id);
-  placed.push({
+function toHierarchyData(node: NestedMindMapNode): HierarchyData {
+  return {
     id: node.id,
     label: node.label,
-    x: left,
-    y: top + height / 2 - box.height / 2,
-    depth,
-    width: box.width,
-    height: box.height,
-  });
+    children: node.children.map(toHierarchyData),
+  };
+}
 
-  const children = childrenOf(nodes, node.id);
-  let cursor = top;
-  const childLeft = left + box.width + NODE_GAP_X;
-  for (const child of children) {
-    const childHeight = subtreeHeight(nodes, child.id);
-    placeSubtree(nodes, child, childLeft, depth + 1, cursor, placed);
-    cursor += childHeight + NODE_GAP_Y;
+function collectLaidOut(
+  tree: HierarchyNode,
+  placed: LaidOutMindMapNode[]
+): void {
+  const bounds = tree.getBoundingBox();
+  tree.translate(-bounds.left, -bounds.top);
+  tree.eachNode((node) => {
+    const box = measureMindMapLabel(String(node.data.label ?? ""));
+    placed.push({
+      id: node.id,
+      label: String(node.data.label ?? ""),
+      x: node.x + node.hgap,
+      y: node.y + node.vgap,
+      depth: node.depth,
+      width: box.width,
+      height: box.height,
+    });
+  });
+}
+
+function layoutNestedTree(
+  root: NestedMindMapNode,
+  algorithm: MindMapLayoutAlgorithm
+): HierarchyNode {
+  const data = toHierarchyData(root);
+  const options = {
+    direction: "LR" as const,
+    fixedRoot: false,
+    getId: (item: HierarchyData) => String(item.id ?? ""),
+    getWidth: (item: HierarchyData) =>
+      measureMindMapLabel(String(item.label ?? "")).width,
+    getHeight: (item: HierarchyData) =>
+      measureMindMapLabel(String(item.label ?? "")).height,
+    getHGap: () => NODE_GAP_X / 2,
+    getVGap: () => NODE_GAP_Y / 2,
+  };
+  switch (algorithm) {
+    case "compactBox":
+      return compactBox(data, options);
+    case "mindmap":
+      return mindmap(data, options);
+    default: {
+      const _exhaustiveCheck: never = algorithm;
+      throw new Error(`Unhandled layout algorithm: ${_exhaustiveCheck}`);
+    }
   }
-  return top + height;
 }
 
 function edgesFor(
@@ -135,17 +177,26 @@ export function layoutMindMap(
   options: LayoutMindMapOptions = {}
 ): MindMapLayout {
   void options.compact;
+  const algorithm = options.algorithm ?? DEFAULT_MIND_MAP_LAYOUT_ALGORITHM;
   const knownIds = new Set(nodes.map((node) => node.id));
-  const roots = nodes.filter(
-    (node) => node.parentId === null || !knownIds.has(node.parentId)
-  );
+  const forest = nestMindMapForest(nodes);
   const placed: LaidOutMindMapNode[] = [];
-  let top = 0;
+  let offsetY = 0;
 
-  for (const root of roots) {
-    const height = subtreeHeight(nodes, root.id);
-    placeSubtree(nodes, root, 0, 0, top, placed);
-    top += height + NODE_GAP_Y * 2;
+  for (const root of forest) {
+    const tree = layoutNestedTree(root, algorithm);
+    const start = placed.length;
+    collectLaidOut(tree, placed);
+    const slice = placed.slice(start);
+    const minX = Math.min(...slice.map((node) => node.x));
+    const minY = Math.min(...slice.map((node) => node.y));
+    let maxBottom = 0;
+    for (const node of slice) {
+      node.x -= minX;
+      node.y = node.y - minY + offsetY;
+      maxBottom = Math.max(maxBottom, node.y + node.height);
+    }
+    offsetY = maxBottom + NODE_GAP_Y * 2;
   }
 
   return { nodes: placed, edges: edgesFor(nodes, knownIds) };
