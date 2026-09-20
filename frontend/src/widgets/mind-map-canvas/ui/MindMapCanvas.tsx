@@ -308,25 +308,34 @@ function MindMapFlow({
   );
   const edges: Edge[] = useMemo(() => {
     const placedById = new Map(layout.nodes.map((node) => [node.id, node]));
-    return layout.edges.map((edge) => {
+    // The phone column lists relations in the detail instead of drawing them.
+    const drawn = stacked
+      ? layout.edges.filter((edge) => edge.kind === "tree")
+      : layout.edges;
+    return drawn.map((edge) => {
       const style = EDGE_STYLE[edge.kind];
       const isRelation = edge.kind !== "tree";
       const from = placedById.get(edge.source);
       const to = placedById.get(edge.target);
-      const targetIsLeft =
-        !stacked &&
-        isRelation &&
-        from !== undefined &&
-        to !== undefined &&
-        to.x + to.width <= from.x;
-      // In the phone column, relation lines hook around the left side.
-      const hooksLeft = targetIsLeft || (stacked && isRelation);
+      // Leave from the side that faces the target; siblings in one column
+      // get a bracket on the right so no line runs behind a pill.
+      let sourceHandle = HANDLE_OUT_RIGHT;
+      let targetHandle = HANDLE_IN_LEFT;
+      if (isRelation && from !== undefined && to !== undefined) {
+        if (to.x + to.width <= from.x) {
+          sourceHandle = HANDLE_OUT_LEFT;
+          targetHandle = HANDLE_IN_RIGHT;
+        } else if (to.x < from.x + from.width) {
+          sourceHandle = HANDLE_OUT_RIGHT;
+          targetHandle = HANDLE_IN_RIGHT;
+        }
+      }
       return {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        sourceHandle: hooksLeft ? HANDLE_OUT_LEFT : HANDLE_OUT_RIGHT,
-        targetHandle: hooksLeft ? HANDLE_IN_RIGHT : HANDLE_IN_LEFT,
+        sourceHandle,
+        targetHandle,
         type: isRelation ? "simplebezier" : "smoothstep",
         label:
           edge.kind === "supports" || edge.kind === "opposes"
