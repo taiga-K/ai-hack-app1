@@ -613,6 +613,10 @@ async def test_new_audio_session_restores_mind_map_revision() -> None:
         source_utterance_count=2,
         changed=True,
     )
+    store.add_utterance(
+        "meet-map-restore",
+        _session_utterance("meet-map-restore", "u-1", "今日の会議を始めます。"),
+    )
     store.save_mind_map(
         "meet-map-restore",
         MindMapSnapshot(
@@ -639,6 +643,8 @@ async def test_new_audio_session_restores_mind_map_revision() -> None:
     )
 
     assert session._mind_map.revision == 1
+    assert session._mind_map.source_utterance_count == 1
+    assert session.dialogue_context.total_utterances == 1
     assert [node.id for node in session._mind_map.nodes] == ["root"]
 
     await session.send_restored_mind_map()
@@ -676,3 +682,168 @@ async def test_restored_empty_mind_map_does_not_emit() -> None:
 
     websocket.send_text.assert_not_awaited()
     assert session._mind_map.revision == 0
+
+
+@pytest.mark.asyncio
+async def test_restored_mind_map_grows_without_catching_old_watermark() -> None:
+    store = InMemoryMeetingSessionStore()
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-watermark",
+        revision=3,
+        upserts=[
+            MindMapNodeDTO(
+                id="scope",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-4"],
+            )
+        ],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            ),
+            MindMapNodeDTO(
+                id="scope",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-4"],
+            ),
+        ],
+        source_utterance_count=4,
+        changed=True,
+    )
+    for utterance_id, text in (
+        ("u-1", "今日の会議を始めます。"),
+        ("u-2", "更新申請だけが対象です。"),
+        ("u-3", "現場も同じ認識です。"),
+    ):
+        store.add_utterance(
+            "meet-map-watermark",
+            _session_utterance("meet-map-watermark", utterance_id, text),
+        )
+    store.save_mind_map(
+        "meet-map-watermark",
+        MindMapSnapshot(
+            meeting_id="meet-map-watermark",
+            revision=2,
+            nodes=(
+                MindMapNode(
+                    id="root",
+                    label="今日の会議",
+                    parent_id=None,
+                ),
+            ),
+            source_utterance_count=3,
+        ),
+    )
+    websocket = AsyncMock()
+    session = AudioStreamSession(
+        meeting_id="meet-map-watermark",
+        websocket=websocket,
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+        meeting_session_repository=store,
+    )
+
+    assert session.dialogue_context.total_utterances == 3
+    assert session._mind_map.revision == 2
+    assert session._mind_map.source_utterance_count == 3
+
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-watermark", "u-4", "対象範囲を決めたいです。")
+    )
+    await session._trigger_mind_map(force=False)
+
+    mock_mind_map.execute.assert_awaited()
+    called = mock_mind_map.execute.await_args.kwargs
+    assert called["force"] is False
+    assert called["context"].total_utterances == 4
+    assert called["current"].revision == 2
+    assert called["current"].source_utterance_count == 3
+    assert (
+        called["context"].total_utterances - called["current"].source_utterance_count
+        == 1
+    )
+    assert session._mind_map.revision == 3
+
+
+@pytest.mark.asyncio
+async def test_restored_mind_map_clamps_watermark_to_empty_dialogue() -> None:
+    store = InMemoryMeetingSessionStore()
+    mock_mind_map = AsyncMock(spec=UpdateMindMapUseCase)
+    mock_mind_map.execute.return_value = MindMapUpdateDTO(
+        meeting_id="meet-map-clamp",
+        revision=3,
+        upserts=[
+            MindMapNodeDTO(
+                id="scope",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-new"],
+            )
+        ],
+        removes=[],
+        nodes=[
+            MindMapNodeDTO(
+                id="root",
+                label="今日の会議",
+                parent_id=None,
+                source_utterance_ids=[],
+            ),
+            MindMapNodeDTO(
+                id="scope",
+                label="対象範囲",
+                parent_id="root",
+                source_utterance_ids=["u-new"],
+            ),
+        ],
+        source_utterance_count=1,
+        changed=True,
+    )
+    store.save_mind_map(
+        "meet-map-clamp",
+        MindMapSnapshot(
+            meeting_id="meet-map-clamp",
+            revision=2,
+            nodes=(
+                MindMapNode(
+                    id="root",
+                    label="今日の会議",
+                    parent_id=None,
+                ),
+            ),
+            source_utterance_count=5,
+        ),
+    )
+    websocket = AsyncMock()
+    session = AudioStreamSession(
+        meeting_id="meet-map-clamp",
+        websocket=websocket,
+        diarizer=ChannelDiarizer(sample_rate=16000),
+        transcribe_use_case=AsyncMock(spec=TranscribeAudioUseCase),
+        update_mind_map_use_case=mock_mind_map,
+        meeting_session_repository=store,
+    )
+
+    assert session.dialogue_context.total_utterances == 0
+    assert session._mind_map.revision == 2
+    assert [node.id for node in session._mind_map.nodes] == ["root"]
+    assert session._mind_map.source_utterance_count == 0
+
+    session.dialogue_context.add_utterance(
+        _session_utterance("meet-map-clamp", "u-new", "対象範囲を決めたいです。")
+    )
+    await session._trigger_mind_map(force=False)
+
+    called = mock_mind_map.execute.await_args.kwargs
+    assert called["force"] is False
+    assert called["current"].revision == 2
+    assert called["current"].source_utterance_count == 0
+    assert called["context"].total_utterances == 1
+    assert session._mind_map.revision == 3

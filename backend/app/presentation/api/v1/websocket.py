@@ -83,8 +83,14 @@ class AudioStreamSession:
         if self.meeting_session_repository is not None:
             record = self.meeting_session_repository.get_or_create(meeting_id)
             self.meeting_session_repository.register_live_session(meeting_id)
+            # Keep the persisted transcript so the restored watermark is not ahead
+            # of an empty dialogue (reconnect / ききはじめる again).
+            self.dialogue_context = record.dialogue
             if record.mind_map is not None:
-                self._mind_map = record.mind_map
+                self._mind_map = self._align_mind_map_watermark(
+                    record.mind_map,
+                    self.dialogue_context.total_utterances,
+                )
         self._analysis_lock = asyncio.Lock()
         self._analysis_pending = False
         self._analysis_pending_force = False
@@ -484,6 +490,21 @@ class AudioStreamSession:
         if self.meeting_session_repository is None:
             return
         self.meeting_session_repository.save_mind_map(self.meeting_id, self._mind_map)
+
+    @staticmethod
+    def _align_mind_map_watermark(
+        snapshot: MindMapSnapshot,
+        utterance_count: int,
+    ) -> MindMapSnapshot:
+        """Keep the tree/revision, but never let the watermark exceed dialogue."""
+        if snapshot.source_utterance_count <= utterance_count:
+            return snapshot
+        return MindMapSnapshot(
+            meeting_id=snapshot.meeting_id,
+            revision=snapshot.revision,
+            nodes=snapshot.nodes,
+            source_utterance_count=utterance_count,
+        )
 
     async def send_restored_mind_map(self) -> None:
         if self._mind_map.revision <= 0 or self._is_closed:
