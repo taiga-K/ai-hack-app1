@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   didMindMapPaneWidthChange,
+  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitMindMapCamera,
@@ -185,5 +186,23 @@ describe("didMindMapPaneWidthChange", () => {
     assert.equal(didMindMapPaneWidthChange(640, 500), true);
     assert.equal(didMindMapPaneWidthChange(640, 640), false);
     assert.equal(didMindMapPaneWidthChange(0, 640), false);
+  });
+});
+
+describe("mindMapGrowthSignature", () => {
+  it("stays stable when only the visible branch changes", () => {
+    const snapshotIds = ["root", "scope", "release", "homework"];
+    assert.equal(
+      mindMapGrowthSignature(3, snapshotIds),
+      mindMapGrowthSignature(3, snapshotIds)
+    );
+    assert.notEqual(
+      mindMapGrowthSignature(3, snapshotIds),
+      mindMapGrowthSignature(4, snapshotIds)
+    );
+    assert.notEqual(
+      mindMapGrowthSignature(3, ["root", "scope"]),
+      mindMapGrowthSignature(3, snapshotIds)
+    );
   });
 });

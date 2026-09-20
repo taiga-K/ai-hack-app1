@@ -34,6 +34,7 @@ import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   didMindMapPaneWidthChange,
+  mindMapGrowthSignature,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitMindMapCamera,
@@ -293,9 +294,14 @@ function MindMapFlow({
     [layout.edges]
   );
   const hasNodes = layout.nodes.length > 0;
-  const nodeSignature = `${String(snapshot.revision)}:${layout.nodes
-    .map((node) => node.id)
-    .join(",")}`;
+  const nodeSignature = mindMapGrowthSignature(
+    snapshot.revision,
+    snapshot.nodes.map((node) => node.id)
+  );
+  const keepInView =
+    selectedId === null
+      ? null
+      : (layout.nodes.find((node) => node.id === selectedId) ?? null);
   const layoutWidth = layout.nodes.reduce(
     (widest, node) => Math.max(widest, node.x + node.width),
     0
@@ -349,9 +355,6 @@ function MindMapFlow({
       previous.width,
       visible.width
     );
-    const heightChanged =
-      previous.height > 0 && Math.abs(previous.height - visible.height) > 2;
-    const sizeChanged = widthChanged || heightChanged;
     const isFirstLayout = !didInitialFit.current;
     const previousSignature = lastNodeSignatureRef.current;
     const nodesChanged =
@@ -362,7 +365,7 @@ function MindMapFlow({
       width: visible.width,
       height: visible.height,
       isFirstLayout,
-      sizeChanged,
+      sizeChanged: widthChanged,
       nodesChanged,
       userTookCamera,
     });
@@ -379,8 +382,6 @@ function MindMapFlow({
       }
       return;
     }
-    // Splitter drags arrive as a burst, so they wait; the branch detail
-    // opening below the map only changes the height and refits at once.
     const deferResize = shouldDeferMindMapResizeFit({
       sizeChanged: widthChanged,
       isFirstLayout,
@@ -394,7 +395,8 @@ function MindMapFlow({
         nextVisible.height,
         FIT_PADDING,
         fitMinZoom(stacked),
-        fitMaxZoom(stacked)
+        fitMaxZoom(stacked),
+        isFirstLayout ? null : keepInView
       );
       if (viewport === null) {
         return;
@@ -425,6 +427,7 @@ function MindMapFlow({
     };
   }, [
     compact,
+    keepInView,
     layout.nodes,
     setViewport,
     stacked,
