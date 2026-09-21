@@ -30,7 +30,6 @@ export interface MindMapLayout {
 }
 
 export type MindMapLayoutAlgorithm = "mindmap" | "compactBox";
-export type MindMapLayoutDirection = "LR" | "TB";
 
 /** Extra room a pill needs besides its label: a chip in front, a count behind. */
 export interface MindMapNodeDecoration {
@@ -39,9 +38,7 @@ export interface MindMapNodeDecoration {
 }
 
 export interface LayoutMindMapOptions {
-  compact?: boolean;
   algorithm?: MindMapLayoutAlgorithm;
-  direction?: MindMapLayoutDirection;
   decorationFor?: (node: MindMapNode) => MindMapNodeDecoration;
 }
 
@@ -174,42 +171,6 @@ function collectLaidOut(
   });
 }
 
-const STACKED_INDENT_X = 12;
-
-function layoutStackedColumn(
-  nodes: readonly MindMapNode[],
-  decorationFor: LayoutMindMapOptions["decorationFor"]
-): MindMapLayout {
-  const forest = nestMindMapForest(nodes, decorationFor);
-  const placed: LaidOutMindMapNode[] = [];
-  let y = 0;
-
-  function place(node: NestedMindMapNode, depth: number): void {
-    const box = measureMindMapLabel(node.label, node.extraWidth);
-    placed.push({
-      id: node.id,
-      label: node.label,
-      x: depth * STACKED_INDENT_X,
-      y,
-      depth,
-      width: box.width,
-      height: box.height,
-    });
-    y += box.height + NODE_GAP_Y;
-    for (const child of node.children) {
-      place(child, depth + 1);
-    }
-  }
-
-  for (const root of forest) {
-    place(root, 0);
-    y += NODE_GAP_Y;
-  }
-
-  const knownIds = new Set(nodes.map((node) => node.id));
-  return { nodes: placed, edges: edgesFor(nodes, knownIds) };
-}
-
 function layoutNestedTree(
   root: NestedMindMapNode,
   algorithm: MindMapLayoutAlgorithm
@@ -293,11 +254,6 @@ export function layoutMindMap(
   nodes: readonly MindMapNode[],
   options: LayoutMindMapOptions = {}
 ): MindMapLayout {
-  void options.compact;
-  const direction = options.direction ?? "LR";
-  if (direction === "TB") {
-    return layoutStackedColumn(nodes, options.decorationFor);
-  }
   const algorithm = options.algorithm ?? DEFAULT_MIND_MAP_LAYOUT_ALGORITHM;
   const knownIds = new Set(nodes.map((node) => node.id));
   const forest = nestMindMapForest(nodes, options.decorationFor);

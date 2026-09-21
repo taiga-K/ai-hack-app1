@@ -34,16 +34,6 @@ export function shouldDeferMindMapResizeFit(input: {
   return input.sizeChanged && !input.isFirstLayout && !input.nodesChanged;
 }
 
-export function usesStackedMindMapLayout(
-  width: number,
-  compact: boolean
-): boolean {
-  if (compact) {
-    return true;
-  }
-  return width > 0 && width < 560;
-}
-
 /**
  * A height-only change (the branch detail opening or closing) refits when the
  * whole tree fits the pane, or when a pressed node anchors the fit. On an
@@ -78,4 +68,16 @@ export function shouldCommitMindMapCameraMemory(input: {
     return false;
   }
   return input.fitRan || input.userTookCamera;
+}
+
+/** Reset / first fit show the whole tree; a later resize may keep a pressed node. */
+export function keepInViewForMindMapFit<T>(input: {
+  isFirstLayout: boolean;
+  resetToFullTree: boolean;
+  keepInView: T | null;
+}): T | null {
+  if (input.isFirstLayout || input.resetToFullTree) {
+    return null;
+  }
+  return input.keepInView;
 }

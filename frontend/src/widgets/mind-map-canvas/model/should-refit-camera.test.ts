@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   didMindMapPaneWidthChange,
+  keepInViewForMindMapFit,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
-  usesStackedMindMapLayout,
 } from "./should-refit-camera.ts";
 
 const readyPane = {
@@ -45,6 +45,19 @@ describe("shouldRefitMindMapCamera", () => {
         sizeChanged: true,
         nodesChanged: false,
         userTookCamera: true,
+      }),
+      false
+    );
+  });
+
+  it("does not refit when ぜんぶ見る only returns the camera", () => {
+    assert.equal(
+      shouldRefitMindMapCamera({
+        ...readyPane,
+        isFirstLayout: false,
+        sizeChanged: false,
+        nodesChanged: false,
+        userTookCamera: false,
       }),
       false
     );
@@ -172,15 +185,6 @@ describe("shouldCommitMindMapCameraMemory", () => {
   });
 });
 
-describe("usesStackedMindMapLayout", () => {
-  it("stacks a compact or narrow pane so children stay readable", () => {
-    assert.equal(usesStackedMindMapLayout(800, true), true);
-    assert.equal(usesStackedMindMapLayout(400, false), true);
-    assert.equal(usesStackedMindMapLayout(700, false), false);
-    assert.equal(usesStackedMindMapLayout(0, false), false);
-  });
-});
-
 describe("didMindMapPaneWidthChange", () => {
   it("ignores a height-only shrink from the branch detail pane", () => {
     assert.equal(didMindMapPaneWidthChange(640, 500), true);
@@ -225,6 +229,40 @@ describe("shouldRefitForPaneHeight", () => {
         hasAnchor: true,
       }),
       false
+    );
+  });
+});
+
+describe("keepInViewForMindMapFit", () => {
+  const selected = { id: "scope" };
+
+  it("drops the selected node on first layout and on ぜんぶ見る", () => {
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: true,
+        resetToFullTree: false,
+        keepInView: selected,
+      }),
+      null
+    );
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: false,
+        resetToFullTree: true,
+        keepInView: selected,
+      }),
+      null
+    );
+  });
+
+  it("keeps the pressed node only for a later resize fit", () => {
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: false,
+        resetToFullTree: false,
+        keepInView: selected,
+      }),
+      selected
     );
   });
 });
