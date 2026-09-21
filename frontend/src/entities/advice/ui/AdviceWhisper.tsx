@@ -39,6 +39,18 @@ export function AdviceWhisper({
       <p className="text-base leading-relaxed font-medium text-foreground">
         {advice.suggestedQuestion}
       </p>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-sm text-muted-foreground">
+          くわしく
+        </summary>
+        <div className="mt-2 flex flex-col gap-1">
+          <p className="text-xs font-medium text-ours">{category.badge}</p>
+          <p className="text-sm font-medium text-foreground">{advice.title}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            {advice.reason}
+          </p>
+        </div>
+      </details>
       {onAction !== undefined && availableActions.length > 0 ? (
         <div
           className="mt-3 flex flex-wrap gap-2"
@@ -60,18 +72,6 @@ export function AdviceWhisper({
           ))}
         </div>
       ) : null}
-      <details className="mt-2">
-        <summary className="cursor-pointer text-sm text-muted-foreground">
-          くわしく
-        </summary>
-        <div className="mt-2 flex flex-col gap-1">
-          <p className="text-xs font-medium text-ours">{category.badge}</p>
-          <p className="text-sm font-medium text-foreground">{advice.title}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {advice.reason}
-          </p>
-        </div>
-      </details>
     </article>
   );
 }

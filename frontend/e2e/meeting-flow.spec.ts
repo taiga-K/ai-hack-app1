@@ -173,7 +173,19 @@ test("アドバイスのくわしくは最初閉じてクリックで開く", as
 
   await expect(first.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
+  const details = first.locator("details");
+  const actions = first.getByRole("group", { name: "このアドバイスの操作" });
   await expect(first.getByRole("button", { name: "聞けた" })).toBeVisible();
+  const questionBox = await first.getByText(PREVIEW_QUESTION).boundingBox();
+  const detailsBox = await details.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  expect(questionBox).not.toBeNull();
+  expect(detailsBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  if (questionBox !== null && detailsBox !== null && actionsBox !== null) {
+    expect(questionBox.y).toBeLessThan(detailsBox.y);
+    expect(detailsBox.y).toBeLessThan(actionsBox.y);
+  }
   await first.getByText("くわしく").click();
   await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(first.getByText("❓ 専門用語の確認")).toBeVisible();
