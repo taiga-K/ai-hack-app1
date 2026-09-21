@@ -95,11 +95,13 @@ async function driveMeetingFloor(page) {
     state: "visible",
     timeout: 4000,
   });
-  await page
-    .getByRole("complementary", { name: "こちらのアドバイス" })
-    .waitFor({ state: "visible" });
-  await page.getByText(PREVIEW_ADVICE_TITLE).waitFor({ state: "visible" });
+  const whispers = page.getByRole("complementary", {
+    name: "こちらのアドバイス",
+  });
+  await whispers.waitFor({ state: "visible" });
   await page.getByText(PREVIEW_QUESTION).waitFor({ state: "visible" });
+  await whispers.getByText("くわしく").first().click();
+  await page.getByText(PREVIEW_ADVICE_TITLE).waitFor({ state: "visible" });
 
   await page.screenshot({
     path: path.join(evidenceDir, "meeting-floor-map.png"),

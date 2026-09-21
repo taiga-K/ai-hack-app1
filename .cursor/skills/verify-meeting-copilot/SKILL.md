@@ -82,6 +82,7 @@ Stable handles (from the product UI and `frontend/e2e/meeting-flow.spec.ts`):
 | Live URL | `/meetings/<uuid>?title=...` and **not** `demo=1` |
 | Voice meter | Must stay absent: `getByRole("region", { name: "こちら" })` / `むこう` count `0` |
 | Whispers | `getByRole("complementary", { name: "こちらのアドバイス" })` |
+| Advice details | `くわしく` (`<details>`, default closed) |
 | Map / memos tabs | `getByRole("tab", { name: "話の地図" })` / `会議のメモ` |
 | Splitter | `getByRole("separator", { name: "左右の幅を変える" })` |
 | Capture | `ききはじめる` / `きくのをやめる` / `おためしちゅう` |

@@ -184,13 +184,12 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   const widthHandle = page.getByRole("separator", { name: "左右の幅を変える" });
   await expect(widthHandle).toBeVisible();
   await expect(page.getByText("地図をかいています")).toHaveCount(0);
-  await expect(
-    page.getByRole("region", { name: "マインドマップ" })
-  ).toBeVisible();
-  await expect(page.getByText("今日の会議").first()).toBeVisible({
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  await expect(mapRegion).toBeVisible();
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
     timeout: 4000,
   });
-  await expect(page.getByText("対象範囲").first()).toBeVisible({
+  await expect(mapRegion.getByText("対象範囲")).toBeVisible({
     timeout: 4000,
   });
   await expectLeftToRightMindMap(page);
@@ -205,9 +204,12 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(
     page.getByRole("complementary", { name: "こちらのアドバイス" })
   ).toBeVisible();
+  await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
+  await expect(page.getByText("❓ 専門用語の確認")).toBeHidden();
+  await page.getByText("くわしく").first().click();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText("❓ 専門用語の確認")).toBeVisible();
-  await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "おためしちゅう" })
   ).toBeVisible();
@@ -215,6 +217,33 @@ test("ホームからおためしで発話と助言を確認できる", async ({
     0
   );
   await expectNoVoiceMeter(page);
+});
+
+test("アドバイスのくわしくは最初閉じてクリックで開く", async ({ page }) => {
+  await startUiPreview(page, "E2Eくわしく折りたたみ");
+  const whispers = page.getByRole("complementary", {
+    name: "こちらのアドバイス",
+  });
+  const first = whispers.getByRole("article").first();
+
+  await expect(first.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
+  const details = first.locator("details");
+  const actions = first.getByRole("group", { name: "このアドバイスの操作" });
+  await expect(first.getByRole("button", { name: "聞けた" })).toBeVisible();
+  const questionBox = await first.getByText(PREVIEW_QUESTION).boundingBox();
+  const detailsBox = await details.boundingBox();
+  const actionsBox = await actions.boundingBox();
+  expect(questionBox).not.toBeNull();
+  expect(detailsBox).not.toBeNull();
+  expect(actionsBox).not.toBeNull();
+  if (questionBox !== null && detailsBox !== null && actionsBox !== null) {
+    expect(questionBox.y).toBeLessThan(detailsBox.y);
+    expect(detailsBox.y).toBeLessThan(actionsBox.y);
+  }
+  await first.getByText("くわしく").click();
+  await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
+  await expect(first.getByText("❓ 専門用語の確認")).toBeVisible();
 });
 
 test("地図は左右に広がり、動かさなければカメラを奪わない", async ({ page }) => {
@@ -426,6 +455,9 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
     "false"
   );
   await expect(page.getByRole("heading", { name: "アドバイス" })).toBeVisible();
+  await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
+  await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
+  await page.getByText("くわしく").first().click();
   await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(
@@ -588,7 +620,7 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page).toHaveURL(/\/meetings\/[^/]+\?.*demo=1/);
   await expect(page).toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/\/document/);
-  await expect(page.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
+  await expect(page.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
   await page.getByRole("link", { name: "まとめを見る" }).click();
@@ -929,6 +961,7 @@ test("まとめの読込失敗ではホームを出さない", async ({ page }) 
 
 const REAL_MEMO = "実会議の残ったメモです。";
 const REAL_WHISPER = "実会議の残ったささやき";
+const REAL_ADVICE_QUESTION = "その言葉は何を指しますか？";
 
 async function seedRealMeetingFloor(
   page: Page,
@@ -1020,7 +1053,8 @@ test("実会議のまとめから戻るとメモとアドバイスが残る", as
   await expect(page).toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/demo=1/);
   await expect(page).not.toHaveURL(/\/document/);
-  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByText(REAL_ADVICE_QUESTION)).toBeVisible();
+  await expect(page.getByText(REAL_WHISPER)).toBeHidden();
   await showMeetingMemos(page);
   await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByText("まだ、だれも話していません")).toHaveCount(0);
@@ -1040,7 +1074,7 @@ test("実会議を summary なしで開き直してもメモと終了が残る",
   await page.goto("/meetings/e2e-real-reload?title=実会議再読込");
   await expect(page).not.toHaveURL(/summary=1/);
   await expect(page).not.toHaveURL(/demo=1/);
-  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByText(REAL_ADVICE_QUESTION)).toBeVisible();
   await showMeetingMemos(page);
   await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
@@ -1158,7 +1192,7 @@ test("実会議の生成失敗後に開き直すとやり直せる", async ({ pa
     .toBe(false);
 
   await page.reload();
-  await expect(page.getByText(REAL_WHISPER)).toBeVisible();
+  await expect(page.getByText(REAL_ADVICE_QUESTION)).toBeVisible();
   await showMeetingMemos(page);
   await expect(page.getByText(REAL_MEMO)).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
