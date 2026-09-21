@@ -201,6 +201,17 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(
     page.getByText("現場の担当も同じ認識です。例外はあとで共有します。")
   ).toBeVisible();
+  const memo = page.getByRole("region", { name: "会議のメモ" });
+  await expect(
+    memo.getByRole("article", { name: "むこうの発言" }).filter({
+      hasText: "了解です。そこはお任せします。",
+    })
+  ).toContainText("現場の担当も同じ認識です。例外はあとで共有します。");
+  await expect(
+    memo.getByRole("article", { name: "こちらの発言" }).filter({
+      hasText: "では更新申請に限定して、例外は宿題にしますね。",
+    })
+  ).toContainText("こちらの設計担当にも、その前提で共有します。");
   await expect(
     page.getByRole("complementary", { name: "こちらのアドバイス" })
   ).toBeVisible();
