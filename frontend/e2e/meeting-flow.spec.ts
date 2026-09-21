@@ -50,6 +50,22 @@ async function expectNoVoiceMeter(page: Page): Promise<void> {
   await expect(page.getByRole("region", { name: "むこう" })).toHaveCount(0);
 }
 
+async function expectLeftToRightMindMap(page: Page): Promise<void> {
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  const root = mapRegion.getByText("今日の会議").first();
+  const child = mapRegion.getByText("対象範囲").first();
+  await expect(root).toBeVisible();
+  await expect(child).toBeVisible();
+  const rootBox = await root.boundingBox();
+  const childBox = await child.boundingBox();
+  expect(rootBox).not.toBeNull();
+  expect(childBox).not.toBeNull();
+  if (rootBox !== null && childBox !== null) {
+    expect(childBox.x).toBeGreaterThan(rootBox.x + rootBox.width * 0.3);
+  }
+  await expect(mapRegion.locator(".react-flow__edge")).not.toHaveCount(0);
+}
+
 async function installSuccessfulCapture(page: Page): Promise<void> {
   await page.addInitScript(() => {
     class ImmediateFailWebSocket {
@@ -139,6 +155,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expect(page.getByText("対象範囲").first()).toBeVisible({
     timeout: 4000,
   });
+  await expectLeftToRightMindMap(page);
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
   await page.getByRole("tab", { name: "会議のメモ" }).click();
   await expect(page.getByRole("region", { name: "会議のメモ" })).toBeVisible();
@@ -162,7 +179,7 @@ test("ホームからおためしで発話と助言を確認できる", async ({
   await expectNoVoiceMeter(page);
 });
 
-test("地図は動かさなければ成長しても画面内に収まる", async ({ page }) => {
+test("地図は左右に広がり、動かさなければカメラを奪わない", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await startUiPreview(page, "E2E地図成長会議");
 
@@ -174,23 +191,10 @@ test("地図は動かさなければ成長しても画面内に収まる", async
   await expect(mapRegion.getByText("来月末の本番")).toBeVisible({
     timeout: 4000,
   });
-  const grown = mapRegion.getByText("例外は宿題", { exact: true });
-  await expect(grown).toBeVisible({ timeout: 4000 });
-  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
-  const mapBox = await mapRegion.boundingBox();
-  const nodeBox = await grown.boundingBox();
-  expect(mapBox).not.toBeNull();
-  expect(nodeBox).not.toBeNull();
-  if (mapBox !== null && nodeBox !== null) {
-    expect(nodeBox.x).toBeGreaterThanOrEqual(mapBox.x - 8);
-    expect(nodeBox.y).toBeGreaterThanOrEqual(mapBox.y - 8);
-    expect(nodeBox.x + nodeBox.width).toBeLessThanOrEqual(
-      mapBox.x + mapBox.width + 8
-    );
-    expect(nodeBox.y + nodeBox.height).toBeLessThanOrEqual(
-      mapBox.y + mapBox.height + 8
-    );
-  }
+  await expect(mapRegion.getByText("例外は宿題", { exact: true })).toBeVisible({
+    timeout: 4000,
+  });
+  await expectLeftToRightMindMap(page);
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
 });
 
@@ -359,21 +363,7 @@ test("デスクトップで左右の幅を拖って変えられる", async ({ pa
   const grown = mapRegion.getByText("例外は宿題", { exact: true });
   await expect(grown).toBeVisible();
   await expect(mapRegion.getByText("今日の会議")).toBeVisible();
-  await expect
-    .poll(async () => {
-      const mapBox = await mapRegion.boundingBox();
-      const nodeBox = await grown.boundingBox();
-      if (mapBox === null || nodeBox === null) {
-        return false;
-      }
-      return (
-        nodeBox.x >= mapBox.x - 8 &&
-        nodeBox.y >= mapBox.y - 8 &&
-        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
-        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
-      );
-    })
-    .toBe(true);
+  await expectLeftToRightMindMap(page);
 });
 
 test("モバイルのアドバイスタブは選択と本文が一致する", async ({ page }) => {
@@ -384,23 +374,10 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
   await expect(mapRegion.getByText("今日の会議")).toBeVisible({
     timeout: 4000,
   });
-  const lastTopic = mapRegion.getByText("来月末の本番");
-  await expect(lastTopic).toBeVisible({ timeout: 4000 });
-  await expect
-    .poll(async () => {
-      const mapBox = await mapRegion.boundingBox();
-      const nodeBox = await lastTopic.boundingBox();
-      if (mapBox === null || nodeBox === null) {
-        return false;
-      }
-      return (
-        nodeBox.x >= mapBox.x - 8 &&
-        nodeBox.y >= mapBox.y - 8 &&
-        nodeBox.x + nodeBox.width <= mapBox.x + mapBox.width + 8 &&
-        nodeBox.y + nodeBox.height <= mapBox.y + mapBox.height + 8
-      );
-    })
-    .toBe(true);
+  await expect(mapRegion.getByText("対象範囲")).toBeVisible({
+    timeout: 4000,
+  });
+  await expectLeftToRightMindMap(page);
   const whispersTab = page.getByRole("tab", { name: /アドバイス/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();

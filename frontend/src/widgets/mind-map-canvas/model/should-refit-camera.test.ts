@@ -6,7 +6,6 @@ import {
   shouldDeferMindMapResizeFit,
   shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
-  usesStackedMindMapLayout,
 } from "./should-refit-camera.ts";
 
 const readyPane = {
@@ -169,15 +168,6 @@ describe("shouldCommitMindMapCameraMemory", () => {
       }),
       true
     );
-  });
-});
-
-describe("usesStackedMindMapLayout", () => {
-  it("stacks a compact or narrow pane so children stay readable", () => {
-    assert.equal(usesStackedMindMapLayout(800, true), true);
-    assert.equal(usesStackedMindMapLayout(400, false), true);
-    assert.equal(usesStackedMindMapLayout(700, false), false);
-    assert.equal(usesStackedMindMapLayout(0, false), false);
   });
 });
 

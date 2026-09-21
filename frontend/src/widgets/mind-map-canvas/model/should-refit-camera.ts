@@ -34,16 +34,6 @@ export function shouldDeferMindMapResizeFit(input: {
   return input.sizeChanged && !input.isFirstLayout && !input.nodesChanged;
 }
 
-export function usesStackedMindMapLayout(
-  width: number,
-  compact: boolean
-): boolean {
-  if (compact) {
-    return true;
-  }
-  return width > 0 && width < 560;
-}
-
 /**
  * A height-only change (the branch detail opening or closing) refits when the
  * whole tree fits the pane, or when a pressed node anchors the fit. On an
