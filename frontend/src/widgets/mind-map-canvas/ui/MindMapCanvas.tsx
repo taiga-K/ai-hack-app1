@@ -211,7 +211,6 @@ function MindMapFlow({
   onPick: (nodeId: string) => void;
 }) {
   const didInitialFit = useRef(false);
-  const resetToFullTreeRef = useRef(false);
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
@@ -430,8 +429,6 @@ function MindMapFlow({
     });
     const runFit = (): void => {
       const nextVisible = readVisiblePaneSize(paneRef.current, width, height);
-      const resetToFullTree = resetToFullTreeRef.current;
-      resetToFullTreeRef.current = false;
       const viewport = viewportFromMindMapLayout(
         layout.nodes,
         nextVisible.width,
@@ -441,7 +438,7 @@ function MindMapFlow({
         FIT_MAX_ZOOM,
         keepInViewForMindMapFit({
           isFirstLayout,
-          resetToFullTree,
+          resetToFullTree: false,
           keepInView,
         })
       );
@@ -495,7 +492,8 @@ function MindMapFlow({
             variant="link"
             size="sm"
             onClick={() => {
-              resetToFullTreeRef.current = true;
+              // Fit the full tree here. A leftover reset flag would drop
+              // keepInView on the next expand, growth, or resize.
               setUserTookCamera(false);
               const visible = readVisiblePaneSize(
                 paneRef.current,
@@ -511,7 +509,6 @@ function MindMapFlow({
                 FIT_MAX_ZOOM
               );
               if (viewport === null) {
-                resetToFullTreeRef.current = false;
                 return;
               }
               isFittingRef.current = true;

@@ -50,6 +50,19 @@ describe("shouldRefitMindMapCamera", () => {
     );
   });
 
+  it("does not refit when ぜんぶ見る only returns the camera", () => {
+    assert.equal(
+      shouldRefitMindMapCamera({
+        ...readyPane,
+        isFirstLayout: false,
+        sizeChanged: false,
+        nodesChanged: false,
+        userTookCamera: false,
+      }),
+      false
+    );
+  });
+
   it("refits growth only while the user has not taken the camera", () => {
     assert.equal(
       shouldRefitMindMapCamera({
