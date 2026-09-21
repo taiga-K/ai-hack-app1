@@ -1,9 +1,12 @@
 "use client";
 
-import { Check } from "lucide-react";
-import { useState } from "react";
-import { copyTextToClipboard } from "@/shared/lib";
 import { Button } from "@/shared/ui";
+import {
+  ACTIVE_ADVICE_ACTIONS,
+  getAdviceActionLabel,
+  getAdviceActionVariant,
+  type AdviceAction,
+} from "../model/actions";
 import { getAdviceCategoryPresentation } from "../model/labels";
 import type { Advice } from "../model/types";
 
@@ -11,29 +14,18 @@ export interface AdviceWhisperProps {
   advice: Advice;
   appearDelayMs?: number;
   enterMotion?: boolean;
-  onCopied?: (question: string) => void;
+  availableActions?: readonly AdviceAction[];
+  onAction?: (adviceId: string, action: AdviceAction) => void;
 }
 
 export function AdviceWhisper({
   advice,
   appearDelayMs = 0,
   enterMotion = false,
-  onCopied,
+  availableActions = ACTIVE_ADVICE_ACTIONS,
+  onAction,
 }: AdviceWhisperProps) {
-  const [copied, setCopied] = useState(false);
   const category = getAdviceCategoryPresentation(advice.category);
-
-  async function handleCopy() {
-    const ok = await copyTextToClipboard(advice.suggestedQuestion);
-    if (!ok) {
-      return;
-    }
-    setCopied(true);
-    onCopied?.(advice.suggestedQuestion);
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 1600);
-  }
 
   return (
     <article
@@ -48,19 +40,31 @@ export function AdviceWhisper({
       <p className="mt-2 text-base leading-relaxed font-medium text-foreground">
         {advice.suggestedQuestion}
       </p>
+      {onAction !== undefined && availableActions.length > 0 ? (
+        <div
+          className="mt-3 flex flex-wrap gap-2"
+          role="group"
+          aria-label="このアドバイスの操作"
+        >
+          {availableActions.map((action) => (
+            <Button
+              key={action}
+              type="button"
+              size="sm"
+              variant={getAdviceActionVariant(action)}
+              onClick={() => {
+                onAction(advice.id, action);
+              }}
+            >
+              {getAdviceActionLabel(action)}
+            </Button>
+          ))}
+        </div>
+      ) : null}
       <p className="mt-2 text-sm text-foreground">{advice.title}</p>
       <p className="mt-1 text-sm leading-relaxed text-foreground">
         {advice.reason}
       </p>
-      <Button
-        className="mt-2"
-        size="sm"
-        variant="outline"
-        onClick={() => void handleCopy()}
-      >
-        {copied ? <Check data-icon="inline-start" /> : null}
-        {copied ? "コピーしました" : "コピー"}
-      </Button>
     </article>
   );
 }

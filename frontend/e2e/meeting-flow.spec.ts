@@ -5,6 +5,10 @@ const PREVIEW_UTTERANCE =
 const PREVIEW_ADVICE_TITLE = "専門用語が説明なく使われています";
 const PREVIEW_QUESTION =
   "『API連携でリアルタイム同期』は、今ある画面を見るだけですか？";
+const PREVIEW_AMBIGUITY_QUESTION =
+  "新規顧客の申請や一括更新は、今回の対象外で間違いないでしょうか？";
+const PREVIEW_LATER_QUESTION =
+  "来月末の本番は、参照のみの暫定連携でも成立しますか？";
 
 async function startUiPreview(page: Page, title: string): Promise<void> {
   await page.goto("/");
@@ -430,6 +434,74 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
   await expect(
     page.getByRole("link", { name: "React Flow attribution" })
   ).toBeVisible();
+});
+
+test("アドバイスは聞けた・不要・あとでで一覧から外せる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2Eアドバイス操作会議");
+
+  const sidebar = page.getByRole("complementary", {
+    name: "こちらのアドバイス",
+  });
+  await expect(sidebar.getByRole("button", { name: "コピー" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "Skip" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "OK" })).toHaveCount(0);
+
+  const jargon = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_QUESTION });
+  const ambiguity = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_AMBIGUITY_QUESTION });
+  const laterItem = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_LATER_QUESTION });
+
+  await expect(jargon.getByRole("button", { name: "聞けた" })).toBeVisible();
+  await expect(jargon.getByRole("button", { name: "不要" })).toBeVisible();
+  await expect(jargon.getByRole("button", { name: "あとで" })).toBeVisible();
+
+  await jargon.getByRole("button", { name: "聞けた" }).click();
+  await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
+  await expect(page.getByText("このアドバイスを外しました")).toBeVisible();
+
+  await ambiguity.getByRole("button", { name: "不要" }).click();
+  await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "もどす" })).toHaveCount(2);
+  await page
+    .getByTestId("advice-undo-preview-adv-jargon")
+    .locator("button[data-action]")
+    .dispatchEvent("click");
+  await expect(
+    sidebar.getByRole("article").filter({ hasText: PREVIEW_QUESTION })
+  ).toBeVisible();
+  await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);
+
+  await sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_QUESTION })
+    .getByRole("button", { name: "聞けた" })
+    .click();
+  await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
+
+  await laterItem.getByRole("button", { name: "あとで" }).click();
+  await expect(
+    sidebar.getByRole("heading", { name: "あとで聞く" })
+  ).toBeVisible();
+  const parked = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_LATER_QUESTION });
+  await expect(parked).toBeVisible();
+  await expect(parked.getByRole("button", { name: "あとで" })).toHaveCount(0);
+  await expect(sidebar.getByText("いまは、アドバイスがありません")).toHaveCount(
+    0
+  );
+
+  await parked.getByRole("button", { name: "聞けた" }).click();
+  await expect(sidebar.getByText(PREVIEW_LATER_QUESTION)).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("heading", { name: "あとで聞く" })
+  ).toHaveCount(0);
 });
 
 test("会議終了からまとめの確認・編集・書き出しまで通る", async ({

@@ -69,6 +69,8 @@ const snapshot = {
       quote: "API連携",
     },
   ],
+  laterAdviceItems: [],
+  resolvedAdviceIds: [],
 };
 
 describe("meeting floor snapshot", () => {
@@ -124,5 +126,37 @@ describe("meeting floor snapshot", () => {
     assert.equal(parseMeetingFloorSnapshot(""), null);
     clearMeetingFloorSnapshot("meet-1");
     assert.equal(readMeetingFloorSnapshot("meet-1"), null);
+  });
+
+  it("keeps あとで items and resolved ids from older snapshots without those fields", () => {
+    const restored = parseMeetingFloorSnapshot(
+      JSON.stringify({
+        ended: false,
+        utterances: snapshot.utterances,
+        adviceItems: snapshot.adviceItems,
+      })
+    );
+    assert.deepEqual(restored?.laterAdviceItems, []);
+    assert.deepEqual(restored?.resolvedAdviceIds, []);
+  });
+
+  it("restores parked later advice for the same meeting", () => {
+    installMemoryStorages();
+    const parked = snapshot.adviceItems[0];
+    assert.ok(parked);
+    const laterItem = {
+      ...parked,
+      id: "adv-later",
+      title: "次に聞くささやき",
+    };
+    writeMeetingFloorSnapshot("meet-1", {
+      ...snapshot,
+      adviceItems: [],
+      laterAdviceItems: [laterItem],
+      resolvedAdviceIds: ["adv-1"],
+    });
+    const restored = readMeetingFloorSnapshot("meet-1");
+    assert.equal(restored?.laterAdviceItems[0]?.id, "adv-later");
+    assert.deepEqual(restored?.resolvedAdviceIds, ["adv-1"]);
   });
 });

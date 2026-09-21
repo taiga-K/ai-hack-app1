@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Advice } from "@/entities/advice";
+import type { Advice, AdviceAction } from "@/entities/advice";
 import type { MeetingPhase } from "@/entities/meeting";
 import {
   applyMindMapEvent,
@@ -26,6 +26,13 @@ import {
   createPreviewMindMapEvents,
   createPreviewUtterances,
 } from "./preview-events";
+import {
+  applyAdviceAction,
+  bindAdviceUndo,
+  captureAdviceUndo,
+  collectSeenAdviceIds,
+  undoAdviceAction,
+} from "./resolve-advice";
 
 // Matches backend `orcarouter_requirements_timeout_seconds` (120s).
 const FINALIZE_ABORT_MS = 120_000;
@@ -74,7 +81,15 @@ function restoreFloor(
   const adviceItems = preview
     ? createPreviewAdvice(meetingId)
     : (snapshot?.adviceItems ?? []);
-  return { ended, utterances, adviceItems };
+  const laterAdviceItems = preview ? [] : (snapshot?.laterAdviceItems ?? []);
+  const resolvedAdviceIds = preview ? [] : (snapshot?.resolvedAdviceIds ?? []);
+  return {
+    ended,
+    utterances,
+    adviceItems,
+    laterAdviceItems,
+    resolvedAdviceIds,
+  };
 }
 
 export function useMeetingRoom({
@@ -92,6 +107,7 @@ export function useMeetingRoom({
   const [adviceItems, setAdviceItems] = useState<Advice[]>(() =>
     preview ? createPreviewAdvice(meetingId) : []
   );
+  const [laterAdviceItems, setLaterAdviceItems] = useState<Advice[]>([]);
   const [chimeEnabled, setChimeEnabled] = useState(true);
   const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [mindMap, setMindMap] = useState<MindMapSnapshot>(() =>
@@ -102,8 +118,10 @@ export function useMeetingRoom({
   const phaseRef = useRef<MeetingPhase>(initialPhase(preview, false));
   const utterancesRef = useRef<Utterance[]>(utterances);
   const adviceItemsRef = useRef<Advice[]>(adviceItems);
+  const laterAdviceItemsRef = useRef<Advice[]>([]);
+  const resolvedAdviceIdsRef = useRef<string[]>([]);
   const seenAdviceIdsRef = useRef<Set<string>>(
-    new Set(adviceItems.map((item) => item.id))
+    collectSeenAdviceIds(adviceItems, [], [])
   );
 
   useEffect(() => {
@@ -117,11 +135,16 @@ export function useMeetingRoom({
       }
       utterancesRef.current = restored.utterances;
       adviceItemsRef.current = restored.adviceItems;
-      seenAdviceIdsRef.current = new Set(
-        restored.adviceItems.map((item) => item.id)
+      laterAdviceItemsRef.current = restored.laterAdviceItems;
+      resolvedAdviceIdsRef.current = restored.resolvedAdviceIds;
+      seenAdviceIdsRef.current = collectSeenAdviceIds(
+        restored.adviceItems,
+        restored.laterAdviceItems,
+        restored.resolvedAdviceIds
       );
       setUtterances(restored.utterances);
       setAdviceItems(restored.adviceItems);
+      setLaterAdviceItems(restored.laterAdviceItems);
     });
     return () => {
       window.cancelAnimationFrame(frame);
@@ -134,6 +157,8 @@ export function useMeetingRoom({
         ended,
         utterances: utterancesRef.current,
         adviceItems: adviceItemsRef.current,
+        laterAdviceItems: laterAdviceItemsRef.current,
+        resolvedAdviceIds: resolvedAdviceIdsRef.current,
       });
     },
     [meetingId]
@@ -321,6 +346,79 @@ export function useMeetingRoom({
     }
   }, [flushAndDisconnect, meetingId, persistFloor, preview, title]);
 
+  const persistAdviceLists = useCallback(
+    (active: Advice[], later: Advice[]) => {
+      adviceItemsRef.current = active;
+      laterAdviceItemsRef.current = later;
+      seenAdviceIdsRef.current = collectSeenAdviceIds(
+        active,
+        later,
+        resolvedAdviceIdsRef.current
+      );
+      setAdviceItems(active);
+      setLaterAdviceItems(later);
+      persistFloor(isTerminalPhase(phaseRef.current));
+    },
+    [persistFloor]
+  );
+
+  const resolveAdvice = useCallback(
+    (adviceId: string, action: AdviceAction): (() => void) | null => {
+      const current = {
+        active: adviceItemsRef.current,
+        later: laterAdviceItemsRef.current,
+      };
+      const undo = captureAdviceUndo(current, adviceId, action);
+      const next = applyAdviceAction(current, adviceId, action);
+      if (undo === null) {
+        return null;
+      }
+      switch (action) {
+        case "heard":
+        case "unneeded":
+          if (!resolvedAdviceIdsRef.current.includes(adviceId)) {
+            resolvedAdviceIdsRef.current = [
+              ...resolvedAdviceIdsRef.current,
+              adviceId,
+            ];
+          }
+          break;
+        case "later":
+          break;
+        default: {
+          const _exhaustiveCheck: never = action;
+          throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
+        }
+      }
+      persistAdviceLists(next.active, next.later);
+      return bindAdviceUndo(() => {
+        switch (undo.action) {
+          case "heard":
+          case "unneeded":
+            resolvedAdviceIdsRef.current = resolvedAdviceIdsRef.current.filter(
+              (id) => id !== undo.item.id
+            );
+            break;
+          case "later":
+            break;
+          default: {
+            const _exhaustiveCheck: never = undo.action;
+            throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
+          }
+        }
+        const restored = undoAdviceAction(
+          {
+            active: adviceItemsRef.current,
+            later: laterAdviceItemsRef.current,
+          },
+          undo
+        );
+        persistAdviceLists(restored.active, restored.later);
+      });
+    },
+    [persistAdviceLists]
+  );
+
   const stopWaitingForSummary = useCallback(() => {
     finalizeAbortRef.current?.abort();
   }, []);
@@ -346,6 +444,8 @@ export function useMeetingRoom({
     phase,
     utterances,
     adviceItems,
+    laterAdviceItems,
+    resolveAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,
