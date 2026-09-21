@@ -6,15 +6,29 @@ from app.domain.models.transcript import Utterance
 
 
 @dataclass
+class FlaggedAdviceTheme:
+    """A lightweight record of a previously raised advice theme.
+
+    Used only for duplicate suppression across repeated analysis calls
+    within the same meeting session; not the full advice payload.
+    """
+
+    category: str
+    title: str
+
+
+@dataclass
 class MeetingDialogueContext:
     """Manages the dialogue context for a single meeting session.
 
     Keeps the full history of utterances and provides sliding window views
-    for real-time analysis.
+    for real-time analysis. Also tracks previously flagged advice themes
+    to suppress semantic duplicates across repeated analysis calls.
     """
 
     meeting_id: str
     utterances: list[Utterance] = field(default_factory=list)
+    flagged_advice_themes: list[FlaggedAdviceTheme] = field(default_factory=list)
 
     def add_utterance(self, utterance: Utterance) -> bool:
         """Add a transcribed utterance, ignoring duplicates by id."""
@@ -41,6 +55,16 @@ class MeetingDialogueContext:
             )
             lines.append(f"[{speaker_label}] {u.text}")
         return "\n".join(lines)
+
+    def record_advice_themes(self, themes: list[FlaggedAdviceTheme]) -> None:
+        """Append newly flagged advice themes to the session's history."""
+        self.flagged_advice_themes.extend(themes)
+
+    def get_previous_advice_themes(self, limit: int = 10) -> list[FlaggedAdviceTheme]:
+        """Get the most recently flagged advice themes for duplicate suppression."""
+        if limit <= 0:
+            return []
+        return self.flagged_advice_themes[-limit:]
 
     @property
     def total_utterances(self) -> int:
