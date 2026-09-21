@@ -69,3 +69,15 @@ export function shouldCommitMindMapCameraMemory(input: {
   }
   return input.fitRan || input.userTookCamera;
 }
+
+/** Reset / first fit show the whole tree; a later resize may keep a pressed node. */
+export function keepInViewForMindMapFit<T>(input: {
+  isFirstLayout: boolean;
+  resetToFullTree: boolean;
+  keepInView: T | null;
+}): T | null {
+  if (input.isFirstLayout || input.resetToFullTree) {
+    return null;
+  }
+  return input.keepInView;
+}

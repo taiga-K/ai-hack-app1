@@ -41,6 +41,7 @@ import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   didMindMapPaneWidthChange,
+  keepInViewForMindMapFit,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitForPaneHeight,
@@ -210,6 +211,7 @@ function MindMapFlow({
   onPick: (nodeId: string) => void;
 }) {
   const didInitialFit = useRef(false);
+  const resetToFullTreeRef = useRef(false);
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
@@ -428,6 +430,8 @@ function MindMapFlow({
     });
     const runFit = (): void => {
       const nextVisible = readVisiblePaneSize(paneRef.current, width, height);
+      const resetToFullTree = resetToFullTreeRef.current;
+      resetToFullTreeRef.current = false;
       const viewport = viewportFromMindMapLayout(
         layout.nodes,
         nextVisible.width,
@@ -435,7 +439,11 @@ function MindMapFlow({
         FIT_PADDING,
         FIT_MIN_ZOOM,
         FIT_MAX_ZOOM,
-        isFirstLayout ? null : keepInView
+        keepInViewForMindMapFit({
+          isFirstLayout,
+          resetToFullTree,
+          keepInView,
+        })
       );
       if (viewport === null) {
         return;
@@ -480,13 +488,14 @@ function MindMapFlow({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {userTookCamera ? (
-        <div className="flex justify-end">
+      <div className="flex h-8 shrink-0 items-center justify-end">
+        {userTookCamera ? (
           <Button
             type="button"
             variant="link"
             size="sm"
             onClick={() => {
+              resetToFullTreeRef.current = true;
               setUserTookCamera(false);
               const visible = readVisiblePaneSize(
                 paneRef.current,
@@ -502,7 +511,7 @@ function MindMapFlow({
                 FIT_MAX_ZOOM
               );
               if (viewport === null) {
-                setUserTookCamera(false);
+                resetToFullTreeRef.current = false;
                 return;
               }
               isFittingRef.current = true;
@@ -513,8 +522,8 @@ function MindMapFlow({
           >
             ぜんぶ見る
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       <div
         ref={paneRef}
         className="relative min-h-0 flex-1 overflow-hidden"

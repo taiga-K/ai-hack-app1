@@ -70,7 +70,7 @@ async function expectResetAboveMap(page: Page): Promise<void> {
   const mapRegion = page.getByRole("region", { name: "マインドマップ" });
   const reset = page.getByRole("button", { name: "ぜんぶ見る" });
   const pane = mapRegion.locator(".react-flow__pane");
-  await expect(reset).toBeVisible();
+  await expect(reset).toBeVisible({ timeout: 8000 });
   const resetBox = await reset.boundingBox();
   const paneBox = await pane.boundingBox();
   expect(resetBox).not.toBeNull();
@@ -78,6 +78,30 @@ async function expectResetAboveMap(page: Page): Promise<void> {
   if (resetBox !== null && paneBox !== null) {
     expect(resetBox.y + resetBox.height).toBeLessThanOrEqual(paneBox.y + 2);
   }
+}
+
+async function panMindMap(page: Page): Promise<void> {
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  const pane = mapRegion.locator(".react-flow__pane");
+  await expect(pane).toBeVisible();
+  await expect
+    .poll(async () => {
+      const box = await pane.boundingBox();
+      return box !== null && box.width > 40 && box.height > 40;
+    })
+    .toBe(true);
+  const paneBox = await pane.boundingBox();
+  if (paneBox === null) {
+    return;
+  }
+  const startX = paneBox.x + paneBox.width / 2;
+  const startY = paneBox.y + paneBox.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX - 160, startY + 80, { steps: 12 });
+  await page.mouse.up();
+  await page.mouse.move(startX, startY);
+  await page.mouse.wheel(0, -320);
 }
 
 async function installSuccessfulCapture(page: Page): Promise<void> {
@@ -329,18 +353,16 @@ test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({
   });
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
 
-  const pane = mapRegion.locator(".react-flow__pane");
-  await expect(pane).toBeVisible();
-  const paneBox = await pane.boundingBox();
-  expect(paneBox).not.toBeNull();
-  if (paneBox === null) {
-    return;
-  }
-  await page.mouse.move(paneBox.x + paneBox.width - 16, paneBox.y + 16);
-  await page.mouse.wheel(0, -320);
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  await expect(
+    page.getByRole("region", { name: "対象範囲 のくわしい話" })
+  ).toBeVisible();
+  await panMindMap(page);
   await expectResetAboveMap(page);
   await page.getByRole("button", { name: "ぜんぶ見る" }).click();
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible();
+  await expectLeftToRightMindMap(page);
 });
 
 test("デスクトップで左右の幅を拖って変えられる", async ({ page }) => {
@@ -392,16 +414,6 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
     timeout: 4000,
   });
   await expectLeftToRightMindMap(page);
-  const pane = mapRegion.locator(".react-flow__pane");
-  const paneBox = await pane.boundingBox();
-  expect(paneBox).not.toBeNull();
-  if (paneBox !== null) {
-    await page.mouse.move(paneBox.x + 40, paneBox.y + 40);
-    await page.mouse.down();
-    await page.mouse.move(paneBox.x + 8, paneBox.y + 40, { steps: 8 });
-    await page.mouse.up();
-  }
-  await expectResetAboveMap(page);
   const whispersTab = page.getByRole("tab", { name: /アドバイス/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();

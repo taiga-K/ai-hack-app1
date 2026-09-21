@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   didMindMapPaneWidthChange,
+  keepInViewForMindMapFit,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitForPaneHeight,
@@ -215,6 +216,40 @@ describe("shouldRefitForPaneHeight", () => {
         hasAnchor: true,
       }),
       false
+    );
+  });
+});
+
+describe("keepInViewForMindMapFit", () => {
+  const selected = { id: "scope" };
+
+  it("drops the selected node on first layout and on ぜんぶ見る", () => {
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: true,
+        resetToFullTree: false,
+        keepInView: selected,
+      }),
+      null
+    );
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: false,
+        resetToFullTree: true,
+        keepInView: selected,
+      }),
+      null
+    );
+  });
+
+  it("keeps the pressed node only for a later resize fit", () => {
+    assert.equal(
+      keepInViewForMindMapFit({
+        isFirstLayout: false,
+        resetToFullTree: false,
+        keepInView: selected,
+      }),
+      selected
     );
   });
 });
