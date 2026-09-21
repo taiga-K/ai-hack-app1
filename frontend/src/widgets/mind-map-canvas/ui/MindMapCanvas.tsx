@@ -479,76 +479,83 @@ function MindMapFlow({
   ]);
 
   return (
-    <div
-      ref={paneRef}
-      className="relative h-full min-h-0 overflow-hidden"
-      onWheel={() => {
-        if (userTookCamera) {
-          return;
-        }
-        setUserTookCamera(true);
-      }}
-    >
+    <div className="flex h-full min-h-0 flex-col">
       {userTookCamera ? (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="absolute right-2 top-2 z-10"
-          onClick={() => {
-            setUserTookCamera(false);
-            const visible = readVisiblePaneSize(paneRef.current, width, height);
-            const viewport = viewportFromMindMapLayout(
-              layout.nodes,
-              visible.width,
-              visible.height,
-              FIT_PADDING,
-              FIT_MIN_ZOOM,
-              FIT_MAX_ZOOM
-            );
-            if (viewport === null) {
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            onClick={() => {
               setUserTookCamera(false);
-              return;
-            }
-            isFittingRef.current = true;
-            void setViewport(viewport, { duration: 280 }).finally(() => {
-              isFittingRef.current = false;
-            });
-          }}
-        >
-          ぜんぶ見る
-        </Button>
+              const visible = readVisiblePaneSize(
+                paneRef.current,
+                width,
+                height
+              );
+              const viewport = viewportFromMindMapLayout(
+                layout.nodes,
+                visible.width,
+                visible.height,
+                FIT_PADDING,
+                FIT_MIN_ZOOM,
+                FIT_MAX_ZOOM
+              );
+              if (viewport === null) {
+                setUserTookCamera(false);
+                return;
+              }
+              isFittingRef.current = true;
+              void setViewport(viewport, { duration: 280 }).finally(() => {
+                isFittingRef.current = false;
+              });
+            }}
+          >
+            ぜんぶ見る
+          </Button>
+        </div>
       ) : null}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        panOnDrag
-        zoomOnScroll
-        nodesDraggable={false}
-        nodesConnectable={false}
-        nodesFocusable={false}
-        elementsSelectable={false}
-        minZoom={MIN_ZOOM}
-        maxZoom={MAX_ZOOM}
-        className="h-full bg-transparent"
-        onNodeClick={(_, node) => {
-          onPick(node.id);
-        }}
-        onMove={(event) => {
-          if (event === null || isFittingRef.current || userTookCamera) {
+      <div
+        ref={paneRef}
+        className="relative min-h-0 flex-1 overflow-hidden"
+        onWheel={() => {
+          if (userTookCamera) {
             return;
           }
           setUserTookCamera(true);
         }}
       >
-        <Background gap={22} size={1} color="var(--border)" />
-      </ReactFlow>
-      {(overflowsX || overflowsY) && !userTookCamera ? (
-        <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
-          {overflowsX ? "地図は横にうごかせます" : "地図はたてにうごかせます"}
-        </p>
-      ) : null}
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          panOnDrag
+          zoomOnScroll
+          nodesDraggable={false}
+          nodesConnectable={false}
+          nodesFocusable={false}
+          elementsSelectable={false}
+          minZoom={MIN_ZOOM}
+          maxZoom={MAX_ZOOM}
+          className="h-full bg-transparent"
+          onNodeClick={(_, node) => {
+            onPick(node.id);
+          }}
+          onMove={(event) => {
+            if (event === null || isFittingRef.current || userTookCamera) {
+              return;
+            }
+            setUserTookCamera(true);
+          }}
+        >
+          <Background gap={22} size={1} color="var(--border)" />
+        </ReactFlow>
+        {(overflowsX || overflowsY) && !userTookCamera ? (
+          <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
+            {overflowsX ? "地図は横にうごかせます" : "地図はたてにうごかせます"}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

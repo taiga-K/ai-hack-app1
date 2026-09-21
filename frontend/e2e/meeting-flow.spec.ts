@@ -66,6 +66,20 @@ async function expectLeftToRightMindMap(page: Page): Promise<void> {
   await expect(mapRegion.locator(".react-flow__edge")).not.toHaveCount(0);
 }
 
+async function expectResetAboveMap(page: Page): Promise<void> {
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  const reset = page.getByRole("button", { name: "ぜんぶ見る" });
+  const pane = mapRegion.locator(".react-flow__pane");
+  await expect(reset).toBeVisible();
+  const resetBox = await reset.boundingBox();
+  const paneBox = await pane.boundingBox();
+  expect(resetBox).not.toBeNull();
+  expect(paneBox).not.toBeNull();
+  if (resetBox !== null && paneBox !== null) {
+    expect(resetBox.y + resetBox.height).toBeLessThanOrEqual(paneBox.y + 2);
+  }
+}
+
 async function installSuccessfulCapture(page: Page): Promise<void> {
   await page.addInitScript(() => {
     class ImmediateFailWebSocket {
@@ -324,7 +338,7 @@ test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({
   }
   await page.mouse.move(paneBox.x + paneBox.width - 16, paneBox.y + 16);
   await page.mouse.wheel(0, -320);
-  await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toBeVisible();
+  await expectResetAboveMap(page);
   await page.getByRole("button", { name: "ぜんぶ見る" }).click();
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
 });
@@ -378,6 +392,16 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
     timeout: 4000,
   });
   await expectLeftToRightMindMap(page);
+  const pane = mapRegion.locator(".react-flow__pane");
+  const paneBox = await pane.boundingBox();
+  expect(paneBox).not.toBeNull();
+  if (paneBox !== null) {
+    await page.mouse.move(paneBox.x + 40, paneBox.y + 40);
+    await page.mouse.down();
+    await page.mouse.move(paneBox.x + 8, paneBox.y + 40, { steps: 8 });
+    await page.mouse.up();
+  }
+  await expectResetAboveMap(page);
   const whispersTab = page.getByRole("tab", { name: /アドバイス/ });
   await expect(whispersTab).toBeVisible();
   await whispersTab.click();
