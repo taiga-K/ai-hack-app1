@@ -102,6 +102,16 @@ async function panMindMap(page: Page): Promise<void> {
   await page.mouse.up();
   await page.mouse.move(startX, startY);
   await page.mouse.wheel(0, -320);
+  await mapRegion.evaluate((root) => {
+    const target = root.querySelector(".react-flow__pane") ?? root;
+    target.dispatchEvent(
+      new WheelEvent("wheel", {
+        deltaY: -320,
+        bubbles: true,
+        cancelable: true,
+      })
+    );
+  });
 }
 
 async function installSuccessfulCapture(page: Page): Promise<void> {
