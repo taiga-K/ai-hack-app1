@@ -92,10 +92,31 @@ describe("parseMeetingServerMessage", () => {
           id: "scope",
           label: "対象範囲",
           parent_id: "root",
+          kind: "decision",
+          status: "decided",
+          detail: "更新申請に限定",
+          relations: [
+            { kind: "supports", target_id: "renewal" },
+            { kind: "hugs", target_id: "renewal" },
+            { kind: "opposes" },
+          ],
+          history: ["対象", 3],
+          pinned: true,
           source_utterance_ids: ["utt-1"],
+        },
+        {
+          id: "legacy",
+          label: "古い形の枚",
+          parent_id: null,
+          source_utterance_ids: [],
         },
       ],
       removes: ["noise"],
+      pending: [
+        { text: "例外の扱い", source_utterance_ids: ["utt-2"] },
+        { text: "" },
+        "not-an-object",
+      ],
     });
 
     assert.deepEqual(event, {
@@ -107,11 +128,56 @@ describe("parseMeetingServerMessage", () => {
           id: "scope",
           label: "対象範囲",
           parentId: "root",
+          kind: "decision",
+          status: "decided",
+          detail: "更新申請に限定",
+          relations: [{ kind: "supports", targetId: "renewal" }],
+          history: ["対象"],
+          pinned: true,
           sourceUtteranceIds: ["utt-1"],
+        },
+        {
+          id: "legacy",
+          label: "古い形の枚",
+          parentId: null,
+          kind: "topic",
+          status: "open",
+          detail: "",
+          relations: [],
+          history: [],
+          pinned: false,
+          sourceUtteranceIds: [],
         },
       ],
       removes: ["noise"],
+      pending: [{ text: "例外の扱い", sourceUtteranceIds: ["utt-2"] }],
     });
+  });
+
+  it("falls back to plain topics for unknown kinds and statuses", () => {
+    const event = parseMeetingServerMessage({
+      type: "mindmap",
+      meeting_id: "m-1",
+      revision: 1,
+      upserts: [
+        {
+          id: "x",
+          label: "新種",
+          parent_id: "root",
+          kind: "brand_new",
+          status: "someday",
+        },
+      ],
+    });
+
+    assert.ok(event);
+    assert.equal(event.type, "mindmap");
+    if (event.type !== "mindmap") {
+      return;
+    }
+    assert.equal(event.upserts[0]?.kind, "topic");
+    assert.equal(event.upserts[0]?.status, "open");
+    assert.deepEqual(event.pending, []);
   });
 
   it("parses pong and rejects invalid payloads", () => {

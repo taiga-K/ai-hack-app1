@@ -155,7 +155,7 @@ export function DocumentViewPage({
             onMarkdownChange={setMarkdown}
             onViewChange={setView}
             preview={
-              <div>
+              <div className="flex flex-col items-start gap-6">
                 <MarkdownPreview markdown={markdown} />
                 <GoHome />
               </div>

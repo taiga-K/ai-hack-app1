@@ -12,7 +12,11 @@ export {
   syncCompletedSummaryMemory,
 } from "./model/completed-summary";
 export type { DocumentBackStatus } from "./model/completed-summary";
-export { decideAfterFinalize, decideAfterReadyPause } from "./model/after-end";
+export {
+  decideAfterEndNavigation,
+  shouldShowAfterEndBack,
+  SHOW_STOP_WAITING_AFTER_MS,
+} from "./model/after-end";
 export {
   buildDocumentHref,
   buildMeetingHref,
@@ -21,9 +25,9 @@ export {
   replaceEndedMeetingUrl,
 } from "./model/href";
 export type {
+  AfterEndHandoff,
+  AfterEndNavigation,
   AfterEndScreen,
-  AfterFinalizeDecision,
-  AfterReadyPauseDecision,
   BackTarget,
   CompletedSummaryLookup,
   CompletedSummaryStatus,

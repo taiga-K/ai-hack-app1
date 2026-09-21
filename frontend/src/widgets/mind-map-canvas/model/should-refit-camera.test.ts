@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  didMindMapPaneWidthChange,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
+  shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
   usesStackedMindMapLayout,
 } from "./should-refit-camera.ts";
@@ -176,5 +178,53 @@ describe("usesStackedMindMapLayout", () => {
     assert.equal(usesStackedMindMapLayout(400, false), true);
     assert.equal(usesStackedMindMapLayout(700, false), false);
     assert.equal(usesStackedMindMapLayout(0, false), false);
+  });
+});
+
+describe("didMindMapPaneWidthChange", () => {
+  it("ignores a height-only shrink from the branch detail pane", () => {
+    assert.equal(didMindMapPaneWidthChange(640, 500), true);
+    assert.equal(didMindMapPaneWidthChange(640, 640), false);
+    assert.equal(didMindMapPaneWidthChange(0, 640), false);
+  });
+});
+
+describe("shouldRefitForPaneHeight", () => {
+  it("refits a height-only change when the tree fits or a node anchors it", () => {
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: false,
+        hasAnchor: false,
+      }),
+      true
+    );
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: true,
+        hasAnchor: true,
+      }),
+      true
+    );
+  });
+
+  it("leaves an overflowing map alone when とじる clears the selection", () => {
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: true,
+        overflows: true,
+        hasAnchor: false,
+      }),
+      false
+    );
+    assert.equal(
+      shouldRefitForPaneHeight({
+        heightChanged: false,
+        overflows: false,
+        hasAnchor: true,
+      }),
+      false
+    );
   });
 });

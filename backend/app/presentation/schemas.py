@@ -75,23 +75,60 @@ class AdviceMessage(BaseModel):
     )
 
 
+class MindMapRelationMessage(BaseModel):
+    """Directed relation from a meeting-map node to ``target_id``."""
+
+    kind: str = Field(..., description="'supports', 'opposes', or 'supersedes'")
+    target_id: str
+
+
 class MindMapNodeMessage(BaseModel):
-    """One topic in a realtime mind-map event."""
+    """One claim in a realtime meeting-map event."""
 
     id: str
     label: str
     parent_id: str | None = None
+    kind: str = Field(
+        default="topic",
+        description=(
+            "'topic', 'report', 'proposal', 'reason', 'concern', 'decision', "
+            "or 'action'"
+        ),
+    )
+    status: str = Field(
+        default="open",
+        description="'open', 'decided', 'pending', or 'superseded'",
+    )
+    detail: str = ""
+    relations: list[MindMapRelationMessage] = Field(default_factory=list)
+    history: list[str] = Field(
+        default_factory=list, description="Previous labels kept after corrections"
+    )
+    pinned: bool = False
+    source_utterance_ids: list[str] = Field(default_factory=list)
+
+
+class MindMapPendingMessage(BaseModel):
+    """A held fragment that is not placed on the map yet."""
+
+    text: str
     source_utterance_ids: list[str] = Field(default_factory=list)
 
 
 class MindMapMessage(BaseModel):
-    """Incremental mind-map update pushed to the meeting client."""
+    """Incremental meeting-map update pushed to the meeting client.
+
+    ``upserts`` carries every node whose content changed in this revision and
+    ``pending`` the full held list after it. ``removes`` stays for contract
+    compatibility; the editor never deletes nodes.
+    """
 
     type: str = Field(default="mindmap", description="Message type")
     meeting_id: str
     revision: int
     upserts: list[MindMapNodeMessage] = Field(default_factory=list)
     removes: list[str] = Field(default_factory=list)
+    pending: list[MindMapPendingMessage] = Field(default_factory=list)
 
 
 class AnalyzeDialogueRequest(BaseModel):

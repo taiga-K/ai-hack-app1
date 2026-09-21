@@ -3,21 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Advice } from "@/entities/advice";
+import { toast } from "sonner";
+import type { Advice, AdviceAction } from "@/entities/advice";
 import type { MindMapSnapshot } from "@/entities/mind-map";
 import type { Utterance } from "@/entities/utterance";
 import { MeetingControls } from "@/features/meeting-control";
 import {
-  BackToMeeting,
   buildDocumentHref,
   completedSummaryHref,
-  decideAfterFinalize,
-  decideAfterReadyPause,
+  decideAfterEndNavigation,
   isMeetingAlreadyOver,
   rememberCompletedSummary,
+  SHOW_STOP_WAITING_AFTER_MS,
   useRememberedCompletedSummary,
   replaceEndedMeetingUrl,
   shouldReopenLiveFloor,
+  type AfterEndHandoff,
   type BackTarget,
 } from "@/features/return-to-meeting";
 import { CopilotSidebar } from "@/widgets/copilot-sidebar";
@@ -57,7 +58,7 @@ export interface MeetingRoomPageProps {
   completedSummaryHint?: boolean;
 }
 
-type Handoff = "none" | "making" | "ready";
+type Handoff = AfterEndHandoff;
 
 function waitMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -79,7 +80,9 @@ export function MeetingRoomPage({
   const [sessionDocumentHref, setSessionDocumentHref] = useState<string | null>(
     null
   );
-  const stayOnFloorRef = useRef(false);
+  const [showStopWaiting, setShowStopWaiting] = useState(false);
+  const handoffAliveRef = useRef(true);
+  const stopWaitingTimeoutRef = useRef<number | null>(null);
   const layout = useMeetingLayout();
   const backTarget: BackTarget = {
     kind: "meeting",
@@ -99,6 +102,8 @@ export function MeetingRoomPage({
     phase,
     utterances,
     adviceItems,
+    laterAdviceItems,
+    resolveAdvice,
     mindMap,
     chimeEnabled,
     finalizeError,
@@ -106,6 +111,7 @@ export function MeetingRoomPage({
     startCapture,
     stopCapture,
     endMeeting,
+    stopWaitingForSummary,
     toggleChime,
     reopenLiveFloor,
   } = useMeetingRoom({
@@ -115,15 +121,70 @@ export function MeetingRoomPage({
     alreadyEnded: rememberedCompletedSummary !== null,
   });
 
+  function handleAdviceAction(adviceId: string, action: AdviceAction) {
+    const undo = resolveAdvice(adviceId, action);
+    if (undo === null) {
+      return;
+    }
+    let message: string;
+    switch (action) {
+      case "heard":
+      case "unneeded":
+        message = "このアドバイスを外しました";
+        break;
+      case "later":
+        message = "あとで聞くに入れました";
+        break;
+      default: {
+        const _exhaustiveCheck: never = action;
+        throw new Error(`Unhandled advice action: ${_exhaustiveCheck}`);
+      }
+    }
+    const toastId = `advice-undo-${adviceId}`;
+    toast(message, {
+      id: toastId,
+      testId: toastId,
+      action: {
+        label: "もどす",
+        onClick: undo,
+      },
+    });
+  }
+
+  useEffect(() => {
+    handoffAliveRef.current = true;
+    return () => {
+      handoffAliveRef.current = false;
+      if (stopWaitingTimeoutRef.current !== null) {
+        window.clearTimeout(stopWaitingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function clearStopWaiting() {
+    if (stopWaitingTimeoutRef.current !== null) {
+      window.clearTimeout(stopWaitingTimeoutRef.current);
+      stopWaitingTimeoutRef.current = null;
+    }
+    setShowStopWaiting(false);
+  }
+
   async function handleEndMeeting() {
-    stayOnFloorRef.current = false;
+    clearStopWaiting();
     setSessionDocumentHref(null);
     setHandoff("making");
+    stopWaitingTimeoutRef.current = window.setTimeout(() => {
+      setShowStopWaiting(true);
+    }, SHOW_STOP_WAITING_AFTER_MS) as unknown as number;
     if (preview) {
       await waitMs(720);
     }
     const result = await endMeeting();
+    if (!handoffAliveRef.current) {
+      return;
+    }
     if (!result.ok) {
+      clearStopWaiting();
       setHandoff("none");
       return;
     }
@@ -142,38 +203,21 @@ export function MeetingRoomPage({
       hasCompletedSummary: true,
     });
 
-    const afterFinalize = decideAfterFinalize(stayOnFloorRef.current);
-    switch (afterFinalize) {
-      case "stay-on-floor":
-        return;
-      case "announce-ready":
-        setHandoff("ready");
-        break;
-      default: {
-        const _exhaustiveCheck: never = afterFinalize;
-        throw new Error(`Unhandled finalize decision: ${_exhaustiveCheck}`);
-      }
-    }
-
+    clearStopWaiting();
+    setHandoff("ready");
     await waitMs(780);
-    const afterReady = decideAfterReadyPause(stayOnFloorRef.current);
+    const afterReady = decideAfterEndNavigation(handoffAliveRef.current);
     switch (afterReady) {
-      case "stay-on-floor":
-        setHandoff("none");
+      case "stay-put":
         return;
       case "open-document":
         router.push(nextDocumentHref);
         return;
       default: {
         const _exhaustiveCheck: never = afterReady;
-        throw new Error(`Unhandled ready decision: ${_exhaustiveCheck}`);
+        throw new Error(`Unhandled after-end navigation: ${_exhaustiveCheck}`);
       }
     }
-  }
-
-  function handleBackFromAfterEnd() {
-    stayOnFloorRef.current = true;
-    setHandoff("none");
   }
 
   const meetingAlreadyOver = isMeetingAlreadyOver({
@@ -228,7 +272,11 @@ export function MeetingRoomPage({
             maxSize={MEETING_SPLIT.leftMax}
             className="min-w-0"
           >
-            <CopilotSidebar adviceItems={adviceItems} />
+            <CopilotSidebar
+              adviceItems={adviceItems}
+              laterAdviceItems={laterAdviceItems}
+              onAdviceAction={handleAdviceAction}
+            />
           </ResizablePanel>
           <ResizableHandle aria-label="左右の幅を変える" />
           <ResizablePanel
@@ -270,8 +318,8 @@ export function MeetingRoomPage({
               current={mobilePane}
               onSelect={setMobilePane}
             >
-              {adviceItems.length > 0
-                ? `アドバイス ${String(adviceItems.length)}`
+              {adviceItems.length + laterAdviceItems.length > 0
+                ? `アドバイス ${String(adviceItems.length + laterAdviceItems.length)}`
                 : "アドバイス"}
             </MobilePaneButton>
           </div>
@@ -282,7 +330,7 @@ export function MeetingRoomPage({
                 : "mb-2 flex min-h-[24rem] basis-3/5 shrink-0 flex-col overflow-hidden"
             }
           >
-            <MindMapCanvas snapshot={mindMap} compact />
+            <MindMapCanvas snapshot={mindMap} utterances={utterances} compact />
           </div>
           {isMobileSidePane(mobilePane) ? (
             <div
@@ -290,7 +338,13 @@ export function MeetingRoomPage({
               role="tabpanel"
               className="min-h-0 flex-1 overflow-hidden"
             >
-              {renderMobileSidePane(mobilePane, utterances, adviceItems)}
+              {renderMobileSidePane(
+                mobilePane,
+                utterances,
+                adviceItems,
+                laterAdviceItems,
+                handleAdviceAction
+              )}
             </div>
           ) : (
             <div id="meeting-mobile-pane" role="tabpanel" className="sr-only">
@@ -315,6 +369,18 @@ export function MeetingRoomPage({
             ? "いまから、出来たまとめを開きます。"
             : "すこし、待っててね。"}
         </p>
+        {showStopWaiting ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-3"
+            onClick={() => {
+              stopWaitingForSummary();
+            }}
+          >
+            つくるのをやめる
+          </Button>
+        ) : null}
       </div>
     );
   }
@@ -324,11 +390,6 @@ export function MeetingRoomPage({
       <Header
         title={meetingTitle}
         badge={preview ? "おためし" : undefined}
-        leading={
-          showAfterEnd ? (
-            <BackToMeeting onClick={handleBackFromAfterEnd} />
-          ) : undefined
-        }
         actions={
           showOpenDocument && documentHref !== null ? (
             <Link
@@ -388,7 +449,7 @@ export function MeetingRoomPage({
           />
         </div>
       ) : null}
-      <Toaster />
+      <Toaster expand />
     </div>
   );
 }
@@ -427,7 +488,7 @@ function WorkspaceTabs({
         </TabsTrigger>
       </TabsList>
       <TabsContent value="map" className="min-h-0 overflow-hidden">
-        <MindMapCanvas snapshot={mindMap} />
+        <MindMapCanvas snapshot={mindMap} utterances={utterances} />
       </TabsContent>
       <TabsContent value="notes" className="min-h-0 overflow-hidden">
         <TranscriptFeed utterances={utterances} />
@@ -465,13 +526,21 @@ function MobilePaneButton({
 function renderMobileSidePane(
   pane: MobileSidePane,
   utterances: Utterance[],
-  adviceItems: Advice[]
+  adviceItems: Advice[],
+  laterAdviceItems: Advice[],
+  onAdviceAction: (adviceId: string, action: AdviceAction) => void
 ) {
   switch (pane) {
     case "notes":
       return <TranscriptFeed utterances={utterances} />;
     case "whispers":
-      return <CopilotSidebar adviceItems={adviceItems} />;
+      return (
+        <CopilotSidebar
+          adviceItems={adviceItems}
+          laterAdviceItems={laterAdviceItems}
+          onAdviceAction={onAdviceAction}
+        />
+      );
     default: {
       const _exhaustiveCheck: never = pane;
       throw new Error(`Unhandled mobile pane: ${_exhaustiveCheck}`);

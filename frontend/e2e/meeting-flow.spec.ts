@@ -5,6 +5,10 @@ const PREVIEW_UTTERANCE =
 const PREVIEW_ADVICE_TITLE = "専門用語が説明なく使われています";
 const PREVIEW_QUESTION =
   "『API連携でリアルタイム同期』は、今ある画面を見るだけですか？";
+const PREVIEW_AMBIGUITY_QUESTION =
+  "新規顧客の申請や一括更新は、今回の対象外で間違いないでしょうか？";
+const PREVIEW_LATER_QUESTION =
+  "来月末の本番は、参照のみの暫定連携でも成立しますか？";
 
 async function startUiPreview(page: Page, title: string): Promise<void> {
   await page.goto("/");
@@ -169,7 +173,7 @@ test("アドバイスのくわしくは最初閉じてクリックで開く", as
 
   await expect(first.getByText(PREVIEW_QUESTION)).toBeVisible();
   await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeHidden();
-  await expect(first.getByRole("button", { name: "コピー" })).toBeVisible();
+  await expect(first.getByRole("button", { name: "聞けた" })).toBeVisible();
   await first.getByText("くわしく").click();
   await expect(first.getByText(PREVIEW_ADVICE_TITLE)).toBeVisible();
   await expect(first.getByText("❓ 専門用語の確認")).toBeVisible();
@@ -205,6 +209,113 @@ test("地図は動かさなければ成長しても画面内に収まる", async
     );
   }
   await expect(page.getByRole("button", { name: "ぜんぶ見る" })).toHaveCount(0);
+});
+
+test("地図は浅く始まり、枝をおすとくわしい話と関係が見える", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2E構造化地図会議");
+
+  const mapRegion = page.getByRole("region", { name: "マインドマップ" });
+  await expect(mapRegion.getByText("今日の会議")).toBeVisible({
+    timeout: 4000,
+  });
+  await expect(
+    mapRegion.getByText("更新申請に限定で決定", { exact: true })
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    mapRegion.getByText("例外は宿題", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByText(/まだ地図に置けていない話: 同期の対象データ/)
+  ).toBeVisible({ timeout: 6000 });
+  await expect(
+    page.getByText("枝をおすと、くわしい話がひらきます。")
+  ).toBeVisible();
+  const summary = page.getByLabel("決まったことと、つぎにやること");
+  await expect(summary).toContainText("決まったこと: 更新申請に限定で決定");
+  await expect(summary).toContainText("つぎにやること: 例外は宿題");
+  await expect(mapRegion.getByText("決定", { exact: true })).toBeVisible();
+  await expect(
+    mapRegion.getByText("つぎにやること", { exact: true })
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toHaveCount(0);
+  await expect(mapRegion.getByText("まず参照だけ反映")).toHaveCount(0);
+
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  const scopeDetail = page.getByRole("region", {
+    name: "対象範囲 のくわしい話",
+  });
+  await expect(scopeDetail).toBeVisible();
+  await expect(
+    scopeDetail.getByText(
+      "この枝で決まったこと: 更新申請に限定で決定 ／ 更新申請だけ"
+    )
+  ).toBeVisible();
+  await expect(scopeDetail.getByText("まだ決まっていない")).toHaveCount(0);
+  await expect(
+    scopeDetail.getByText(
+      "既存顧客向けの更新申請だけでよいか、はじめに確認した。"
+    )
+  ).toBeVisible();
+  await expect(
+    scopeDetail.getByText(/00:04 こちら「今回の対象範囲は/)
+  ).toBeVisible();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("採用", { exact: true })).toBeVisible();
+
+  // A second click re-reads the claim; it never folds the branch.
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toBeVisible();
+  await scopeDetail.getByRole("button", { name: "枝をたたむ" }).click();
+  await expect(
+    mapRegion.getByText("更新申請だけ", { exact: true })
+  ).toHaveCount(0);
+  await mapRegion.getByRole("button", { name: /^対象範囲/ }).click();
+
+  await mapRegion
+    .getByRole("button", { name: /^更新申請に限定で決定/ })
+    .click();
+  const decisionDetail = page.getByRole("region", {
+    name: "更新申請に限定で決定 のくわしい話",
+  });
+  await expect(decisionDetail.getByText("賛成: 更新申請だけ")).toBeVisible();
+  await expect(decisionDetail.getByText("決定・決定")).toHaveCount(0);
+  await expect(
+    decisionDetail.getByText(/00:33 こちら「では更新申請に限定して/)
+  ).toBeVisible();
+
+  await mapRegion.getByRole("button", { name: /^システムのつなぎ/ }).click();
+  await mapRegion.getByRole("button", { name: /^まず参照だけ反映/ }).click();
+  await expect(
+    page.getByText("言いなおし前: すぐ反映したい", { exact: true })
+  ).toBeVisible();
+
+  await mapRegion.getByRole("button", { name: /^来月末の本番/ }).click();
+  const resolved = mapRegion.getByText("来月末に間に合うか", { exact: true });
+  await expect(resolved).toBeVisible();
+  await expect(
+    mapRegion.getByText("いまは対象外", { exact: true })
+  ).toBeVisible();
+  await expect(mapRegion.getByText("懸念", { exact: true })).toHaveCount(0);
+  await mapRegion.getByRole("button", { name: /^来月末に間に合うか/ }).click();
+  await expect(
+    page.getByText(
+      /懸念: まず参照だけ反映（言いなおし前は「すぐ反映したい」）（いまは対象外）/
+    )
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "とじる" }).click();
+  await expect(page.getByRole("region", { name: /のくわしい話/ })).toHaveCount(
+    0
+  );
 });
 
 test("利用者が地図を動かしたらぜんぶ見るで戻せる", async ({ page }) => {
@@ -345,6 +456,74 @@ test("モバイルのアドバイスタブは選択と本文が一致する", as
   ).toBeVisible();
 });
 
+test("アドバイスは聞けた・不要・あとでで一覧から外せる", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await startUiPreview(page, "E2Eアドバイス操作会議");
+
+  const sidebar = page.getByRole("complementary", {
+    name: "こちらのアドバイス",
+  });
+  await expect(sidebar.getByRole("button", { name: "コピー" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "Skip" })).toHaveCount(0);
+  await expect(sidebar.getByRole("button", { name: "OK" })).toHaveCount(0);
+
+  const jargon = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_QUESTION });
+  const ambiguity = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_AMBIGUITY_QUESTION });
+  const laterItem = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_LATER_QUESTION });
+
+  await expect(jargon.getByRole("button", { name: "聞けた" })).toBeVisible();
+  await expect(jargon.getByRole("button", { name: "不要" })).toBeVisible();
+  await expect(jargon.getByRole("button", { name: "あとで" })).toBeVisible();
+
+  await jargon.getByRole("button", { name: "聞けた" }).click();
+  await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
+  await expect(page.getByText("このアドバイスを外しました")).toBeVisible();
+
+  await ambiguity.getByRole("button", { name: "不要" }).click();
+  await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "もどす" })).toHaveCount(2);
+  await page
+    .getByTestId("advice-undo-preview-adv-jargon")
+    .locator("button[data-action]")
+    .dispatchEvent("click");
+  await expect(
+    sidebar.getByRole("article").filter({ hasText: PREVIEW_QUESTION })
+  ).toBeVisible();
+  await expect(sidebar.getByText(PREVIEW_AMBIGUITY_QUESTION)).toHaveCount(0);
+
+  await sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_QUESTION })
+    .getByRole("button", { name: "聞けた" })
+    .click();
+  await expect(sidebar.getByText(PREVIEW_QUESTION)).toHaveCount(0);
+
+  await laterItem.getByRole("button", { name: "あとで" }).click();
+  await expect(
+    sidebar.getByRole("heading", { name: "あとで聞く" })
+  ).toBeVisible();
+  const parked = sidebar
+    .getByRole("article")
+    .filter({ hasText: PREVIEW_LATER_QUESTION });
+  await expect(parked).toBeVisible();
+  await expect(parked.getByRole("button", { name: "あとで" })).toHaveCount(0);
+  await expect(sidebar.getByText("いまは、アドバイスがありません")).toHaveCount(
+    0
+  );
+
+  await parked.getByRole("button", { name: "聞けた" }).click();
+  await expect(sidebar.getByText(PREVIEW_LATER_QUESTION)).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("heading", { name: "あとで聞く" })
+  ).toHaveCount(0);
+});
+
 test("会議終了からまとめの確認・編集・書き出しまで通る", async ({
   page,
   context,
@@ -429,20 +608,13 @@ test("会議終了からまとめの確認・編集・書き出しまで通る",
   await expect(page).toHaveURL("/");
 });
 
-test("生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({ page }) => {
+test("生成中は戻るが出ずまとめが開く", async ({ page }) => {
   await startUiPreview(page, "E2E生成中戻り");
   await confirmEndMeeting(page);
 
   await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await expect(page.getByRole("button", { name: "戻る" })).toBeVisible();
-  await page.getByRole("button", { name: "戻る" }).click();
-
-  await expect(page).not.toHaveURL(/\/document/);
-  await showMeetingMemos(page);
-  await expect(page.getByText(PREVIEW_UTTERANCE)).toBeVisible();
-  await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
-  await page.getByRole("link", { name: "まとめを見る" }).click();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
   await expect(page).toHaveURL(/\/document/);
   await expect(page.getByText("あとで確認すること")).toBeVisible();
   await page.goBack();
@@ -651,9 +823,7 @@ test("読込中のまとめから戻ってもおわるは出ない", async ({ pa
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
 });
 
-test("実会議の生成中に戻るとフロアで完了を待ち同じまとめを開ける", async ({
-  page,
-}) => {
+test("実会議の生成中は戻るが出ずまとめが開く", async ({ page }) => {
   await installClosedWebSocket(page);
   let finalized = false;
   await page.route("**/api/v1/meetings/**/finalize", async (route) => {
@@ -691,15 +861,11 @@ test("実会議の生成中に戻るとフロアで完了を待ち同じまと�
   await expect(page.getByRole("button", { name: "おわる" })).toBeVisible();
   await confirmEndMeeting(page);
   await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await page.getByRole("button", { name: "戻る" }).click();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/document/);
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
-  await expect(page.getByText("まとめをつくっています")).toBeVisible();
-  await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible({
-    timeout: 8000,
-  });
-  await page.getByRole("link", { name: "まとめを見る" }).click();
-  await expect(page).toHaveURL(/\/document/);
+  await expect(page).toHaveURL(/\/document/, { timeout: 8000 });
   await expect(
     page.getByText("遅延したまとめです。", { exact: true })
   ).toBeVisible();
@@ -707,6 +873,36 @@ test("実会議の生成中に戻るとフロアで完了を待ち同じまと�
   await expect(page).toHaveURL(/summary=1/);
   await expect(page.getByRole("link", { name: "まとめを見る" })).toBeVisible();
   await expect(page.getByRole("button", { name: "おわる" })).toHaveCount(0);
+});
+
+test("実会議の生成が長いときつくるのをやめでやり直せる", async ({ page }) => {
+  await installClosedWebSocket(page);
+  await page.route("**/api/v1/meetings/**/finalize", async (route) => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 30_000);
+    });
+    await route.abort();
+  });
+  await page.route("**/api/v1/meetings/**/requirements", async (route) => {
+    await route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "requirements document not found" }),
+    });
+  });
+
+  await page.goto("/meetings/e2e-gen-stop?title=生成中止会議");
+  await confirmEndMeeting(page);
+  await expect(page.getByText("まとめをつくっています")).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "戻る" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "つくるのをやめる" })
+  ).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: "つくるのをやめる" }).click();
+  await expect(page.getByText("まとめを作れませんでした。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "もういちど" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "戻る" })).toHaveCount(0);
 });
 
 test("未生成のまとめ画面は空状態を出す", async ({ page }) => {

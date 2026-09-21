@@ -1,6 +1,6 @@
 import { compactBox, mindmap } from "@antv/hierarchy";
 import type { HierarchyData, HierarchyNode } from "@antv/hierarchy";
-import type { MindMapNode } from "./types";
+import type { MindMapNode, MindMapRelationKind } from "./types";
 
 export interface LaidOutMindMapNode {
   id: string;
@@ -12,10 +12,16 @@ export interface LaidOutMindMapNode {
   height: number;
 }
 
+/** Tree edges follow the hierarchy; relation edges are the few extra lines. */
+export type MindMapEdgeKind = "tree" | MindMapRelationKind;
+
 export interface MindMapEdge {
   id: string;
   source: string;
   target: string;
+  kind: MindMapEdgeKind;
+  /** True for the parent-child line itself, even when a relation colours it. */
+  structural: boolean;
 }
 
 export interface MindMapLayout {
@@ -24,10 +30,19 @@ export interface MindMapLayout {
 }
 
 export type MindMapLayoutAlgorithm = "mindmap" | "compactBox";
+export type MindMapLayoutDirection = "LR" | "TB";
+
+/** Extra room a pill needs besides its label: a chip in front, a count behind. */
+export interface MindMapNodeDecoration {
+  chipChars: number;
+  badge: boolean;
+}
 
 export interface LayoutMindMapOptions {
   compact?: boolean;
   algorithm?: MindMapLayoutAlgorithm;
+  direction?: MindMapLayoutDirection;
+  decorationFor?: (node: MindMapNode) => MindMapNodeDecoration;
 }
 
 export const DEFAULT_MIND_MAP_LAYOUT_ALGORITHM: MindMapLayoutAlgorithm =
@@ -36,6 +51,7 @@ export const DEFAULT_MIND_MAP_LAYOUT_ALGORITHM: MindMapLayoutAlgorithm =
 interface NestedMindMapNode {
   id: string;
   label: string;
+  extraWidth: number;
   children: NestedMindMapNode[];
 }
 
@@ -46,15 +62,34 @@ const LABEL_PAD_X = 28;
 const LABEL_PAD_Y = 16;
 const LABEL_LINE_PX = 20;
 const LABEL_MIN_WIDTH = 88;
-const LABEL_MAX_WIDTH = 224;
+const LABEL_MAX_WIDTH = 240;
 const LABEL_MAX_LINES = 3;
+const CHIP_CHAR_PX = 10;
+const CHIP_PAD_PX = 22;
+const BADGE_PX = 50;
 
-export function measureMindMapLabel(label: string): {
+export function measureMindMapDecoration(
+  decoration: MindMapNodeDecoration | undefined
+): number {
+  if (decoration === undefined) {
+    return 0;
+  }
+  const chip =
+    decoration.chipChars > 0
+      ? decoration.chipChars * CHIP_CHAR_PX + CHIP_PAD_PX
+      : 0;
+  return chip + (decoration.badge ? BADGE_PX : 0);
+}
+
+export function measureMindMapLabel(
+  label: string,
+  extraWidth = 0
+): {
   width: number;
   height: number;
 } {
   const chars = Array.from(label).length;
-  const textWidth = chars * LABEL_CHAR_PX;
+  const textWidth = chars * LABEL_CHAR_PX + extraWidth;
   const inner = LABEL_MAX_WIDTH - LABEL_PAD_X;
   const lines = Math.min(
     LABEL_MAX_LINES,
@@ -69,7 +104,10 @@ export function measureMindMapLabel(label: string): {
   };
 }
 
-function nestMindMapForest(nodes: readonly MindMapNode[]): NestedMindMapNode[] {
+function nestMindMapForest(
+  nodes: readonly MindMapNode[],
+  decorationFor: LayoutMindMapOptions["decorationFor"]
+): NestedMindMapNode[] {
   const knownIds = new Set(nodes.map((node) => node.id));
   const childrenByParent = new Map<string | null, MindMapNode[]>();
 
@@ -91,6 +129,7 @@ function nestMindMapForest(nodes: readonly MindMapNode[]): NestedMindMapNode[] {
     return {
       id: node.id,
       label: node.label,
+      extraWidth: measureMindMapDecoration(decorationFor?.(node)),
       children: children.map(nest),
     };
   }
@@ -102,8 +141,17 @@ function toHierarchyData(node: NestedMindMapNode): HierarchyData {
   return {
     id: node.id,
     label: node.label,
+    extraWidth: node.extraWidth,
     children: node.children.map(toHierarchyData),
   };
+}
+
+function measureHierarchyItem(item: HierarchyData): {
+  width: number;
+  height: number;
+} {
+  const extra = typeof item.extraWidth === "number" ? item.extraWidth : 0;
+  return measureMindMapLabel(String(item.label ?? ""), extra);
 }
 
 function collectLaidOut(
@@ -113,7 +161,7 @@ function collectLaidOut(
   const bounds = tree.getBoundingBox();
   tree.translate(-bounds.left, -bounds.top);
   tree.eachNode((node) => {
-    const box = measureMindMapLabel(String(node.data.label ?? ""));
+    const box = measureHierarchyItem(node.data);
     placed.push({
       id: node.id,
       label: String(node.data.label ?? ""),
@@ -126,6 +174,42 @@ function collectLaidOut(
   });
 }
 
+const STACKED_INDENT_X = 12;
+
+function layoutStackedColumn(
+  nodes: readonly MindMapNode[],
+  decorationFor: LayoutMindMapOptions["decorationFor"]
+): MindMapLayout {
+  const forest = nestMindMapForest(nodes, decorationFor);
+  const placed: LaidOutMindMapNode[] = [];
+  let y = 0;
+
+  function place(node: NestedMindMapNode, depth: number): void {
+    const box = measureMindMapLabel(node.label, node.extraWidth);
+    placed.push({
+      id: node.id,
+      label: node.label,
+      x: depth * STACKED_INDENT_X,
+      y,
+      depth,
+      width: box.width,
+      height: box.height,
+    });
+    y += box.height + NODE_GAP_Y;
+    for (const child of node.children) {
+      place(child, depth + 1);
+    }
+  }
+
+  for (const root of forest) {
+    place(root, 0);
+    y += NODE_GAP_Y;
+  }
+
+  const knownIds = new Set(nodes.map((node) => node.id));
+  return { nodes: placed, edges: edgesFor(nodes, knownIds) };
+}
+
 function layoutNestedTree(
   root: NestedMindMapNode,
   algorithm: MindMapLayoutAlgorithm
@@ -135,10 +219,8 @@ function layoutNestedTree(
     direction: "LR" as const,
     fixedRoot: false,
     getId: (item: HierarchyData) => String(item.id ?? ""),
-    getWidth: (item: HierarchyData) =>
-      measureMindMapLabel(String(item.label ?? "")).width,
-    getHeight: (item: HierarchyData) =>
-      measureMindMapLabel(String(item.label ?? "")).height,
+    getWidth: (item: HierarchyData) => measureHierarchyItem(item).width,
+    getHeight: (item: HierarchyData) => measureHierarchyItem(item).height,
     getHGap: () => NODE_GAP_X / 2,
     getVGap: () => NODE_GAP_Y / 2,
   };
@@ -158,18 +240,53 @@ function edgesFor(
   nodes: readonly MindMapNode[],
   knownIds: Set<string>
 ): MindMapEdge[] {
-  return nodes.flatMap((node) => {
-    if (node.parentId === null || !knownIds.has(node.parentId)) {
-      return [];
-    }
-    return [
-      {
-        id: `${node.parentId}-${node.id}`,
+  const edges: MindMapEdge[] = [];
+  const seen = new Set<string>();
+  const superseded = new Set(
+    nodes.filter((node) => node.status === "superseded").map((node) => node.id)
+  );
+  for (const node of nodes) {
+    const stands = !superseded.has(node.id);
+    const toParent =
+      stands && node.parentId !== null && !superseded.has(node.parentId)
+        ? node.relations.find((relation) => relation.targetId === node.parentId)
+        : undefined;
+    if (node.parentId !== null && knownIds.has(node.parentId)) {
+      const id = `${node.parentId}-${node.id}`;
+      seen.add(id);
+      edges.push({
+        id,
         source: node.parentId,
         target: node.id,
-      },
-    ];
-  });
+        kind: toParent?.kind ?? "tree",
+        structural: true,
+      });
+    }
+    for (const relation of node.relations) {
+      if (
+        !stands ||
+        relation.targetId === node.parentId ||
+        relation.targetId === node.id ||
+        !knownIds.has(relation.targetId) ||
+        superseded.has(relation.targetId)
+      ) {
+        continue;
+      }
+      const id = `${relation.kind}-${node.id}-${relation.targetId}`;
+      if (seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      edges.push({
+        id,
+        source: node.id,
+        target: relation.targetId,
+        kind: relation.kind,
+        structural: false,
+      });
+    }
+  }
+  return edges;
 }
 
 export function layoutMindMap(
@@ -177,9 +294,13 @@ export function layoutMindMap(
   options: LayoutMindMapOptions = {}
 ): MindMapLayout {
   void options.compact;
+  const direction = options.direction ?? "LR";
+  if (direction === "TB") {
+    return layoutStackedColumn(nodes, options.decorationFor);
+  }
   const algorithm = options.algorithm ?? DEFAULT_MIND_MAP_LAYOUT_ALGORITHM;
   const knownIds = new Set(nodes.map((node) => node.id));
-  const forest = nestMindMapForest(nodes);
+  const forest = nestMindMapForest(nodes, options.decorationFor);
   const placed: LaidOutMindMapNode[] = [];
   let offsetY = 0;
 
