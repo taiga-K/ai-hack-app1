@@ -23,6 +23,8 @@
 - **AI / LLM 呼び出しの責務**:
   - 生成 AI（LLM、埋め込みベクトル生成、マルチモーダル推論等）の呼び出しは、**バックエンドのインフラ層（Infrastructure Layer）経由に限定**する。
   - フロントエンド（Next.js App Router、Route Handler、Server Actions 含む）から AI プロバイダや AI Gateway を直接呼び出すことは禁止する。フロントエンドは必ずバックエンドの FastAPI を介して AI 機能を利用する。
+- **HTTP API 契約**:
+  - FastAPI が公開する HTTP API は、[フューチャー Web API設計ガイドライン](https://future-architect.github.io/arch-guidelines/documents/forWebAPI/web_api_guidelines.html) に則って設計する。詳細は「7. API設計」を参照すること。
 
 ---
 
@@ -40,6 +42,8 @@
 | **バックエンド FW** | **FastAPI** | Gin、Echo、Django、Flask |
 | **バックエンド設計** | **Clean Architecture** | ハンドラへのドメインロジック直書き、層を無視した密結合 |
 | **AI Gateway** | **オルカルーター（Orca Router / Orcha Router）必須** | OpenAI / Anthropic / Google 等への直接 API 呼び出し |
+| **API設計** | **フューチャー Web API設計ガイドライン**（REST 原則） | GraphQL / gRPC / JSON-RPC の新規採用、ガイドラインと矛盾する独自契約 |
+| **ログ** | **Python / TypeScript の一般的な書き方を優先** | Future ログガイドライン固有キーの先行導入、Go / Java 規約の直写 |
 
 - **補助ライブラリ・ツール群**:
   - パッケージマネージャー: フロントエンドは `pnpm`、バックエンドは `uv`（推奨）または `pip`（lockfile 必須）。フロントエンド・バックエンドそれぞれのサブプロジェクト内でパッケージマネージャーを混在させないこと（リポジトリ全体としてはフロント=pnpm、バック=uv/pip の構成とする）。
@@ -152,7 +156,51 @@ backend/
 
 ---
 
-## 7. 共通実装・コーディング規準
+## 7. API設計（フューチャー Web API設計ガイドライン）
+
+FastAPI が公開する HTTP API は、[フューチャー Web API設計ガイドライン](https://future-architect.github.io/arch-guidelines/documents/forWebAPI/web_api_guidelines.html) を設計のベースラインとする。ガイドラインと矛盾する独自規約を優先してはならない。細部はガイドライン本文を参照し、本節は本リポジトリでの適用方針のみを示す。
+
+### 7.1. アーキテクチャ選定
+- HTTP API は **REST を原則**とする。GraphQL / gRPC / JSON-RPC を新規採用しない。
+- 会議音声など既存の双方向リアルタイム通信は、現行の WebSocket を維持してよい。これを理由に gRPC へ置き換えない。
+
+### 7.2. 表記とリソース
+- **パス（リソース名）**: kebab-case かつ複数形（例: `/api/v1/meetings/{meeting_id}`）。
+- **クエリパラメータ / JSON 項目**: snake_case（例: `meeting_id`, `order_id`）。
+- **リクエスト / レスポンスヘッダー**: kebab-case。
+- 親子関係が強いサブリソースはネスト、独立リソースはフラットとし、両方の重複提供は最小限にする。
+
+### 7.3. HTTP メソッドとステータス
+- 参照は GET、新規作成は POST、全体置換は PUT、部分更新は PATCH、削除は DELETE を用いる。
+- 新規作成に PUT / PATCH を使わない。複雑な検索条件や秘匿値をクエリに載せられない場合に限り、検索に POST を検討してよい。
+- ステータスコードはセマンティクスに従って使い分ける。疑わしい場合は 200 / 400 / 500 を用いる。
+  - 一覧検索の 0 件は 200（404 や 204 にしない）。
+  - スキーマ検証エラーは 400、業務条件の不成立は 422。
+  - パスで指定したリソースが無い場合は 404。権限の有無を推測させないため、参照権限の無いリソースの GET は 404 とする。
+- 破壊的変更が必要になった場合のバージョニングは、既存どおり **パス方式**（`/api/v1`）を維持する。
+
+### 7.4. レスポンス
+- レスポンスボディは JSON とする。一覧はトップレベル配列にせず、オブジェクトでラップする（件数やページングを後から足せる形）。
+- HTTP 契約（パス・スキーマ・ステータス）は Presentation 層で定義する。ルーターへ業務ロジックやプロンプト組み立てを直書きしない。
+
+---
+
+## 8. ログ方針
+
+フューチャーの[ログ設計ガイドライン](https://future-architect.github.io/arch-guidelines/documents/forLog/log_guidelines.html) は**参考**にする。Go / Java 寄りの規約を直写せず、**Python・TypeScript の一般的な書き方を優先**する。
+
+- **バックエンド**: 標準 `logging` または structlog など、Python で一般的な構造化ログを用いる。
+- **フロントエンド**: サーバーは pino 等を用いてよい。クライアントに過剰な構造化ログや、バックエンドと同じスキーマを強制しない。
+- ガイドライン固有のキー名（`severity.text` 等）、メッセージコード、通知フラグは、運用手順と結びつく必要が出るまで導入しない。
+- 残す共通ルール:
+  - 本番は構造化ログにする。
+  - 秘密情報・個人情報をログに出さない。
+  - ユーザー向け文言とログを分ける。
+  - リクエストを追える識別子を付ける。
+
+---
+
+## 9. 共通実装・コーディング規準
 
 エージェントがコードを生成・編集する際は、以下のコーディング規準を遵守してください。
 
@@ -182,7 +230,7 @@ backend/
 
 ---
 
-## 8. エージェント作業フロー
+## 10. エージェント作業フロー
 
 タスクを開始する際は、以下のステップに沿って進行してください。
 
@@ -195,7 +243,7 @@ backend/
 4. **実装と検証の実施**:
    - 実装後、環境で実行可能な検証を必ず実施する。
      - フロントエンド: 型チェック（`pnpm tsc --noEmit`）、リンター（`pnpm eslint`）、FSD 構造検証（Steiger 導入時）、画面表示確認
-     - バックエンド: テスト実行（`pytest`）、静的型チェック（`mypy` / `pyright`）、API 契約確認
+     - バックエンド: テスト実行（`pytest`）、静的型チェック（`mypy` / `pyright`）、API 契約確認（フューチャー Web API設計ガイドラインとの整合を含む）
    - **UI を触った PR は、ブラウザで操作した検証スクリーンショットと操作動画の両方を PR 本文に添付する。** 見た目のスクショだけでは不可。動画は実際のクリック・入力・画面遷移を映すこと。
 5. **結果報告と PR 作成**:
    - 検証結果や変更内容を**日本語でユーザーに分かりやすく報告**する。環境要因等で実行できなかった検証がある場合は、その理由を明示する。
@@ -204,7 +252,7 @@ backend/
 
 ---
 
-## 9. レビュー却下基準（Review Rejection Criteria）
+## 11. レビュー却下基準（Review Rejection Criteria）
 
 以下の項目に該当するプルリクエストやコード変更は、自動レビューおよび人間によるレビューにおいて即時却下（Changes Requested / Reject）の対象となります。
 
@@ -218,13 +266,16 @@ backend/
 - [ ] Presentation 層（ルーター）や Next.js `page.tsx` に業務ロジック・プロンプト組み立てが直書きされている
 - [ ] 機密情報（API キー等）がコミットまたはクライアント公開用環境変数に含まれている
 - [ ] UI を変更した PR に、ブラウザ操作の検証スクリーンショットと操作動画が揃っていない（スクショのみは不可）
+- [ ] HTTP API がフューチャー Web API設計ガイドラインに明らかに反している（例: JSON の camelCase 化、一覧のトップレベル配列、HTTP メソッドのセマンティクス無視、GraphQL / gRPC の新規採用）
 
 ---
 
-## 10. 参考ドキュメント・公式リンク
+## 12. 参考ドキュメント・公式リンク
 
 - **Feature-Sliced Design (FSD)**: [https://feature-sliced.design/](https://feature-sliced.design/)
 - **FSD with Next.js Guide**: [https://feature-sliced.design/docs/guides/tech/with-nextjs](https://feature-sliced.design/docs/guides/tech/with-nextjs)
 - **FastAPI Documentation**: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
 - **オルカルーター（Orca Router）公式ドキュメント**: [https://docs.orcarouter.ai/ja/introduction](https://docs.orcarouter.ai/ja/introduction)
 - **Orca Router Chat Completions API**: [https://docs.orcarouter.ai/api-reference/chat/create-a-chat-completion](https://docs.orcarouter.ai/api-reference/chat/create-a-chat-completion)
+- **フューチャー Web API設計ガイドライン**（必須）: [https://future-architect.github.io/arch-guidelines/documents/forWebAPI/web_api_guidelines.html](https://future-architect.github.io/arch-guidelines/documents/forWebAPI/web_api_guidelines.html)
+- **フューチャー ログ設計ガイドライン**（参考）: [https://future-architect.github.io/arch-guidelines/documents/forLog/log_guidelines.html](https://future-architect.github.io/arch-guidelines/documents/forLog/log_guidelines.html)
