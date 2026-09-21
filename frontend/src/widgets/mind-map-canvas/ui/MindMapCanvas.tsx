@@ -41,17 +41,16 @@ import { Button } from "@/shared/ui";
 import { cn } from "cn";
 import {
   didMindMapPaneWidthChange,
+  keepInViewForMindMapFit,
   shouldCommitMindMapCameraMemory,
   shouldDeferMindMapResizeFit,
   shouldRefitForPaneHeight,
   shouldRefitMindMapCamera,
-  usesStackedMindMapLayout,
 } from "../model/should-refit-camera";
 import { viewportFromMindMapLayout } from "../model/viewport-from-layout";
 
 export interface MindMapCanvasProps {
   snapshot: MindMapSnapshot;
-  compact?: boolean;
   /** Finalized speech, so a claim can show who said what and when. */
   utterances?: readonly Utterance[];
 }
@@ -74,7 +73,6 @@ interface TopicNodeData extends Record<string, unknown> {
   hasChildren: boolean;
   expanded: boolean;
   selected: boolean;
-  stacked: boolean;
 }
 
 const PILL_TONE: Record<MindMapNodeTone, string> = {
@@ -108,7 +106,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
       <Handle
         id={HANDLE_IN_LEFT}
         type="target"
-        position={data.stacked ? Position.Top : Position.Left}
+        position={Position.Left}
         className="!size-2 !border-0 !bg-transparent"
       />
       <Handle
@@ -156,7 +154,7 @@ function TopicNode({ data }: NodeProps<Node<TopicNodeData>>) {
       <Handle
         id={HANDLE_OUT_RIGHT}
         type="source"
-        position={data.stacked ? Position.Bottom : Position.Right}
+        position={Position.Right}
         className="!size-2 !border-0 !bg-transparent"
       />
       <Handle
@@ -176,8 +174,8 @@ const nodeTypes = {
 const MIN_ZOOM = 0.12;
 const MAX_ZOOM = 1.45;
 const FIT_MAX_ZOOM = 1.2;
-/** 14px labels stay about 12px on a phone; the map pans instead of shrinking. */
-const STACKED_FIT_MIN_ZOOM = 0.85;
+/** Keep labels readable; overflow is fine and the user can pan. */
+const FIT_MIN_ZOOM = 0.85;
 const FIT_PADDING = 0.12;
 const RESIZE_FIT_MS = 220;
 
@@ -199,33 +197,20 @@ function readVisiblePaneSize(
   return { width: fallbackWidth, height: fallbackHeight };
 }
 
-function fitMaxZoom(stacked: boolean): number {
-  return stacked ? 1 : FIT_MAX_ZOOM;
-}
-
-/** On a phone, keep labels legible and let the user pan instead of shrinking. */
-function fitMinZoom(stacked: boolean): number {
-  return stacked ? STACKED_FIT_MIN_ZOOM : MIN_ZOOM;
-}
-
 function MindMapFlow({
   snapshot,
-  compact,
   visibility,
   expandedIds,
   selectedId,
   onPick,
 }: {
   snapshot: MindMapSnapshot;
-  compact: boolean;
   visibility: MindMapVisibility;
   expandedIds: ReadonlySet<string>;
   selectedId: string | null;
   onPick: (nodeId: string) => void;
 }) {
   const didInitialFit = useRef(false);
-  const compactRef = useRef(compact);
-  const stackedForFitRef = useRef(compact);
   const lastSizeRef = useRef({ width: 0, height: 0 });
   const lastNodeSignatureRef = useRef("");
   const isFittingRef = useRef(false);
@@ -240,15 +225,12 @@ function MindMapFlow({
   const storeHeight = useStore((state) => state.height);
   const width = measuredPane.width > 8 ? measuredPane.width : storeWidth;
   const height = measuredPane.height > 8 ? measuredPane.height : storeHeight;
-  const stacked = usesStackedMindMapLayout(width, compact);
   const layout = useMemo(
     () =>
       layoutMindMap(visibility.visible, {
-        compact: stacked,
-        direction: stacked ? "TB" : "LR",
         decorationFor: (node) => decorationForMindMapNode(node, visibility),
       }),
-    [visibility, stacked]
+    [visibility]
   );
   const nodeById = useMemo(
     () => new Map(snapshot.nodes.map((node) => [node.id, node])),
@@ -287,7 +269,6 @@ function MindMapFlow({
               hasChildren: parentIds.has(placed.id),
               expanded: expandedIds.has(placed.id),
               selected: placed.id === selectedId,
-              stacked,
             },
             width: placed.width,
             height: placed.height,
@@ -297,26 +278,11 @@ function MindMapFlow({
           },
         ];
       }),
-    [
-      layout.nodes,
-      nodeById,
-      parentIds,
-      visibility,
-      expandedIds,
-      selectedId,
-      stacked,
-    ]
+    [layout.nodes, nodeById, parentIds, visibility, expandedIds, selectedId]
   );
   const edges: Edge[] = useMemo(() => {
     const placedById = new Map(layout.nodes.map((node) => [node.id, node]));
-    // The phone column lists relations in the detail instead of drawing them,
-    // but every parent-child line stays, even one a relation would colour.
-    const drawn = stacked
-      ? layout.edges.flatMap((edge) =>
-          edge.structural ? [{ ...edge, kind: "tree" as const }] : []
-        )
-      : layout.edges;
-    return drawn.map((edge) => {
+    return layout.edges.map((edge) => {
       const style = EDGE_STYLE[edge.kind];
       const isRelation = edge.kind !== "tree";
       const from = placedById.get(edge.source);
@@ -357,7 +323,7 @@ function MindMapFlow({
         },
       };
     });
-  }, [layout.edges, layout.nodes, stacked]);
+  }, [layout.edges, layout.nodes]);
   const hasNodes = layout.nodes.length > 0;
   // Visible set, not just snapshot growth: opening a branch must bring its
   // children into view, and a fold gives the room back.
@@ -376,10 +342,8 @@ function MindMapFlow({
     (tallest, node) => Math.max(tallest, node.y + node.height),
     0
   );
-  const minFitZoom = fitMinZoom(stacked);
-  const overflowsX = stacked && width > 8 && layoutWidth * minFitZoom > width;
-  const overflowsY =
-    stacked && height > 8 && layoutHeight * minFitZoom > height;
+  const overflowsX = width > 8 && layoutWidth * FIT_MIN_ZOOM > width;
+  const overflowsY = height > 8 && layoutHeight * FIT_MIN_ZOOM > height;
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -412,15 +376,6 @@ function MindMapFlow({
   }, [hasNodes]);
 
   useEffect(() => {
-    if (
-      compactRef.current !== compact ||
-      stackedForFitRef.current !== stacked
-    ) {
-      compactRef.current = compact;
-      stackedForFitRef.current = stacked;
-      didInitialFit.current = false;
-      lastSizeRef.current = { width: 0, height: 0 };
-    }
     const visible = readVisiblePaneSize(paneRef.current, width, height);
     const previous = lastSizeRef.current;
     const widthChanged = didMindMapPaneWidthChange(
@@ -479,9 +434,13 @@ function MindMapFlow({
         nextVisible.width,
         nextVisible.height,
         FIT_PADDING,
-        fitMinZoom(stacked),
-        fitMaxZoom(stacked),
-        isFirstLayout ? null : keepInView
+        FIT_MIN_ZOOM,
+        FIT_MAX_ZOOM,
+        keepInViewForMindMapFit({
+          isFirstLayout,
+          resetToFullTree: false,
+          keepInView,
+        })
       );
       if (viewport === null) {
         return;
@@ -511,11 +470,9 @@ function MindMapFlow({
       isFittingRef.current = false;
     };
   }, [
-    compact,
     keepInView,
     layout.nodes,
     setViewport,
-    stacked,
     hasNodes,
     height,
     nodeSignature,
@@ -527,76 +484,84 @@ function MindMapFlow({
   ]);
 
   return (
-    <div
-      ref={paneRef}
-      className="relative h-full min-h-0 overflow-hidden"
-      onWheel={() => {
-        if (userTookCamera) {
-          return;
-        }
-        setUserTookCamera(true);
-      }}
-    >
-      {userTookCamera ? (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="absolute right-2 top-2 z-10"
-          onClick={() => {
-            setUserTookCamera(false);
-            const visible = readVisiblePaneSize(paneRef.current, width, height);
-            const viewport = viewportFromMindMapLayout(
-              layout.nodes,
-              visible.width,
-              visible.height,
-              FIT_PADDING,
-              fitMinZoom(stacked),
-              fitMaxZoom(stacked)
-            );
-            if (viewport === null) {
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-8 shrink-0 items-center justify-end">
+        {userTookCamera ? (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            onClick={() => {
+              // Fit the full tree here. A leftover reset flag would drop
+              // keepInView on the next expand, growth, or resize.
               setUserTookCamera(false);
-              return;
-            }
-            isFittingRef.current = true;
-            void setViewport(viewport, { duration: 280 }).finally(() => {
-              isFittingRef.current = false;
-            });
-          }}
-        >
-          ぜんぶ見る
-        </Button>
-      ) : null}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        panOnDrag
-        zoomOnScroll
-        nodesDraggable={false}
-        nodesConnectable={false}
-        nodesFocusable={false}
-        elementsSelectable={false}
-        minZoom={MIN_ZOOM}
-        maxZoom={MAX_ZOOM}
-        className="h-full bg-transparent"
-        onNodeClick={(_, node) => {
-          onPick(node.id);
-        }}
-        onMove={(event) => {
-          if (event === null || isFittingRef.current || userTookCamera) {
+              const visible = readVisiblePaneSize(
+                paneRef.current,
+                width,
+                height
+              );
+              const viewport = viewportFromMindMapLayout(
+                layout.nodes,
+                visible.width,
+                visible.height,
+                FIT_PADDING,
+                FIT_MIN_ZOOM,
+                FIT_MAX_ZOOM
+              );
+              if (viewport === null) {
+                return;
+              }
+              isFittingRef.current = true;
+              void setViewport(viewport, { duration: 280 }).finally(() => {
+                isFittingRef.current = false;
+              });
+            }}
+          >
+            ぜんぶ見る
+          </Button>
+        ) : null}
+      </div>
+      <div
+        ref={paneRef}
+        className="relative min-h-0 flex-1 overflow-hidden"
+        onWheel={() => {
+          if (userTookCamera) {
             return;
           }
           setUserTookCamera(true);
         }}
       >
-        <Background gap={22} size={1} color="var(--border)" />
-      </ReactFlow>
-      {(overflowsX || overflowsY) && !userTookCamera ? (
-        <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
-          {overflowsX ? "地図は横にうごかせます" : "地図はたてにうごかせます"}
-        </p>
-      ) : null}
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          panOnDrag
+          zoomOnScroll
+          nodesDraggable={false}
+          nodesConnectable={false}
+          nodesFocusable={false}
+          elementsSelectable={false}
+          minZoom={MIN_ZOOM}
+          maxZoom={MAX_ZOOM}
+          className="h-full bg-transparent"
+          onNodeClick={(_, node) => {
+            onPick(node.id);
+          }}
+          onMove={(event) => {
+            if (event === null || isFittingRef.current || userTookCamera) {
+              return;
+            }
+            setUserTookCamera(true);
+          }}
+        >
+          <Background gap={22} size={1} color="var(--border)" />
+        </ReactFlow>
+        {(overflowsX || overflowsY) && !userTookCamera ? (
+          <p className="pointer-events-none absolute bottom-1 left-0 text-xs text-muted-foreground">
+            {overflowsX ? "地図は横にうごかせます" : "地図はたてにうごかせます"}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -805,7 +770,6 @@ function MapSummaryLine({ nodes }: { nodes: readonly MindMapNode[] }) {
 
 export function MindMapCanvas({
   snapshot,
-  compact = false,
   utterances = [],
 }: MindMapCanvasProps) {
   const isEmpty = snapshot.nodes.length === 0;
@@ -843,7 +807,6 @@ export function MindMapCanvas({
           <ReactFlowProvider>
             <MindMapFlow
               snapshot={snapshot}
-              compact={compact}
               visibility={visibility}
               expandedIds={expandedIds}
               selectedId={selected?.id ?? null}
